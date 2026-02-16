@@ -161,12 +161,55 @@ function Test-DockerReady {
 }
 
 function Start-DockerDesktopIfNeeded {
+  param([int]$TimeoutSeconds = 180)
+
   if (Test-DockerReady) {
     Write-Host "Docker daemon is ready."
     return
   }
 
-  throw "Docker daemon is not ready. Start Docker Desktop and run the script again."
+  Write-Warning "Docker daemon is not ready. Trying to start Docker Desktop..."
+
+  $dockerDesktopPath = $null
+  $candidatePaths = @(
+    (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"),
+    (Join-Path $env:ProgramW6432 "Docker\Docker\Docker Desktop.exe"),
+    (Join-Path $env:LocalAppData "Docker\Docker\Docker Desktop.exe")
+  ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+
+  foreach ($candidate in $candidatePaths) {
+    if (Test-Path -LiteralPath $candidate) {
+      $dockerDesktopPath = $candidate
+      break
+    }
+  }
+
+  if ($dockerDesktopPath) {
+    try {
+      $existingDesktop = Get-Process -Name "Docker Desktop" -ErrorAction SilentlyContinue
+      if (-not $existingDesktop) {
+        Start-Process -FilePath $dockerDesktopPath | Out-Null
+        Write-Host "Starting Docker Desktop: $dockerDesktopPath"
+      } else {
+        Write-Host "Docker Desktop process is already running."
+      }
+    } catch {
+      Write-Warning "Failed to start Docker Desktop automatically: $($_.Exception.Message)"
+    }
+  } else {
+    Write-Warning "Docker Desktop executable not found. Start it manually and keep this window open."
+  }
+
+  $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+  while ((Get-Date) -lt $deadline) {
+    if (Test-DockerReady) {
+      Write-Host "Docker daemon is ready."
+      return
+    }
+    Start-Sleep -Seconds 2
+  }
+
+  throw "Docker daemon is not ready after $TimeoutSeconds seconds. Open Docker Desktop, wait for engine startup, and run the script again."
 }
 
 function Test-PortAvailable {
