@@ -1,4 +1,5 @@
 import React from 'react';
+import Box from '@mui/material/Box';
 import BottomNavigation from '@mui/material/BottomNavigation';
 import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 import Paper from '@mui/material/Paper';
@@ -9,6 +10,7 @@ export default function BottomNav({ role, activeSection, onNavigate }) {
   if (!items.length) {
     return null;
   }
+  const compactMode = items.length > 4;
 
   return (
     <Paper
@@ -22,33 +24,41 @@ export default function BottomNav({ role, activeSection, onNavigate }) {
         borderTop: '1px solid',
         borderColor: 'divider',
         bgcolor: 'background.paper',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
+        px: 0.5
       }}
     >
-      <BottomNavigation
-        showLabels
-        value={activeSection}
-        onChange={(event, value) => onNavigate(value)}
-        sx={{
-          height: 64,
-          bgcolor: 'transparent'
-        }}
-      >
-        {items.map((item) => (
-          <BottomNavigationAction
-            key={item.id}
-            label={item.label}
-            value={item.id}
-            icon={itemIcon(item.id)}
-            sx={{
-              minWidth: 64,
-              '&.Mui-selected': {
-                fontWeight: 600
-              }
-            }}
-          />
-        ))}
-      </BottomNavigation>
+      <Box sx={{ overflowX: 'auto', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
+        <BottomNavigation
+          showLabels
+          value={activeSection}
+          aria-label="Мобильная навигация"
+          onChange={(event, value) => onNavigate(value)}
+          sx={{
+            height: compactMode ? 68 : 64,
+            minWidth: '100%',
+            width: 'max-content',
+            bgcolor: 'transparent'
+          }}
+        >
+          {items.map((item) => (
+            <BottomNavigationAction
+              key={item.id}
+              label={item.label}
+              value={item.id}
+              icon={itemIcon(item.id)}
+              aria-label={item.label}
+              sx={{
+                minWidth: compactMode ? 76 : 80,
+                px: compactMode ? 0.75 : 1.25,
+                '&.Mui-selected': {
+                  fontWeight: 600
+                }
+              }}
+            />
+          ))}
+        </BottomNavigation>
+      </Box>
     </Paper>
   );
 }

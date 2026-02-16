@@ -16,37 +16,42 @@ const LogisticianView = lazy(() => import('./views/LogisticianView.jsx'));
 const DriverView = lazy(() => import('./views/DriverView.jsx'));
 const ManagerView = lazy(() => import('./views/ManagerView.jsx'));
 
+const DEFAULT_SECTION_BY_ROLE = {
+  DIRECTOR: 'director-profile',
+  MANAGER: 'manager-dashboard',
+  LOGISTICIAN: 'logistic-orders',
+  DRIVER: 'driver-orders'
+};
+
+const VIEW_BY_ROLE = {
+  DIRECTOR: DirectorView,
+  MANAGER: ManagerView,
+  LOGISTICIAN: LogisticianView,
+  DRIVER: DriverView
+};
+
+function defaultSectionForRole(role) {
+  return DEFAULT_SECTION_BY_ROLE[role] || '';
+}
+
 export default function App() {
   const [auth, setAuth] = useState(loadAuth());
   const [activeSection, setActiveSection] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const isMobile = useMediaQuery(themeMinimal.breakpoints.down('md'));
 
   useEffect(() => {
     if (auth) {
       saveAuth(auth);
       if (!activeSection) {
-        if (auth.role === 'DIRECTOR') setActiveSection('director-profile');
-        else if (auth.role === 'MANAGER') setActiveSection('manager-dashboard');
-        else if (auth.role === 'LOGISTICIAN') setActiveSection('logistic-orders');
-        else if (auth.role === 'DRIVER') setActiveSection('driver-orders');
+        setActiveSection(defaultSectionForRole(auth.role));
       }
     }
   }, [auth, activeSection]);
 
-  useEffect(() => {
-    if (!isMobile) {
-      setMobileNavOpen(false);
-    }
-  }, [isMobile]);
-
   const handleNavigate = (section) => {
     setActiveSection(section);
-    if (isMobile) {
-      setMobileNavOpen(false);
-    }
   };
 
   const handleLogin = async (username, password) => {
@@ -61,10 +66,7 @@ export default function App() {
         role: response.role
       };
       setAuth(newAuth);
-      if (newAuth.role === 'DIRECTOR') setActiveSection('director-profile');
-      else if (newAuth.role === 'MANAGER') setActiveSection('manager-dashboard');
-      else if (newAuth.role === 'LOGISTICIAN') setActiveSection('logistic-orders');
-      else if (newAuth.role === 'DRIVER') setActiveSection('driver-orders');
+      setActiveSection(defaultSectionForRole(newAuth.role));
     } catch (err) {
       setError(err.message || 'Не удалось войти');
     } finally {
@@ -79,17 +81,9 @@ export default function App() {
   };
 
   const renderRoleView = () => {
-    if (auth.role === 'DIRECTOR') {
-      return <DirectorView token={auth.token} activeSection={activeSection} />;
-    }
-    if (auth.role === 'MANAGER') {
-      return <ManagerView token={auth.token} activeSection={activeSection} />;
-    }
-    if (auth.role === 'LOGISTICIAN') {
-      return <LogisticianView token={auth.token} activeSection={activeSection} />;
-    }
-    if (auth.role === 'DRIVER') {
-      return <DriverView token={auth.token} activeSection={activeSection} />;
+    const RoleView = VIEW_BY_ROLE[auth.role];
+    if (RoleView) {
+      return <RoleView token={auth.token} activeSection={activeSection} />;
     }
     return null;
   };
@@ -103,7 +97,8 @@ export default function App() {
     );
   }
 
-  const useBottomNav = isMobile && (auth.role === 'DIRECTOR' || auth.role === 'DRIVER');
+  // Keep one mobile navigation model for all roles.
+  const useBottomNav = isMobile;
 
   return (
     <ThemeProvider theme={themeMinimal}>
@@ -116,14 +111,11 @@ export default function App() {
           bgcolor: 'background.default'
         }}
       >
-        {!useBottomNav && (
+        {!isMobile && (
           <Sidebar
             user={auth}
             activeSection={activeSection}
             onNavigate={handleNavigate}
-            isMobile={isMobile}
-            mobileOpen={mobileNavOpen}
-            onClose={() => setMobileNavOpen(false)}
           />
         )}
         <Box component="main" sx={{ flexGrow: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: '100vh' }}>
@@ -131,8 +123,8 @@ export default function App() {
             user={auth}
             activeSection={activeSection}
             onLogout={handleLogout}
-            onToggleSidebar={() => setMobileNavOpen(true)}
-            showMenuButton={isMobile && !useBottomNav}
+            onToggleSidebar={() => {}}
+            showMenuButton={false}
           />
           <Box
             sx={{

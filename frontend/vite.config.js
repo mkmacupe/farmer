@@ -23,6 +23,10 @@ const ensureNoProxyForLocalhost = () => {
 ensureNoProxyForLocalhost();
 
 export default defineConfig(({ mode }) => {
+  if (mode === 'test') {
+    process.env.NODE_ENV = 'test';
+  }
+
   const analyze = mode === 'analyze';
   const env = loadEnv(mode, process.cwd(), '');
   const apiHost = env.VITE_PROXY_API_HOST || process.env.VITE_PROXY_API_HOST || '127.0.0.1';
@@ -52,6 +56,10 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/test/setup.js',
       globals: true,
+      testTimeout: 15000,
+      env: {
+        NODE_ENV: 'test'
+      },
       exclude: ['e2e/**', 'node_modules/**', 'dist/**']
     }
   };

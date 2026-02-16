@@ -110,8 +110,8 @@ public class OrderService {
       orderTimelineService.recordCreation(saved);
       for (OrderItem item : saved.getItems()) {
         stockMovementService.record(
-            item.getProduct().getId(),
-            saved.getId(),
+            item.getProduct(),
+            saved,
             StockMovementType.OUTBOUND,
             -item.getQuantity(),
             "ORDER_CREATED"

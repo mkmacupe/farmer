@@ -62,6 +62,23 @@ describe('authStorage', () => {
     expect(loadAuth()).toBeNull();
   });
 
+  it('prioritizes session storage over legacy local storage', () => {
+    const sessionPayload = { token: 'session-token', username: 'driver' };
+    const legacyPayload = { token: 'legacy-token', username: 'manager' };
+    sessionStorage.setItem(AUTH_KEY, JSON.stringify(sessionPayload));
+    localStorage.setItem(AUTH_KEY, JSON.stringify(legacyPayload));
+
+    expect(loadAuth()).toEqual(sessionPayload);
+    expect(localStorage.getItem(AUTH_KEY)).toBe(JSON.stringify(legacyPayload));
+  });
+
+  it('returns null when both storages contain invalid values', () => {
+    sessionStorage.setItem(AUTH_KEY, '{broken-session');
+    localStorage.setItem(AUTH_KEY, '{broken-local');
+
+    expect(loadAuth()).toBeNull();
+  });
+
   it('saves and clears auth', () => {
     const payload = { token: 'token-3', username: 'director' };
     saveAuth(payload);

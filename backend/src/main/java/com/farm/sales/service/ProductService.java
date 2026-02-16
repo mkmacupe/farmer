@@ -10,6 +10,8 @@ import com.farm.sales.repository.ProductRepository;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
@@ -60,10 +62,12 @@ public class ProductService {
     );
   }
 
+  @Cacheable("product-categories")
   public List<String> getCategories() {
     return productRepository.findDistinctCategories();
   }
 
+  @CacheEvict(value = "product-categories", allEntries = true)
   public ProductResponse create(ProductRequest request) {
     Product product = new Product(
         request.name().trim(),
@@ -75,7 +79,7 @@ public class ProductService {
     );
     Product saved = productRepository.save(product);
     if (saved.getStockQuantity() > 0) {
-      stockMovementService.record(saved.getId(), null, StockMovementType.INBOUND, saved.getStockQuantity(), "PRODUCT_CREATED");
+      stockMovementService.record(saved, null, StockMovementType.INBOUND, saved.getStockQuantity(), "PRODUCT_CREATED");
     }
     auditTrailPublisher.publish(
         "PRODUCT_CREATED",
@@ -86,6 +90,7 @@ public class ProductService {
     return toResponse(saved);
   }
 
+  @CacheEvict(value = "product-categories", allEntries = true)
   public ProductResponse update(Long id, ProductRequest request) {
     Product product = productRepository.findById(id)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Товар не найден"));
@@ -100,7 +105,7 @@ public class ProductService {
     int stockDiff = saved.getStockQuantity() - previousStock;
     if (stockDiff != 0) {
       StockMovementType movementType = stockDiff > 0 ? StockMovementType.INBOUND : StockMovementType.ADJUSTMENT;
-      stockMovementService.record(saved.getId(), null, movementType, stockDiff, "PRODUCT_UPDATED");
+      stockMovementService.record(saved, null, movementType, stockDiff, "PRODUCT_UPDATED");
     }
     auditTrailPublisher.publish(
         "PRODUCT_UPDATED",
@@ -112,6 +117,7 @@ public class ProductService {
   }
 
   @Transactional
+  @CacheEvict(value = "product-categories", allEntries = true)
   public void delete(Long id) {
     if (!productRepository.existsById(id)) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Товар не найден");

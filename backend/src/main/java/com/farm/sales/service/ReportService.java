@@ -38,6 +38,7 @@ public class ReportService {
          ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
       Sheet sheet = workbook.createSheet("Заказы");
       createHeader(sheet);
+      setColumnWidths(sheet);
 
       DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
           .withLocale(Locale.US)
@@ -58,10 +59,6 @@ public class ReportService {
         row.createCell(7).setCellValue(order.getAssignedDriver() == null ? "-" : order.getAssignedDriver().getFullName());
       }
 
-      for (int i = 0; i < 8; i++) {
-        sheet.autoSizeColumn(i);
-      }
-
       workbook.write(outputStream);
       return outputStream.toByteArray();
     } catch (IOException ex) {
@@ -80,6 +77,17 @@ public class ReportService {
     header.createCell(5).setCellValue("Количество позиций");
     header.createCell(6).setCellValue("Адрес доставки");
     header.createCell(7).setCellValue("Водитель");
+  }
+
+  private void setColumnWidths(Sheet sheet) {
+    sheet.setColumnWidth(0, 12 * 256);
+    sheet.setColumnWidth(1, 30 * 256);
+    sheet.setColumnWidth(2, 14 * 256);
+    sheet.setColumnWidth(3, 20 * 256);
+    sheet.setColumnWidth(4, 14 * 256);
+    sheet.setColumnWidth(5, 20 * 256);
+    sheet.setColumnWidth(6, 48 * 256);
+    sheet.setColumnWidth(7, 24 * 256);
   }
 
   private OrderStatus parseStatus(String statusValue) {

@@ -49,6 +49,22 @@ public class StockMovementService {
           .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Заказ не найден"));
     }
 
+    saveMovement(product, order, type, quantityChange, reason);
+  }
+
+  @Transactional
+  public void record(Product product, Order order, StockMovementType type, int quantityChange, String reason) {
+    if (quantityChange == 0) {
+      return;
+    }
+    if (product == null) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Товар обязателен для движения остатков");
+    }
+
+    saveMovement(product, order, type, quantityChange, reason);
+  }
+
+  private void saveMovement(Product product, Order order, StockMovementType type, int quantityChange, String reason) {
     AuditActor actor = auditActorResolver.resolveCurrentActor();
 
     StockMovement movement = new StockMovement();

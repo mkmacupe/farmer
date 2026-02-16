@@ -7,6 +7,8 @@ import com.farm.sales.model.Role;
 import com.farm.sales.model.User;
 import com.farm.sales.repository.UserRepository;
 import java.util.List;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -26,6 +28,7 @@ public class UserManagementService {
     this.auditTrailPublisher = auditTrailPublisher;
   }
 
+  @CacheEvict(value = "users-by-role", key = "'DIRECTOR'")
   public UserSummaryResponse createDirector(CreateDirectorRequest request) {
     String username = request.username().trim();
     if (userRepository.existsByUsername(username)) {
@@ -51,12 +54,14 @@ public class UserManagementService {
     return toResponse(saved);
   }
 
+  @Cacheable(value = "users-by-role", key = "'DIRECTOR'")
   public List<UserSummaryResponse> listDirectors() {
     return userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR).stream()
         .map(this::toResponse)
         .toList();
   }
 
+  @Cacheable(value = "users-by-role", key = "'DRIVER'")
   public List<UserSummaryResponse> listDrivers() {
     return userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER).stream()
         .map(this::toResponse)

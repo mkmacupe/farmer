@@ -83,6 +83,10 @@ const themeMinimal = createTheme({
         body: {
           backgroundColor: palette.background.default,
           backgroundImage: 'none'
+        },
+        'button:focus-visible, [role="button"]:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:not([tabindex="-1"]):focus-visible': {
+          outline: `3px solid ${alpha(palette.primary.main, 0.55)}`,
+          outlineOffset: 2
         }
       }
     },
@@ -96,7 +100,11 @@ const themeMinimal = createTheme({
           borderRadius: 8,
           padding: '8px 18px',
           transition: 'all 0.15s ease',
-          fontWeight: 600
+          fontWeight: 600,
+          '&:focus-visible': {
+            outline: `3px solid ${alpha(palette.primary.main, 0.5)}`,
+            outlineOffset: 2
+          }
         },
         containedPrimary: {
           backgroundColor: palette.primary.main,
@@ -133,6 +141,10 @@ const themeMinimal = createTheme({
           transition: 'all 0.15s ease',
           '&:hover': {
             backgroundColor: 'rgba(0,0,0,0.04)'
+          },
+          '&:focus-visible': {
+            outline: `3px solid ${alpha(palette.primary.main, 0.5)}`,
+            outlineOffset: 2
           }
         }
       }
@@ -241,6 +253,9 @@ const themeMinimal = createTheme({
           transition: 'background-color 0.1s ease',
           '&:hover': {
             backgroundColor: 'rgba(0,0,0,0.015)'
+          },
+          '&:focus-within': {
+            backgroundColor: alpha(palette.primary.main, 0.06)
           }
         }
       }
@@ -251,13 +266,94 @@ const themeMinimal = createTheme({
           borderRadius: 6,
           fontWeight: 500,
           height: 26,
-          fontSize: '0.75rem'
+          fontSize: '0.75rem',
+          '&:focus-visible': {
+            outline: `3px solid ${alpha(palette.primary.main, 0.45)}`,
+            outlineOffset: 2
+          }
         },
         sizeSmall: {
           height: 24,
           fontSize: '0.7rem'
         }
-      }
+      },
+      variants: [
+        {
+          props: { variant: 'filled', color: 'secondary' },
+          style: {
+            backgroundColor: '#475569',
+            color: '#ffffff'
+          }
+        },
+        {
+          props: { variant: 'filled', color: 'info' },
+          style: {
+            backgroundColor: '#1d4ed8',
+            color: '#ffffff'
+          }
+        },
+        {
+          props: { variant: 'filled', color: 'success' },
+          style: {
+            backgroundColor: '#15803d',
+            color: '#ffffff'
+          }
+        },
+        {
+          props: { variant: 'filled', color: 'warning' },
+          style: {
+            backgroundColor: '#92400e',
+            color: '#ffffff'
+          }
+        },
+        {
+          props: { variant: 'filled', color: 'error' },
+          style: {
+            backgroundColor: '#b91c1c',
+            color: '#ffffff'
+          }
+        },
+        {
+          props: { variant: 'outlined', color: 'secondary' },
+          style: {
+            borderColor: '#475569',
+            color: '#334155',
+            backgroundColor: '#f8fafc'
+          }
+        },
+        {
+          props: { variant: 'outlined', color: 'info' },
+          style: {
+            borderColor: '#1d4ed8',
+            color: '#1e40af',
+            backgroundColor: '#eff6ff'
+          }
+        },
+        {
+          props: { variant: 'outlined', color: 'success' },
+          style: {
+            borderColor: '#15803d',
+            color: '#166534',
+            backgroundColor: '#f0fdf4'
+          }
+        },
+        {
+          props: { variant: 'outlined', color: 'warning' },
+          style: {
+            borderColor: '#92400e',
+            color: '#7c2d12',
+            backgroundColor: '#fffbeb'
+          }
+        },
+        {
+          props: { variant: 'outlined', color: 'error' },
+          style: {
+            borderColor: '#b91c1c',
+            color: '#991b1b',
+            backgroundColor: '#fef2f2'
+          }
+        }
+      ]
     },
     MuiDivider: {
       styleOverrides: {
@@ -326,6 +422,10 @@ const themeMinimal = createTheme({
           transition: 'color 0.15s ease',
           '&.Mui-selected': {
             color: palette.primary.main
+          },
+          '&:focus-visible': {
+            outline: `3px solid ${alpha(palette.primary.main, 0.45)}`,
+            outlineOffset: -2
           }
         },
         label: {
@@ -358,14 +458,6 @@ const themeMinimal = createTheme({
             boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
             border: `1px solid ${palette.divider}`
           }
-        }
-      }
-    },
-    MuiDrawer: {
-      styleOverrides: {
-        paper: {
-          backgroundColor: palette.background.paper,
-          borderRight: `1px solid ${palette.divider}`
         }
       }
     },

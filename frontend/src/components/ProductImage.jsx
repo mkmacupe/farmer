@@ -1,11 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Skeleton from '@mui/material/Skeleton';
 import { alpha } from '@mui/material/styles';
 import BrokenImageOutlinedIcon from '@mui/icons-material/BrokenImageOutlined';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 
-export default function ProductImage({
+function ProductImage({
   src,
   alt,
   height = 160,
@@ -147,3 +147,5 @@ export default function ProductImage({
     </Box>
   );
 }
+
+export default memo(ProductImage);

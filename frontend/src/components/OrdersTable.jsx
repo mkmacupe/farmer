@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -24,12 +24,11 @@ import SearchIcon from '@mui/icons-material/Search';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import FilterListIcon from '@mui/icons-material/FilterList';
 import ClearIcon from '@mui/icons-material/Clear';
-import { useVirtualizer } from '@tanstack/react-virtual';
 import { OrderTableSkeleton } from './LoadingSkeletons.jsx';
 
 const STATUS_META = {
   CREATED: {
-    color: 'default',
+    color: 'secondary',
     label: 'Создан'
   },
   APPROVED: {
@@ -90,12 +89,10 @@ export default function OrdersTable({
   searchEnabled = true,
   loading = false
 }) {
-  const parentRef = useRef(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const hasActions = typeof actionRenderer === 'function';
   const hasFilters = searchEnabled && orders.length > 1;
-  const virtualizationThreshold = 40;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
@@ -120,17 +117,6 @@ export default function OrdersTable({
       return searchable.includes(normalizedSearch);
     });
   }, [orders, searchTerm, statusFilter]);
-
-  const useVirtualization = filteredOrders.length > virtualizationThreshold;
-  const rowVirtualizer = useVirtualization ? useVirtualizer({
-    count: filteredOrders.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 60,
-    overscan: 8
-  }) : null;
-
-  const virtualRows = useVirtualization ? rowVirtualizer.getVirtualItems() : [];
-  const totalSize = useVirtualization ? rowVirtualizer.getTotalSize() : 0;
 
   const clearFilters = () => {
     setSearchTerm('');
@@ -198,6 +184,7 @@ export default function OrdersTable({
           size="small"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
+          inputProps={{ 'aria-label': 'Поиск по заказам' }}
           sx={{
             minWidth: { xs: '100%', md: 280 },
             mb: 0
@@ -214,6 +201,7 @@ export default function OrdersTable({
                   size="small"
                   onClick={() => setSearchTerm('')}
                   edge="end"
+                  aria-label="Очистить поиск"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
@@ -234,10 +222,11 @@ export default function OrdersTable({
             label="Статус"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
+            SelectProps={{ inputProps: { 'aria-label': 'Фильтр по статусу заказа' } }}
             sx={{ minWidth: { xs: '100%', sm: 190 } }}
           >
             <MenuItem value="">
-              <Chip label="Все" size="small" color="primary" sx={{ fontWeight: 600 }} />
+              <Chip label="Все" size="small" color="secondary" sx={{ fontWeight: 600 }} />
             </MenuItem>
             {Object.entries(STATUS_META).map(([status, meta]) => (
               <MenuItem key={status} value={status}>
@@ -293,7 +282,7 @@ export default function OrdersTable({
                         label={statusMeta.label || order.status}
                         color={statusMeta.color || 'default'}
                         size="small"
-                        variant="outlined"
+                        variant="filled"
                       />
                     </Stack>
                     {showCustomer && (
@@ -346,15 +335,14 @@ export default function OrdersTable({
   return (
     <Paper
       elevation={0}
-      ref={useVirtualization ? parentRef : null}
       sx={{
         borderRadius: 2.5,
         overflow: 'hidden',
         border: '1px solid',
         borderColor: 'divider',
         overflowX: 'auto',
-        overflowY: useVirtualization ? 'auto' : 'visible',
-        maxHeight: useVirtualization ? 560 : 'none'
+        overflowY: 'auto',
+        maxHeight: 560
       }}
     >
       {filtersNode}
@@ -371,10 +359,10 @@ export default function OrdersTable({
         </Box>
       ) : (
         <Table
-          stickyHeader={useVirtualization}
+          stickyHeader
           sx={{
             minWidth: 700,
-            tableLayout: useVirtualization ? 'fixed' : 'auto'
+            tableLayout: 'auto'
           }}
           size="small"
           aria-label="таблица заказов"
@@ -392,15 +380,8 @@ export default function OrdersTable({
               {hasActions && <TableCell sx={{ fontWeight: 700, width: 140 }}>Действия</TableCell>}
             </TableRow>
           </TableHead>
-          <TableBody
-            sx={useVirtualization ? {
-              position: 'relative',
-              display: 'block',
-              height: `${totalSize}px`
-            } : undefined}
-          >
-            {(useVirtualization ? virtualRows : filteredOrders.map((_, index) => ({ index, start: 0 }))).map((virtualRow) => {
-              const order = filteredOrders[virtualRow.index];
+          <TableBody>
+            {filteredOrders.map((order) => {
               const statusMeta = STATUS_META[order.status] || {};
 
               return (
@@ -409,16 +390,7 @@ export default function OrdersTable({
                   hover
                   sx={{
                     '&:last-child td, &:last-child th': { border: 0 },
-                    transition: 'background-color 0.15s ease',
-                    ...(useVirtualization ? {
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      width: '100%',
-                      transform: `translateY(${virtualRow.start}px)`,
-                      display: 'table',
-                      tableLayout: 'fixed'
-                    } : {})
+                    transition: 'background-color 0.15s ease'
                   }}
                 >
                   <TableCell>
@@ -462,7 +434,7 @@ export default function OrdersTable({
                       label={statusMeta.label || order.status}
                       color={statusMeta.color || 'default'}
                       size="small"
-                      variant="outlined"
+                      variant="filled"
                       sx={{
                         fontWeight: 600
                       }}

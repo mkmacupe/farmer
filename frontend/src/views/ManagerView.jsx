@@ -58,7 +58,10 @@ import {
   AttachMoney,
   Receipt,
   Group as GroupIcon,
-  DragIndicator as DragIndicatorIcon
+  DragIndicator as DragIndicatorIcon,
+  TrendingUp as TrendingUpIcon,
+  TrendingDown as TrendingDownIcon,
+  WarningAmber as WarningAmberIcon
 } from '@mui/icons-material';
 import ProductImage from '../components/ProductImage.jsx';
 import { filterLocalizedCategories, filterLocalizedProducts } from '../utils/productFilters.js';
@@ -73,6 +76,13 @@ const KANBAN_COLUMNS = [
   { id: 'ASSIGNED', title: 'Назначен', color: 'secondary' },
   { id: 'DELIVERED', title: 'Доставлен', color: 'success' }
 ];
+const KANBAN_COLUMN_BY_ID = Object.fromEntries(KANBAN_COLUMNS.map((column) => [column.id, column]));
+const STATUS_LABELS = {
+  CREATED: 'Создан',
+  APPROVED: 'Одобрен',
+  ASSIGNED: 'Назначен',
+  DELIVERED: 'Доставлен'
+};
 
 function todayDateValue() {
   return new Date().toISOString().slice(0, 10);
@@ -84,13 +94,7 @@ function isMethodNotAllowedError(error) {
 }
 
 function statusLabel(status) {
-  const labels = {
-    CREATED: 'Создан',
-    APPROVED: 'Одобрен',
-    ASSIGNED: 'Назначен',
-    DELIVERED: 'Доставлен'
-  };
-  return labels[status] || status || '-';
+  return STATUS_LABELS[status] || status || '-';
 }
 
 function formatDateTime(value) {
@@ -107,6 +111,42 @@ function formatMoney(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   });
+}
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+const MAX_DASHBOARD_DAYS = 31;
+const CATEGORY_COLORS = ['#1d4ed8', '#15803d', '#92400e', '#7c3aed', '#be123c', '#0f766e'];
+
+function parseDateInput(value) {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function startOfDay(value) {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+function dayKey(value) {
+  return startOfDay(value).toISOString().slice(0, 10);
+}
+
+function formatDayLabel(value) {
+  return value.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit' });
+}
+
+function orderTimestamp(order) {
+  const candidates = [order.createdAt, order.updatedAt, order.approvedAt, order.assignedAt, order.deliveredAt];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const parsed = new Date(candidate);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.getTime();
+    }
+  }
+  return null;
 }
 
 export default function ManagerView({ token, activeSection }) {
@@ -163,12 +203,20 @@ export default function ManagerView({ token, activeSection }) {
 
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
 
-  const orderStats = useMemo(() => ({
-    CREATED: orders.filter((order) => order.status === 'CREATED').length,
-    APPROVED: orders.filter((order) => order.status === 'APPROVED').length,
-    ASSIGNED: orders.filter((order) => order.status === 'ASSIGNED').length,
-    DELIVERED: orders.filter((order) => order.status === 'DELIVERED').length
-  }), [orders]);
+  const orderStats = useMemo(() => {
+    const stats = {
+      CREATED: 0,
+      APPROVED: 0,
+      ASSIGNED: 0,
+      DELIVERED: 0
+    };
+    for (const order of orders) {
+      if (Object.prototype.hasOwnProperty.call(stats, order.status)) {
+        stats[order.status] += 1;
+      }
+    }
+    return stats;
+  }, [orders]);
 
   const latestNotifications = useMemo(() => notifications.slice(0, 4), [notifications]);
 
@@ -184,44 +232,274 @@ export default function ManagerView({ token, activeSection }) {
     return grouped;
   }, [orders]);
 
+  const dashboardRange = useMemo(() => {
+    const fallbackTo = startOfDay(new Date());
+    const parsedTo = parseDateInput(dashboardTo) || fallbackTo;
+    const parsedFrom = parseDateInput(dashboardFrom);
+    let from = parsedFrom || new Date(parsedTo.getTime() - (7 - 1) * DAY_MS);
+    let to = parsedTo;
+    if (from > to) {
+      [from, to] = [to, from];
+    }
+    const rawDays = Math.floor((startOfDay(to) - startOfDay(from)) / DAY_MS) + 1;
+    if (rawDays > MAX_DASHBOARD_DAYS) {
+      from = new Date(to.getTime() - (MAX_DASHBOARD_DAYS - 1) * DAY_MS);
+    }
+    const normalizedFrom = startOfDay(from);
+    const normalizedTo = startOfDay(to);
+    return {
+      from: normalizedFrom,
+      to: normalizedTo,
+      days: Math.floor((normalizedTo - normalizedFrom) / DAY_MS) + 1
+    };
+  }, [dashboardFrom, dashboardTo]);
+
+  const trendSeries = useMemo(() => {
+    const buckets = new Map();
+    orders.forEach((order) => {
+      const timestamp = orderTimestamp(order);
+      if (timestamp == null) return;
+      const day = startOfDay(timestamp);
+      if (day < dashboardRange.from || day > dashboardRange.to) return;
+      const key = dayKey(day);
+      const current = buckets.get(key) || { orders: 0, revenue: 0, delivered: 0 };
+      const amount = Number(order.totalAmount || 0);
+      current.orders += 1;
+      current.revenue += Number.isFinite(amount) ? amount : 0;
+      if (order.status === 'DELIVERED') {
+        current.delivered += 1;
+      }
+      buckets.set(key, current);
+    });
+
+    const series = [];
+    for (let day = new Date(dashboardRange.from); day <= dashboardRange.to; day = new Date(day.getTime() + DAY_MS)) {
+      const key = dayKey(day);
+      const bucket = buckets.get(key);
+      series.push({
+        key,
+        label: formatDayLabel(day),
+        orders: bucket?.orders || 0,
+        revenue: bucket?.revenue || 0,
+        delivered: bucket?.delivered || 0
+      });
+    }
+    return series;
+  }, [orders, dashboardRange]);
+
+  const trendMeta = useMemo(() => {
+    const totalOrders = trendSeries.reduce((sum, point) => sum + point.orders, 0);
+    const averageOrders = trendSeries.length ? totalOrders / trendSeries.length : 0;
+    const latestOrders = trendSeries.length ? trendSeries[trendSeries.length - 1].orders : 0;
+    const previousOrders = trendSeries.length > 1 ? trendSeries[trendSeries.length - 2].orders : latestOrders;
+    const deviation = latestOrders - averageOrders;
+    const deviationPercent = averageOrders ? (deviation / averageOrders) * 100 : 0;
+    const momentum = latestOrders - previousOrders;
+    return {
+      latestOrders,
+      averageOrders,
+      deviationPercent,
+      momentum,
+      totalRevenue: trendSeries.reduce((sum, point) => sum + point.revenue, 0)
+    };
+  }, [trendSeries]);
+
+  const trendChartModel = useMemo(() => {
+    const width = 640;
+    const height = 220;
+    const left = 36;
+    const right = 20;
+    const top = 18;
+    const bottom = 32;
+    const plotWidth = width - left - right;
+    const plotHeight = height - top - bottom;
+    const maxValue = Math.max(1, ...trendSeries.map((point) => point.orders));
+    const points = trendSeries.map((point, index) => {
+      const x = left + (trendSeries.length <= 1 ? plotWidth / 2 : (index / (trendSeries.length - 1)) * plotWidth);
+      const y = top + plotHeight - ((point.orders / maxValue) * plotHeight);
+      return { ...point, x, y };
+    });
+    const linePath = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+    const baseY = top + plotHeight;
+    const areaPath = points.length > 1
+      ? `${linePath} L ${points[points.length - 1].x} ${baseY} L ${points[0].x} ${baseY} Z`
+      : '';
+    const tickIndexes = new Set([0, points.length - 1]);
+    if (points.length > 2) tickIndexes.add(Math.floor((points.length - 1) / 2));
+    if (points.length > 6) {
+      tickIndexes.add(Math.floor((points.length - 1) / 3));
+      tickIndexes.add(Math.floor((points.length - 1) * 2 / 3));
+    }
+    const ticks = [...tickIndexes]
+      .filter((index) => index >= 0 && index < points.length)
+      .sort((a, b) => a - b)
+      .map((index) => points[index]);
+
+    return {
+      width,
+      height,
+      top,
+      baseY,
+      maxValue,
+      points,
+      linePath,
+      areaPath,
+      ticks
+    };
+  }, [trendSeries]);
+
+  const productCategoryById = useMemo(() => {
+    const mapping = new Map();
+    products.forEach((product) => {
+      mapping.set(Number(product.id), product.category || 'Без категории');
+    });
+    return mapping;
+  }, [products]);
+
+  const categoryInsights = useMemo(() => {
+    const totals = new Map();
+    orders.forEach((order) => {
+      (order.items || []).forEach((item) => {
+        const quantity = Number(item.quantity || 0);
+        if (!Number.isFinite(quantity) || quantity <= 0) return;
+        const category = (
+          item.category
+          || item.productCategory
+          || productCategoryById.get(Number(item.productId))
+          || 'Без категории'
+        );
+        totals.set(category, (totals.get(category) || 0) + quantity);
+      });
+    });
+
+    const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
+    const visible = sorted.slice(0, 4);
+    if (sorted.length > 4) {
+      const rest = sorted.slice(4).reduce((sum, [, value]) => sum + value, 0);
+      visible.push(['Остальные', rest]);
+    }
+
+    const totalUnits = visible.reduce((sum, [, value]) => sum + value, 0);
+    let currentDeg = 0;
+    const segments = visible.map(([name, value], index) => {
+      const share = totalUnits ? value / totalUnits : 0;
+      const start = currentDeg;
+      const end = currentDeg + share * 360;
+      currentDeg = end;
+      return {
+        name,
+        value,
+        share,
+        start,
+        end,
+        color: CATEGORY_COLORS[index % CATEGORY_COLORS.length]
+      };
+    });
+
+    const gradient = totalUnits
+      ? `conic-gradient(${segments.map((segment) => `${segment.color} ${segment.start}deg ${segment.end}deg`).join(', ')})`
+      : null;
+
+    return {
+      totalUnits,
+      segments,
+      gradient
+    };
+  }, [orders, productCategoryById]);
+
+  const attentionItems = useMemo(() => {
+    const items = [];
+    if (orderStats.CREATED > 0) {
+      items.push({
+        severity: 'warning',
+        title: 'Ожидают одобрения',
+        description: `${orderStats.CREATED} заявок остаются в статусе "Создан".`
+      });
+    }
+    if (orderStats.APPROVED > 0) {
+      items.push({
+        severity: 'warning',
+        title: 'Нужны назначения водителей',
+        description: `${orderStats.APPROVED} одобренных заказов ждут логиста.`
+      });
+    }
+    const now = Date.now();
+    const staleAssigned = orders.filter((order) => {
+      if (order.status !== 'ASSIGNED') return false;
+      const timestamp = orderTimestamp(order);
+      return timestamp != null && (now - timestamp) >= DAY_MS;
+    }).length;
+    if (staleAssigned > 0) {
+      items.push({
+        severity: 'info',
+        title: 'Задержка в доставке',
+        description: `${staleAssigned} заказов в статусе "Назначен" дольше 24 часов.`
+      });
+    }
+    if (Math.abs(trendMeta.deviationPercent) >= 25) {
+      const direction = trendMeta.deviationPercent > 0 ? 'выше' : 'ниже';
+      items.push({
+        severity: 'info',
+        title: 'Отклонение от среднего потока',
+        description: `Сегодняшний поток на ${Math.abs(trendMeta.deviationPercent).toFixed(0)}% ${direction} среднего по периоду.`
+      });
+    }
+    if (!items.length) {
+      items.push({
+        severity: 'success',
+        title: 'Критичных отклонений нет',
+        description: 'Очередь заявок и доставки находятся в рабочем диапазоне.'
+      });
+    }
+    return items.slice(0, 3);
+  }, [orderStats, orders, trendMeta.deviationPercent]);
+
   const showMessage = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
 
-  const loadMain = async () => {
-    const [ordersData, productsPage, categoriesData] = await Promise.all([
-      getAllOrders(token),
+  const loadOrders = async () => {
+    const ordersData = await getAllOrders(token);
+    setOrders(ordersData);
+  };
+
+  const loadProductsAndCategories = async () => {
+    const [productsPage, categoriesData] = await Promise.all([
       getProductsPage(token, { page: 0, size: productPageSize }),
       getProductCategories(token)
     ]);
-    setOrders(ordersData);
     setProducts(filterLocalizedProducts(productsPage.items));
     setProductPage(productsPage.page);
     setProductHasNext(productsPage.hasNext);
     setProductTotalItems(productsPage.totalItems);
     setCategories(filterLocalizedCategories(categoriesData));
+  };
 
-    try {
-      const directorsData = await getDirectors(token);
-      setDirectors(directorsData);
-    } catch (err) {
-      if (!isMethodNotAllowedError(err)) {
-        console.error('Failed to load directors', err);
-      } else {
-        setDirectors([]);
-      }
+  const loadUsers = async () => {
+    const [directorsResult, driversResult] = await Promise.allSettled([
+      getDirectors(token),
+      getDrivers(token)
+    ]);
+
+    if (directorsResult.status === 'fulfilled') {
+      setDirectors(directorsResult.value);
+    } else if (isMethodNotAllowedError(directorsResult.reason)) {
+      setDirectors([]);
+    } else {
+      console.error('Failed to load directors', directorsResult.reason);
     }
 
-    try {
-      const driversData = await getDrivers(token);
-      setDrivers(driversData);
-    } catch (err) {
-      if (!isMethodNotAllowedError(err)) {
-        console.error('Failed to load drivers', err);
-      } else {
-        setDrivers([]);
-      }
+    if (driversResult.status === 'fulfilled') {
+      setDrivers(driversResult.value);
+    } else if (isMethodNotAllowedError(driversResult.reason)) {
+      setDrivers([]);
+    } else {
+      console.error('Failed to load drivers', driversResult.reason);
     }
+  };
+
+  const loadMain = async () => {
+    await Promise.all([loadOrders(), loadProductsAndCategories(), loadUsers()]);
   };
 
   const loadDashboard = async () => {
@@ -263,7 +541,7 @@ export default function ManagerView({ token, activeSection }) {
     try {
       await approveOrder(token, orderId);
       showMessage(`Заказ #${orderId} одобрен`);
-      await Promise.all([loadMain(), loadDashboard()]);
+      await Promise.all([loadOrders(), loadDashboard()]);
     } catch (err) {
       showMessage(err.message || 'Не удалось одобрить заказ', 'error');
     } finally {
@@ -368,7 +646,7 @@ export default function ManagerView({ token, activeSection }) {
         showMessage('Товар добавлен');
       }
       setProductDrawerOpen(false);
-      await loadMain();
+      await loadProductsAndCategories();
     } catch (err) {
       showMessage(err.message || 'Ошибка сохранения', 'error');
     } finally {
@@ -383,7 +661,7 @@ export default function ManagerView({ token, activeSection }) {
     try {
       await deleteProduct(token, id);
       showMessage(`Товар #${id} удалён`);
-      await loadMain();
+      await loadProductsAndCategories();
     } catch (err) {
       showMessage(err.message || 'Не удалось удалить', 'error');
     } finally {
@@ -400,7 +678,7 @@ export default function ManagerView({ token, activeSection }) {
       await createDirectorUser(token, newDirector);
       showMessage(`Пользователь ${newDirector.username} создан`);
       setNewDirector({ username: '', password: '', fullName: '', phone: '', legalEntityName: '' });
-      await loadMain();
+      await loadUsers();
     } catch (err) {
       showMessage(err.message || 'Ошибка создания', 'error');
     } finally {
@@ -464,7 +742,7 @@ export default function ManagerView({ token, activeSection }) {
 
   const KanbanCard = ({ order }) => {
     const hasQuickApprove = order.status === 'CREATED';
-    const columnMeta = KANBAN_COLUMNS.find((col) => col.id === order.status);
+    const columnMeta = KANBAN_COLUMN_BY_ID[order.status];
     const dragEnabled = !isMobile;
     return (
       <Card
@@ -478,13 +756,8 @@ export default function ManagerView({ token, activeSection }) {
           cursor: dragEnabled ? 'grab' : 'default',
           '&:active': { cursor: dragEnabled ? 'grabbing' : 'default' },
           '& .kanban-actions': {
-            opacity: { xs: 1, md: 0 },
-            transform: { xs: 'none', md: 'translateY(6px)' },
-            transition: 'all 0.2s ease'
-          },
-          '&:hover .kanban-actions': {
             opacity: 1,
-            transform: 'translateY(0)'
+            transform: 'none'
           }
         }}
       >
@@ -610,6 +883,7 @@ export default function ManagerView({ token, activeSection }) {
                 InputLabelProps={{ shrink: true }}
                 value={dashboardFrom}
                 onChange={(e) => setDashboardFrom(e.target.value)}
+                inputProps={{ 'aria-label': 'Период аналитики с' }}
               />
               <TextField
                 label="Период по"
@@ -618,8 +892,9 @@ export default function ManagerView({ token, activeSection }) {
                 InputLabelProps={{ shrink: true }}
                 value={dashboardTo}
                 onChange={(e) => setDashboardTo(e.target.value)}
+                inputProps={{ 'aria-label': 'Период аналитики по' }}
               />
-              <Button variant="contained" onClick={loadDashboard} disabled={loading}>
+              <Button variant="contained" onClick={loadDashboard} disabled={loading} aria-label="Применить фильтр аналитики">
                 Применить фильтр
               </Button>
             </Stack>
@@ -647,53 +922,219 @@ export default function ManagerView({ token, activeSection }) {
             ))}
           </Grid>
 
+          <Paper sx={{ p: 2.5, mb: 3, borderRadius: 2.5, border: '1px solid', borderColor: 'divider' }}>
+            <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+              <Typography variant="subtitle1" fontWeight={700}>
+                Что требует внимания сейчас
+              </Typography>
+              <Chip
+                size="small"
+                color={attentionItems[0]?.severity === 'success' ? 'success' : 'warning'}
+                label={attentionItems[0]?.severity === 'success' ? 'Стабильно' : `${attentionItems.length} зоны внимания`}
+              />
+            </Stack>
+            <Stack spacing={1.25} sx={{ mt: 2 }}>
+              {attentionItems.map((item) => (
+                <Alert
+                  key={item.title}
+                  severity={item.severity}
+                  variant="outlined"
+                  icon={item.severity === 'success' ? false : <WarningAmberIcon fontSize="inherit" />}
+                  sx={{ alignItems: 'flex-start' }}
+                >
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    {item.title}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {item.description}
+                  </Typography>
+                </Alert>
+              ))}
+            </Stack>
+          </Paper>
+
           <Grid container spacing={2} sx={{ mb: 3 }}>
             <Grid size={{ xs: 12, md: 8 }}>
               <Paper sx={{ p: 2.5, borderRadius: 2.5, height: '100%', border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                  Выручка во времени
-                </Typography>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
+                  <Box>
+                    <Typography variant="subtitle1" fontWeight={700}>
+                      Тренд заказов
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Период: {formatDayLabel(dashboardRange.from)} - {formatDayLabel(dashboardRange.to)}
+                    </Typography>
+                  </Box>
+                  <Chip
+                    size="small"
+                    icon={trendMeta.momentum >= 0 ? <TrendingUpIcon /> : <TrendingDownIcon />}
+                    color={trendMeta.momentum >= 0 ? 'success' : 'warning'}
+                    label={trendMeta.momentum >= 0 ? 'Рост к вчера' : 'Снижение к вчера'}
+                  />
+                </Stack>
                 <Box
                   sx={{
                     mt: 2,
-                    height: 240,
                     borderRadius: 2,
-                    border: '1px dashed',
+                    border: '1px solid',
                     borderColor: 'divider',
                     bgcolor: 'background.default',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
+                    p: 1
                   }}
                 >
-                  <Typography variant="caption" color="text.secondary">
-                    Линейный график
-                  </Typography>
+                  {trendChartModel.points.length ? (
+                    <Box
+                      component="svg"
+                      viewBox={`0 0 ${trendChartModel.width} ${trendChartModel.height}`}
+                      role="img"
+                      aria-label="График тренда заказов по дням"
+                      sx={{ width: '100%', height: 220, display: 'block' }}
+                    >
+                      {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+                        const y = trendChartModel.top + ((trendChartModel.baseY - trendChartModel.top) * ratio);
+                        return (
+                          <line
+                            key={`grid-${ratio}`}
+                            x1={36}
+                            y1={y}
+                            x2={trendChartModel.width - 20}
+                            y2={y}
+                            stroke="#e4e4e7"
+                            strokeWidth="1"
+                          />
+                        );
+                      })}
+                      {trendChartModel.areaPath && (
+                        <path
+                          d={trendChartModel.areaPath}
+                          fill="rgba(46, 91, 78, 0.12)"
+                          stroke="none"
+                        />
+                      )}
+                      {trendChartModel.linePath && (
+                        <path
+                          d={trendChartModel.linePath}
+                          fill="none"
+                          stroke="#2E5B4E"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      )}
+                      {trendChartModel.points.map((point) => (
+                        <circle
+                          key={point.key}
+                          cx={point.x}
+                          cy={point.y}
+                          r="4"
+                          fill="#2E5B4E"
+                          stroke="#ffffff"
+                          strokeWidth="2"
+                        />
+                      ))}
+                      {trendChartModel.ticks.map((tick) => (
+                        <text
+                          key={`tick-${tick.key}`}
+                          x={tick.x}
+                          y={trendChartModel.height - 8}
+                          textAnchor="middle"
+                          fill="#71717a"
+                          fontSize="11"
+                        >
+                          {tick.label}
+                        </text>
+                      ))}
+                    </Box>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">
+                      Нет данных для построения тренда в выбранном периоде.
+                    </Typography>
+                  )}
                 </Box>
+                <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 1.5 }}>
+                  <Typography variant="caption" color="text.secondary">
+                    Среднее: {trendMeta.averageOrders.toFixed(1)} заявок/день
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Отклонение: {trendMeta.deviationPercent >= 0 ? '+' : ''}{trendMeta.deviationPercent.toFixed(0)}%
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    Выручка периода: {formatMoney(trendMeta.totalRevenue)} BYN
+                  </Typography>
+                </Stack>
               </Paper>
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <Paper sx={{ p: 2.5, borderRadius: 2.5, height: '100%', border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-                  Заказы по категориям
+                <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                  Структура спроса
                 </Typography>
-                <Box
-                  sx={{
-                    mt: 2,
-                    height: 240,
-                    borderRadius: 2,
-                    border: '1px dashed',
-                    borderColor: 'divider',
-                    bgcolor: 'background.default',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}
-                >
-                  <Typography variant="caption" color="text.secondary">
-                    Кольцевая диаграмма
-                  </Typography>
-                </Box>
+                {categoryInsights.totalUnits > 0 ? (
+                  <Stack spacing={2} sx={{ mt: 1.5 }}>
+                    <Box
+                      sx={{
+                        width: 168,
+                        height: 168,
+                        borderRadius: '50%',
+                        mx: 'auto',
+                        position: 'relative',
+                        background: categoryInsights.gradient
+                      }}
+                      role="img"
+                      aria-label="Распределение заказов по категориям"
+                    >
+                      <Box
+                        sx={{
+                          position: 'absolute',
+                          inset: 28,
+                          borderRadius: '50%',
+                          bgcolor: 'background.paper',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          textAlign: 'center',
+                          px: 1
+                        }}
+                      >
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          {categoryInsights.totalUnits}
+                          <br />
+                          ед.
+                        </Typography>
+                      </Box>
+                    </Box>
+                    <Stack spacing={0.9}>
+                      {categoryInsights.segments.map((segment) => (
+                        <Stack key={segment.name} direction="row" justifyContent="space-between" alignItems="center" spacing={1}>
+                          <Stack direction="row" alignItems="center" spacing={1}>
+                            <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: segment.color }} />
+                            <Typography variant="caption" color="text.secondary">
+                              {segment.name}
+                            </Typography>
+                          </Stack>
+                          <Typography variant="caption" fontWeight={700}>
+                            {segment.value} ({(segment.share * 100).toFixed(0)}%)
+                          </Typography>
+                        </Stack>
+                      ))}
+                    </Stack>
+                  </Stack>
+                ) : (
+                  <Box
+                    sx={{
+                      mt: 2,
+                      p: 2,
+                      borderRadius: 2,
+                      border: '1px dashed',
+                      borderColor: 'divider',
+                      bgcolor: 'background.default'
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      Категории появятся после заказов с позициями.
+                    </Typography>
+                  </Box>
+                )}
               </Paper>
             </Grid>
           </Grid>

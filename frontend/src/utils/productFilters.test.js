@@ -32,4 +32,18 @@ describe('productFilters', () => {
     expect(filterLocalizedProducts(null)).toEqual([]);
     expect(filterLocalizedCategories(undefined)).toEqual([]);
   });
+
+  it('keeps products without latin letters in both fields', () => {
+    const products = [
+      { id: 1, name: 'Сметана', category: 'Молочная продукция' },
+      { id: 2, name: 'Картофель', category: 'Овощи' }
+    ];
+    expect(filterLocalizedProducts(products)).toEqual(products);
+  });
+
+  it('treats non-object product as non-legacy', () => {
+    expect(isLegacyEnglishProduct(null)).toBe(false);
+    expect(isLegacyEnglishProduct('milk')).toBe(false);
+    expect(isLegacyEnglishProduct(42)).toBe(false);
+  });
 });
