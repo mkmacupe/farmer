@@ -1,0 +1,69 @@
+@startuml
+hide circle
+skinparam linetype ortho
+
+entity "users" as users {
+  *id : BIGINT <<PK>>
+  --
+  username : VARCHAR(50) <<UNIQUE>>
+  password_hash : VARCHAR(255)
+  full_name : VARCHAR(100)
+  phone : VARCHAR(30)
+  legal_entity_name : VARCHAR(255)
+  role : VARCHAR(20)
+}
+
+entity "store_addresses" as store_addresses {
+  *id : BIGINT <<PK>>
+  --
+  user_id : BIGINT <<FK>>
+  label : VARCHAR(120)
+  address_line : VARCHAR(500)
+  latitude : DECIMAL(10,7)
+  longitude : DECIMAL(10,7)
+}
+
+entity "products" as products {
+  *id : BIGINT <<PK>>
+  --
+  name : VARCHAR(120)
+  category : VARCHAR(100)
+  description : VARCHAR(500)
+  photo_url : VARCHAR(500)
+  price : DECIMAL(10,2)
+  stock_quantity : INT
+}
+
+entity "orders" as orders {
+  *id : BIGINT <<PK>>
+  --
+  customer_id : BIGINT <<FK>>
+  delivery_address_id : BIGINT <<FK>>
+  assigned_driver_id : BIGINT <<FK>>
+  approved_by_manager_id : BIGINT <<FK>>
+  assigned_by_logistician_id : BIGINT <<FK>>
+  status : VARCHAR(20)
+  total_amount : DECIMAL(10,2)
+  created_at : TIMESTAMP
+  approved_at : TIMESTAMP
+  assigned_at : TIMESTAMP
+  delivered_at : TIMESTAMP
+}
+
+entity "order_items" as order_items {
+  *id : BIGINT <<PK>>
+  --
+  order_id : BIGINT <<FK>>
+  product_id : BIGINT <<FK>>
+  quantity : INT
+  price : DECIMAL(10,2)
+  line_total : DECIMAL(10,2)
+}
+
+users ||--o{ store_addresses : user_id
+users ||--o{ orders : customer_id
+users ||--o{ orders : assigned_driver_id
+store_addresses ||--o{ orders : delivery_address_id
+orders ||--o{ order_items : order_id
+products ||--o{ order_items : product_id
+@enduml

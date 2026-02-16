@@ -1,0 +1,45 @@
+{
+  "name": "sales-frontend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:analyze": "vite build --mode analyze",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test e2e/role-flows.spec.js",
+    "test:e2e:all": "playwright test",
+    "test:e2e:a11y": "playwright test e2e/a11y-smoke.spec.js",
+    "test:e2e:visual": "playwright test e2e/visual-smoke.spec.js",
+    "test:e2e:qa": "playwright test e2e/a11y-smoke.spec.js e2e/visual-smoke.spec.js",
+    "test:e2e:images": "playwright test e2e/product-images.spec.js",
+    "test:e2e:headed": "playwright test --headed"
+  },
+  "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.7",
+    "@mui/material": "^7.3.7",
+    "@tanstack/react-virtual": "^3.13.18",
+    "leaflet": "^1.9.4",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.11.1",
+    "@playwright/test": "1.56.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.0",
+    "@testing-library/user-event": "14.6.1",
+    "@vitejs/plugin-react": "5.0.2",
+    "@vitest/coverage-v8": "^4.0.18",
+    "jsdom": "27.0.0",
+    "rollup-plugin-visualizer": "^6.0.5",
+    "vite": "7.3.1",
+    "vitest": "^4.0.18"
+  }
+}

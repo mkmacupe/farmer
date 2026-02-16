@@ -1,0 +1,54 @@
+@startuml
+actor Director
+actor Manager
+actor Logistician
+actor Driver
+
+participant "React UI" as UI
+participant "AuthController" as Auth
+participant "OrderController" as Order
+participant "DirectorProfileController" as Profile
+participant "UserManagementController" as Users
+participant "OrderService" as Service
+participant "MySQL" as DB
+
+Director -> UI: Login
+UI -> Auth: POST /api/auth/login
+Auth --> UI: JWT
+
+Director -> UI: Create order with address
+UI -> Profile: GET /api/director/addresses
+Profile -> DB: select addresses
+DB --> Profile: rows
+Profile --> UI: addresses
+UI -> Order: POST /api/orders
+Order -> Service: createOrder
+Service -> DB: insert order + items
+DB --> Service: ok
+Service --> Order: OrderResponse (CREATED)
+Order --> UI: 201
+
+Manager -> UI: Approve request
+UI -> Order: POST /api/orders/{id}/approve
+Order -> Service: approveOrder
+Service -> DB: update status APPROVED
+DB --> Service: ok
+Order --> UI: 200
+
+Logistician -> UI: Assign driver
+UI -> Users: GET /api/users/drivers
+Users -> DB: select drivers
+DB --> Users: rows
+UI -> Order: POST /api/orders/{id}/assign-driver
+Order -> Service: assignDriver
+Service -> DB: update status ASSIGNED + driver
+DB --> Service: ok
+Order --> UI: 200
+
+Driver -> UI: Mark delivered
+UI -> Order: POST /api/orders/{id}/deliver
+Order -> Service: markDelivered
+Service -> DB: update status DELIVERED
+DB --> Service: ok
+Order --> UI: 200
+@enduml

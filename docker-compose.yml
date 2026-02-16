@@ -1,0 +1,38 @@
+name: farm_sales
+
+services:
+  db:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: farm_sales
+      MYSQL_USER: ${MYSQL_USER:-sales}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set in .env or environment}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set in .env or environment}
+    ports:
+      - "${MYSQL_PORT:-3307}:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  backend:
+    build: ./backend
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://db:3306/farm_sales?createDatabaseIfNotExist=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: ${MYSQL_USER:-sales}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD must be set in .env or environment}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env or environment}
+      APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173}
+      APP_DEMO_ENABLED: ${APP_DEMO_ENABLED:-true}
+      APP_DEMO_PASSWORD: ${DEMO_PASSWORD:?DEMO_PASSWORD must be set in .env or environment}
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  db_data:

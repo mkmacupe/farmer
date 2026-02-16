@@ -1,0 +1,316 @@
+{
+  "info": {
+    "_postman_id": "2a84cb83-4c4a-4c19-ac71-7fc31f422f0d",
+    "name": "Farm Sales API",
+    "description": "Core collection for auth, products, orders, reports, and audit endpoints.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Auth - Login",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"manager\",\n  \"password\": \"{{demoPassword}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Products - List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/products",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Products - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Йогурт 0.5 л\",\n  \"category\": \"Молочная продукция\",\n  \"description\": \"Натуральный фермерский йогурт\",\n  \"photoUrl\": \"https://example.com/yogurt.jpg\",\n  \"price\": 75,\n  \"stockQuantity\": 30\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/products",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Orders - Create",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"deliveryAddressId\": 1,\n  \"items\": [\n    {\n      \"productId\": 1,\n      \"quantity\": 2\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Orders - All",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/orders",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Orders - Timeline",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/orders/1/timeline",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "orders",
+            "1",
+            "timeline"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Dashboard - Summary",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/dashboard/summary?from=2026-01-01&to=2026-12-31",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "dashboard",
+            "summary"
+          ],
+          "query": [
+            {
+              "key": "from",
+              "value": "2026-01-01"
+            },
+            {
+              "key": "to",
+              "value": "2026-12-31"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Stock Movements - List",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/stock-movements?limit=200",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "stock-movements"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "200"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Notifications - Stream",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          },
+          {
+            "key": "Accept",
+            "value": "text/event-stream"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/notifications/stream",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "notifications",
+            "stream"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Reports - Orders XLSX",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/reports/orders?from=2026-01-01&to=2026-12-31&status=DELIVERED",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "reports",
+            "orders"
+          ],
+          "query": [
+            {
+              "key": "from",
+              "value": "2026-01-01"
+            },
+            {
+              "key": "to",
+              "value": "2026-12-31"
+            },
+            {
+              "key": "status",
+              "value": "DELIVERED"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "Audit - Latest Logs",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/audit/logs",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "audit",
+            "logs"
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://127.0.0.1:8080/api"
+    },
+    {
+      "key": "token",
+      "value": ""
+    },
+    {
+      "key": "demoPassword",
+      "value": "replace-with-demo-password"
+    }
+  ]
+}

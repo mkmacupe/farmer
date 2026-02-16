@@ -1,0 +1,82 @@
+- generic [ref=e47]:
+  - generic [ref=e50]:
+    - generic [ref=e51]:
+      - generic [ref=e52]: Р
+      - generic [ref=e53]:
+        - heading "Руслан Страхар" [level=6] [ref=e54]
+        - generic [ref=e55]: Директор магазина
+    - generic [ref=e56]: Навигация
+    - list [ref=e57]:
+      - listitem [ref=e58]:
+        - button "Профиль" [ref=e59] [cursor=pointer]:
+          - img [ref=e61]
+          - generic [ref=e64]: Профиль
+      - listitem [ref=e65]:
+        - button "Адреса" [ref=e66] [cursor=pointer]:
+          - img [ref=e68]
+          - generic [ref=e72]: Адреса
+      - listitem [ref=e73]:
+        - button "Каталог" [ref=e74] [cursor=pointer]:
+          - img [ref=e76]
+          - generic [ref=e79]: Каталог
+      - listitem [ref=e80]:
+        - button "История" [ref=e81] [cursor=pointer]:
+          - img [ref=e83]
+          - generic [ref=e86]: История
+    - generic [ref=e88]: ФермерСбыт v1.0
+  - main [ref=e89]:
+    - generic [ref=e91]:
+      - heading "Профиль" [level=1] [ref=e93]
+      - button "Выйти" [ref=e94] [cursor=pointer]:
+        - generic [ref=e95]: Выйти
+        - img [ref=e97]
+    - generic [ref=e101]:
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e104]:
+            - text: Панель директора
+            - heading "Закупки без лишних шагов" [level=5] [ref=e105]
+            - paragraph [ref=e106]: Сводка по заказам, текущая корзина и уведомления.
+          - generic [ref=e108]:
+            - generic [ref=e109]:
+              - text: Корзина
+              - heading "0,00 BYN" [level=5] [ref=e110]
+            - generic [ref=e111]:
+              - text: Активные заказы
+              - heading "1" [level=5] [ref=e112]
+        - generic [ref=e113]:
+          - generic [ref=e114]: Последние заказы
+          - generic [ref=e116]:
+            - generic [ref=e117]:
+              - 'heading "Заказ #5" [level=6] [ref=e118]'
+              - generic [ref=e120]: Создан
+            - paragraph [ref=e121]: Атриум, 57, Першамайская вуліца, Лядкова, Ленінскі раён, Магілёў, Магілёўская вобласць, 212030, Беларусь
+            - generic [ref=e122]:
+              - generic [ref=e123]: 10.02, 21:37
+              - heading "12,95 BYN" [level=6] [ref=e124]
+      - generic [ref=e125]:
+        - heading "Профиль директора" [level=6] [ref=e126]
+        - generic [ref=e127]:
+          - generic [ref=e128]:
+            - generic [ref=e130]:
+              - generic [ref=e131]: ФИО
+              - generic [ref=e132]:
+                - textbox "ФИО" [ref=e133]: Руслан Страхар
+                - group:
+                  - generic: ФИО
+            - generic [ref=e135]:
+              - generic [ref=e136]: Телефон
+              - generic [ref=e137]:
+                - textbox "Телефон" [ref=e138]: "+375336521874"
+                - group:
+                  - generic: Телефон
+            - generic [ref=e140]:
+              - generic [ref=e141]: Юр. лицо
+              - generic [ref=e142]:
+                - textbox "Юр. лицо" [disabled] [ref=e143]: ОАО "Могилевлифтмаш"
+                - group:
+                  - generic: Юр. лицо
+              - paragraph [ref=e144]: Нельзя изменить
+          - button "Сохранить профиль" [ref=e145] [cursor=pointer]:
+            - img [ref=e147]
+            - text: Сохранить профиль

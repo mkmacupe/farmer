@@ -1,0 +1,33 @@
+{
+  "target": "page",
+  "name": "FarmDashboard",
+  "isRedesign": true,
+  "painPoints": [
+    "Need high density",
+    "Clear separation of data",
+    "Efficient processing"
+  ],
+  "inspiration": [
+    "Enterprise SaaS",
+    "Clean Minimalist"
+  ],
+  "brandFeel": [
+    "Efficient",
+    "Trustworthy",
+    "Data-forward",
+    "Agri-tech"
+  ],
+  "density": "compact",
+  "targetUser": "Sales Department",
+  "context": "desktop|mobile",
+  "constraints": [
+    "Use themeMinimal",
+    "MUI"
+  ],
+  "extractedTokens": {
+    "primary": "#2E5B4E",
+    "background": "#FFFFFF",
+    "surface": "#FFFFFF",
+    "radius": 8
+  }
+}

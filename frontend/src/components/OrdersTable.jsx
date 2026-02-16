@@ -1,0 +1,506 @@
+import React, { useMemo, useRef, useState } from 'react';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import Chip from '@mui/material/Chip';
+import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
+import TextField from '@mui/material/TextField';
+import MenuItem from '@mui/material/MenuItem';
+import InputAdornment from '@mui/material/InputAdornment';
+import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Divider from '@mui/material/Divider';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
+import SearchIcon from '@mui/icons-material/Search';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+import FilterListIcon from '@mui/icons-material/FilterList';
+import ClearIcon from '@mui/icons-material/Clear';
+import { useVirtualizer } from '@tanstack/react-virtual';
+import { OrderTableSkeleton } from './LoadingSkeletons.jsx';
+
+const STATUS_META = {
+  CREATED: {
+    color: 'default',
+    label: 'Создан'
+  },
+  APPROVED: {
+    color: 'warning',
+    label: 'Одобрен'
+  },
+  ASSIGNED: {
+    color: 'info',
+    label: 'Назначен'
+  },
+  DELIVERED: {
+    color: 'success',
+    label: 'Доставлен'
+  },
+  CANCELLED: {
+    color: 'error',
+    label: 'Отменён'
+  }
+};
+
+function statusLabel(status) {
+  return STATUS_META[status]?.label || status;
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '—';
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
+  }
+  return parsed.toLocaleString('ru-RU', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+}
+
+function formatMoney(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) {
+    return '0.00';
+  }
+  return numeric.toLocaleString('ru-RU', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+export default function OrdersTable({
+  orders,
+  actionRenderer,
+  showCustomer = true,
+  emptyText = 'Заказов пока нет.',
+  searchEnabled = true,
+  loading = false
+}) {
+  const parentRef = useRef(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const hasActions = typeof actionRenderer === 'function';
+  const hasFilters = searchEnabled && orders.length > 1;
+  const virtualizationThreshold = 40;
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+
+  const filteredOrders = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+    return orders.filter((order) => {
+      if (statusFilter && order.status !== statusFilter) {
+        return false;
+      }
+      if (!normalizedSearch) {
+        return true;
+      }
+
+      const searchable = [
+        `#${order.id}`,
+        order.customerName,
+        order.deliveryAddressText,
+        order.assignedDriverName,
+        statusLabel(order.status)
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      return searchable.includes(normalizedSearch);
+    });
+  }, [orders, searchTerm, statusFilter]);
+
+  const useVirtualization = filteredOrders.length > virtualizationThreshold;
+  const rowVirtualizer = useVirtualization ? useVirtualizer({
+    count: filteredOrders.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => 60,
+    overscan: 8
+  }) : null;
+
+  const virtualRows = useVirtualization ? rowVirtualizer.getVirtualItems() : [];
+  const totalSize = useVirtualization ? rowVirtualizer.getTotalSize() : 0;
+
+  const clearFilters = () => {
+    setSearchTerm('');
+    setStatusFilter('');
+  };
+
+  const hasActiveFilters = searchTerm || statusFilter;
+  const filterContainerSx = {
+    p: 2,
+    borderBottom: isMobile ? 'none' : '1px solid',
+    borderColor: 'divider',
+    bgcolor: 'background.paper',
+    position: isMobile ? 'static' : 'sticky',
+    top: isMobile ? 'auto' : 0,
+    zIndex: 2,
+    borderRadius: isMobile ? 2 : 0,
+    border: isMobile ? '1px solid' : 'none'
+  };
+
+  if (loading) {
+    return <OrderTableSkeleton rows={5} />;
+  }
+
+  if (!orders.length) {
+    return (
+      <Paper
+        elevation={0}
+        sx={{
+          py: 8,
+          px: 4,
+          textAlign: 'center',
+          borderRadius: 3,
+          background: 'background.paper',
+          border: '1px dashed',
+          borderColor: 'divider'
+        }}
+      >
+        <InboxOutlinedIcon
+          sx={{
+            fontSize: 72,
+            color: 'text.disabled',
+            mb: 2,
+            opacity: 0.5
+          }}
+        />
+        <Typography variant="h6" color="text.secondary" fontWeight={600} gutterBottom>
+          Заказов пока нет
+        </Typography>
+        <Typography variant="body2" color="text.disabled">
+          {emptyText}
+        </Typography>
+      </Paper>
+    );
+  }
+
+  const filtersNode = hasFilters ? (
+    <Box sx={filterContainerSx}>
+      <Stack
+        direction={{ xs: 'column', md: 'row' }}
+        spacing={2}
+        alignItems={{ xs: 'stretch', md: 'center' }}
+      >
+        <TextField
+          placeholder="Поиск по заказам..."
+          size="small"
+          value={searchTerm}
+          onChange={(event) => setSearchTerm(event.target.value)}
+          sx={{
+            minWidth: { xs: '100%', md: 280 },
+            mb: 0
+          }}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <SearchIcon fontSize="small" color="action" />
+              </InputAdornment>
+            ),
+            endAdornment: searchTerm && (
+              <InputAdornment position="end">
+                <IconButton
+                  size="small"
+                  onClick={() => setSearchTerm('')}
+                  edge="end"
+                >
+                  <ClearIcon fontSize="small" />
+                </IconButton>
+              </InputAdornment>
+            )
+          }}
+        />
+
+        <Stack
+          direction="row"
+          spacing={1.5}
+          alignItems="center"
+          sx={{ ml: { md: 'auto' } }}
+        >
+          <TextField
+            select
+            size="small"
+            label="Статус"
+            value={statusFilter}
+            onChange={(event) => setStatusFilter(event.target.value)}
+            sx={{ minWidth: { xs: '100%', sm: 190 } }}
+          >
+            <MenuItem value="">
+              <Chip label="Все" size="small" color="primary" sx={{ fontWeight: 600 }} />
+            </MenuItem>
+            {Object.entries(STATUS_META).map(([status, meta]) => (
+              <MenuItem key={status} value={status}>
+                <Chip label={meta.label} size="small" color={meta.color} variant="outlined" sx={{ fontWeight: 600 }} />
+              </MenuItem>
+            ))}
+          </TextField>
+          <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">
+            {filteredOrders.length} из {orders.length}
+          </Typography>
+          {hasActiveFilters && (
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={clearFilters}
+              startIcon={<ClearIcon fontSize="small" />}
+              sx={{ whiteSpace: 'nowrap' }}
+            >
+              Сбросить
+            </Button>
+          )}
+        </Stack>
+      </Stack>
+    </Box>
+  ) : null;
+
+  if (isMobile) {
+    return (
+      <Stack spacing={2}>
+        {filtersNode}
+        {!filteredOrders.length ? (
+          <Box sx={{ p: 5, textAlign: 'center', borderRadius: 2.5, border: '1px dashed', borderColor: 'divider' }}>
+            <FilterListIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5, opacity: 0.5 }} />
+            <Typography variant="body1" color="text.secondary" fontWeight={500}>
+              По фильтрам ничего не найдено
+            </Typography>
+            <Button size="small" onClick={clearFilters} sx={{ mt: 1.5 }}>
+              Сбросить фильтры
+            </Button>
+          </Box>
+        ) : (
+          <Stack spacing={1.5}>
+            {filteredOrders.map((order) => {
+              const statusMeta = STATUS_META[order.status] || {};
+              return (
+                <Card key={order.id} variant="outlined" sx={{ borderRadius: 2.5 }}>
+                  <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        Заказ #{order.id}
+                      </Typography>
+                      <Chip
+                        label={statusMeta.label || order.status}
+                        color={statusMeta.color || 'default'}
+                        size="small"
+                        variant="outlined"
+                      />
+                    </Stack>
+                    {showCustomer && (
+                      <Typography variant="body2" fontWeight={600}>
+                        {order.customerName || '—'}
+                      </Typography>
+                    )}
+                    <Typography variant="body2" color="text.secondary" noWrap>
+                      {order.deliveryAddressText || '—'}
+                    </Typography>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="caption" color="text.secondary">Водитель</Typography>
+                      <Typography variant="body2">
+                        {order.assignedDriverName || '—'}
+                      </Typography>
+                    </Stack>
+                    <Divider />
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="caption" color="text.secondary">Сумма</Typography>
+                      <Typography variant="subtitle2" fontWeight={700}>
+                        {formatMoney(order.totalAmount)} BYN
+                      </Typography>
+                    </Stack>
+                    <Stack direction="row" justifyContent="space-between">
+                      <Typography variant="caption" color="text.secondary">Позиций</Typography>
+                      <Chip
+                        label={order.items?.length || 0}
+                        size="small"
+                        sx={{ minWidth: 32, height: 22, fontWeight: 700, fontSize: '0.75rem' }}
+                      />
+                    </Stack>
+                    <Typography variant="caption" color="text.secondary">
+                      {formatDateTime(order.createdAt)}
+                    </Typography>
+                    {hasActions && (
+                      <Box sx={{ pt: 0.5 }}>
+                        {actionRenderer(order)}
+                      </Box>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </Stack>
+        )}
+      </Stack>
+    );
+  }
+
+  return (
+    <Paper
+      elevation={0}
+      ref={useVirtualization ? parentRef : null}
+      sx={{
+        borderRadius: 2.5,
+        overflow: 'hidden',
+        border: '1px solid',
+        borderColor: 'divider',
+        overflowX: 'auto',
+        overflowY: useVirtualization ? 'auto' : 'visible',
+        maxHeight: useVirtualization ? 560 : 'none'
+      }}
+    >
+      {filtersNode}
+
+      {!filteredOrders.length ? (
+        <Box sx={{ p: 5, textAlign: 'center' }}>
+          <FilterListIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5, opacity: 0.5 }} />
+          <Typography variant="body1" color="text.secondary" fontWeight={500}>
+            По фильтрам ничего не найдено
+          </Typography>
+          <Button size="small" onClick={clearFilters} sx={{ mt: 1.5 }}>
+            Сбросить фильтры
+          </Button>
+        </Box>
+      ) : (
+        <Table
+          stickyHeader={useVirtualization}
+          sx={{
+            minWidth: 700,
+            tableLayout: useVirtualization ? 'fixed' : 'auto'
+          }}
+          size="small"
+          aria-label="таблица заказов"
+        >
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 700, width: 80 }}>№</TableCell>
+              {showCustomer && <TableCell sx={{ fontWeight: 700 }}>Директор</TableCell>}
+              <TableCell sx={{ fontWeight: 700 }}>Адрес доставки</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: 140 }}>Водитель</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: 120 }}>Статус</TableCell>
+              <TableCell sx={{ fontWeight: 700, width: 140 }}>Дата</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 700, width: 100 }}>Сумма</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 700, width: 70 }}>Поз.</TableCell>
+              {hasActions && <TableCell sx={{ fontWeight: 700, width: 140 }}>Действия</TableCell>}
+            </TableRow>
+          </TableHead>
+          <TableBody
+            sx={useVirtualization ? {
+              position: 'relative',
+              display: 'block',
+              height: `${totalSize}px`
+            } : undefined}
+          >
+            {(useVirtualization ? virtualRows : filteredOrders.map((_, index) => ({ index, start: 0 }))).map((virtualRow) => {
+              const order = filteredOrders[virtualRow.index];
+              const statusMeta = STATUS_META[order.status] || {};
+
+              return (
+                <TableRow
+                  key={order.id}
+                  hover
+                  sx={{
+                    '&:last-child td, &:last-child th': { border: 0 },
+                    transition: 'background-color 0.15s ease',
+                    ...(useVirtualization ? {
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      transform: `translateY(${virtualRow.start}px)`,
+                      display: 'table',
+                      tableLayout: 'fixed'
+                    } : {})
+                  }}
+                >
+                  <TableCell>
+                    <Typography
+                      variant="subtitle2"
+                      fontWeight={700}
+                      color="primary"
+                    >
+                      #{order.id}
+                    </Typography>
+                  </TableCell>
+                  {showCustomer && (
+                    <TableCell>
+                      <Typography variant="body2" fontWeight={500} noWrap>
+                        {order.customerName}
+                      </Typography>
+                    </TableCell>
+                  )}
+                  <TableCell>
+                    <Tooltip title={order.deliveryAddressText || '—'} arrow placement="top">
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          maxWidth: 200,
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {order.deliveryAddressText || '—'}
+                      </Typography>
+                    </Tooltip>
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="body2" color={order.assignedDriverName ? 'text.primary' : 'text.disabled'}>
+                      {order.assignedDriverName || '—'}
+                    </Typography>
+                  </TableCell>
+                  <TableCell>
+                    <Chip
+                      label={statusMeta.label || order.status}
+                      color={statusMeta.color || 'default'}
+                      size="small"
+                      variant="outlined"
+                      sx={{
+                        fontWeight: 600
+                      }}
+                    />
+                  </TableCell>
+                  <TableCell>
+                    <Typography variant="caption" color="text.secondary">
+                      {formatDateTime(order.createdAt)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="right">
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      {formatMoney(order.totalAmount)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell align="center">
+                    <Chip
+                      label={order.items?.length || 0}
+                      size="small"
+                      sx={{
+                        minWidth: 32,
+                        height: 24,
+                        fontWeight: 700,
+                        fontSize: '0.75rem'
+                      }}
+                    />
+                  </TableCell>
+                  {hasActions && (
+                    <TableCell>
+                      {actionRenderer(order)}
+                    </TableCell>
+                  )}
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      )}
+    </Paper>
+  );
+}

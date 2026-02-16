@@ -1,0 +1,59 @@
+package com.farm.sales.controller;
+
+import com.farm.sales.dto.ProductPageResponse;
+import com.farm.sales.dto.ProductRequest;
+import com.farm.sales.dto.ProductResponse;
+import com.farm.sales.service.ProductService;
+import jakarta.validation.Valid;
+import java.util.List;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/products")
+public class ProductController {
+  private final ProductService productService;
+
+  public ProductController(ProductService productService) {
+    this.productService = productService;
+  }
+
+  @GetMapping
+  public ResponseEntity<ProductPageResponse> list(@RequestParam(required = false) String category,
+                                                  @RequestParam(required = false, name = "q") String search,
+                                                  @RequestParam(required = false) Integer page,
+                                                  @RequestParam(required = false) Integer size) {
+    return ResponseEntity.ok(productService.getPage(category, search, page, size));
+  }
+
+  @GetMapping("/categories")
+  public ResponseEntity<List<String>> categories() {
+    return ResponseEntity.ok(productService.getCategories());
+  }
+
+  @PostMapping
+  public ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest request) {
+    return ResponseEntity.status(HttpStatus.CREATED).body(productService.create(request));
+  }
+
+  @PutMapping("/{id}")
+  public ResponseEntity<ProductResponse> update(@PathVariable Long id,
+                                                @Valid @RequestBody ProductRequest request) {
+    return ResponseEntity.ok(productService.update(id, request));
+  }
+
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> delete(@PathVariable Long id) {
+    productService.delete(id);
+    return ResponseEntity.noContent().build();
+  }
+}

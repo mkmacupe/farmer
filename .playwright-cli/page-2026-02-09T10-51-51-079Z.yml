@@ -1,0 +1,40 @@
+- generic [ref=e6]:
+  - heading "Вход" [level=1] [ref=e8]
+  - generic [ref=e10]:
+    - generic [ref=e11]:
+      - generic [ref=e40]:
+        - text: Логин
+        - generic [ref=e41]: "*"
+      - generic [ref=e12]:
+        - textbox "Логин" [ref=e13]: manager
+        - group:
+          - generic: Логин *
+    - generic [ref=e14]:
+      - generic [ref=e42]:
+        - text: Пароль
+        - generic [ref=e43]: "*"
+      - generic [ref=e15]:
+        - textbox "Пароль" [ref=e16]: "1"
+        - button "Показать символы" [ref=e18] [cursor=pointer]:
+          - img [ref=e19]
+        - group:
+          - generic: Пароль *
+    - button "Войти" [ref=e44] [cursor=pointer]
+  - generic [ref=e22]:
+    - button "mogilevkhim" [ref=e23] [cursor=pointer]:
+      - generic [ref=e24]: mogilevkhim
+    - button "mogilevlift" [ref=e25] [cursor=pointer]:
+      - generic [ref=e26]: mogilevlift
+    - button "babushkina" [ref=e27] [cursor=pointer]:
+      - generic [ref=e28]: babushkina
+    - button "manager" [active] [ref=e29] [cursor=pointer]:
+      - generic [ref=e30]: manager
+    - button "logistician" [ref=e31] [cursor=pointer]:
+      - generic [ref=e32]: logistician
+    - button "driver1" [ref=e33] [cursor=pointer]:
+      - generic [ref=e34]: driver1
+    - button "driver2" [ref=e35] [cursor=pointer]:
+      - generic [ref=e36]: driver2
+    - button "driver3" [ref=e37] [cursor=pointer]:
+      - generic [ref=e38]: driver3
+  - button "(Refresh to reset)" [ref=e39] [cursor=pointer]

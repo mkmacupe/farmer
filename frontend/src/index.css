@@ -1,0 +1,64 @@
+:root {
+  font-family: "IBM Plex Sans", "Noto Sans", "Helvetica Neue", sans-serif;
+  color: #1a1a1a;
+  background-color: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: #ffffff;
+  background-image: none;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #d4d4d4 transparent;
+}
+
+::selection {
+  background-color: rgba(46, 91, 78, 0.12);
+}
+
+.page-enter {
+  animation: fadeSlideIn 0.25s ease-out;
+}
+
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 0.875rem;
+}

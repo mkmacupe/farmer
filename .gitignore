@@ -1,0 +1,22 @@
+# Java
+/backend/target/
+/backend/data/
+*.log
+
+# Node
+/frontend/node_modules/
+/frontend/dist/
+/frontend/coverage/
+/frontend/.env.local
+/output/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+nul
+
+# Local env
+.env

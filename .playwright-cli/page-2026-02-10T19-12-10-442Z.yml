@@ -1,0 +1,290 @@
+- generic [ref=e3]:
+  - main [ref=e4]:
+    - generic [ref=e6]:
+      - heading "Каталог и корзина" [level=1] [ref=e83]
+      - button "Выйти" [ref=e9] [cursor=pointer]:
+        - img [ref=e11]
+    - generic [ref=e35]:
+      - generic [ref=e84]:
+        - heading "Каталог и корзина" [level=6] [ref=e86]
+        - generic [ref=e87]:
+          - generic [ref=e89]:
+            - generic: Категория
+            - generic [ref=e90]:
+              - combobox "Категория" [ref=e91] [cursor=pointer]
+              - textbox
+              - img
+              - group:
+                - generic: Категория
+          - generic [ref=e93]:
+            - generic [ref=e94]: Поиск товаров
+            - generic [ref=e95]:
+              - img [ref=e97]
+              - textbox "Поиск товаров" [ref=e99]
+              - group:
+                - generic: Поиск товаров
+        - generic [ref=e100]:
+          - generic [ref=e102]:
+            - heading "Корзина" [level=6] [ref=e103]
+            - generic [ref=e104]:
+              - paragraph [ref=e105]: Корзина пуста
+              - separator [ref=e106]
+              - generic [ref=e107]:
+                - paragraph [ref=e108]: Позиций
+                - paragraph [ref=e109]: "0"
+              - generic [ref=e110]:
+                - paragraph [ref=e111]: Единиц
+                - paragraph [ref=e112]: "0"
+              - separator [ref=e113]
+              - generic [ref=e114]:
+                - heading "Итого" [level=6] [ref=e115]
+                - heading "0,00 BYN" [level=6] [ref=e116]
+              - generic [ref=e117]:
+                - generic [ref=e118]: Адрес доставки
+                - generic [ref=e119]:
+                  - combobox "Адрес доставки Точка отгрузки" [ref=e120] [cursor=pointer]: Точка отгрузки
+                  - textbox: "8"
+                  - img
+                  - group:
+                    - generic: Адрес доставки
+              - button "Отправить заявку" [disabled]:
+                - generic:
+                  - img
+                - text: Отправить заявку
+              - button "Очистить" [ref=e121] [cursor=pointer]
+          - generic [ref=e123]:
+            - generic [ref=e125]:
+              - generic [ref=e126]:
+                - img [ref=e127]
+                - generic [ref=e129]: Фото недоступно
+              - generic [ref=e130]:
+                - heading "Крупа гречневая 1 кг" [level=6] [ref=e131]
+                - generic [ref=e132]: Гречка ядрица
+                - generic [ref=e133]:
+                  - generic [ref=e135]: Крупы
+                  - heading "2,59 BYN" [level=6] [ref=e136]
+                - generic [ref=e137]: "Остаток: 85"
+              - generic [ref=e139]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e140]: "0"
+                - button "Увеличить количество" [ref=e141] [cursor=pointer]:
+                  - img [ref=e142]
+                - button "В корзину" [ref=e144] [cursor=pointer]
+            - generic [ref=e146]:
+              - generic [ref=e147]:
+                - img [ref=e148]
+                - generic [ref=e150]: Фото недоступно
+              - generic [ref=e151]:
+                - heading "Пшено 1 кг" [level=6] [ref=e152]
+                - generic [ref=e153]: Пшено шлифованное
+                - generic [ref=e154]:
+                  - generic [ref=e156]: Крупы
+                  - heading "2,59 BYN" [level=6] [ref=e157]
+                - generic [ref=e158]: "Остаток: 75"
+              - generic [ref=e160]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e161]: "0"
+                - button "Увеличить количество" [ref=e162] [cursor=pointer]:
+                  - img [ref=e163]
+                - button "В корзину" [ref=e165] [cursor=pointer]
+            - generic [ref=e167]:
+              - generic [ref=e168]:
+                - img [ref=e169]
+                - generic [ref=e171]: Фото недоступно
+              - generic [ref=e172]:
+                - heading "Рис 1 кг" [level=6] [ref=e173]
+                - generic [ref=e174]: Рис шлифованный
+                - generic [ref=e175]:
+                  - generic [ref=e177]: Крупы
+                  - heading "2,59 BYN" [level=6] [ref=e178]
+                - generic [ref=e179]: "Остаток: 90"
+              - generic [ref=e181]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e182]: "0"
+                - button "Увеличить количество" [ref=e183] [cursor=pointer]:
+                  - img [ref=e184]
+                - button "В корзину" [ref=e186] [cursor=pointer]
+            - generic [ref=e188]:
+              - generic [ref=e189]:
+                - img [ref=e190]
+                - generic [ref=e192]: Фото недоступно
+              - generic [ref=e193]:
+                - heading "Мёд 0.5 кг" [level=6] [ref=e194]
+                - generic [ref=e195]: Натуральный акациевый мёд
+                - generic [ref=e196]:
+                  - generic [ref=e198]: Мёд
+                  - heading "27,43 BYN" [level=6] [ref=e199]
+                - generic [ref=e200]: "Остаток: 40"
+              - generic [ref=e202]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e203]: "0"
+                - button "Увеличить количество" [ref=e204] [cursor=pointer]:
+                  - img [ref=e205]
+                - button "В корзину" [ref=e207] [cursor=pointer]
+            - generic [ref=e209]:
+              - generic [ref=e210]:
+                - img [ref=e211]
+                - generic [ref=e213]: Фото недоступно
+              - generic [ref=e214]:
+                - heading "Мёд гречишный 0.5 кг" [level=6] [ref=e215]
+                - generic [ref=e216]: Ароматный гречишный мёд
+                - generic [ref=e217]:
+                  - generic [ref=e219]: Мёд
+                  - heading "27,43 BYN" [level=6] [ref=e220]
+                - generic [ref=e221]: "Остаток: 25"
+              - generic [ref=e223]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e224]: "0"
+                - button "Увеличить количество" [ref=e225] [cursor=pointer]:
+                  - img [ref=e226]
+                - button "В корзину" [ref=e228] [cursor=pointer]
+            - generic [ref=e230]:
+              - generic [ref=e231]:
+                - img [ref=e232]
+                - generic [ref=e234]: Фото недоступно
+              - generic [ref=e235]:
+                - heading "Мёд липовый 0.5 кг" [level=6] [ref=e236]
+                - generic [ref=e237]: Липовый мёд
+                - generic [ref=e238]:
+                  - generic [ref=e240]: Мёд
+                  - heading "27,43 BYN" [level=6] [ref=e241]
+                - generic [ref=e242]: "Остаток: 35"
+              - generic [ref=e244]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e245]: "0"
+                - button "Увеличить количество" [ref=e246] [cursor=pointer]:
+                  - img [ref=e247]
+                - button "В корзину" [ref=e249] [cursor=pointer]
+            - generic [ref=e251]:
+              - generic [ref=e252]:
+                - img [ref=e256]
+                - img "Йогурт натуральный 0.5 л" [ref=e258]
+              - generic [ref=e259]:
+                - heading "Йогурт натуральный 0.5 л" [level=6] [ref=e260]
+                - generic [ref=e261]: Натуральный йогурт без сахара
+                - generic [ref=e262]:
+                  - generic [ref=e264]: Молочная продукция
+                  - heading "5,56 BYN" [level=6] [ref=e265]
+                - generic [ref=e266]: "Остаток: 70"
+              - generic [ref=e268]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e269]: "0"
+                - button "Увеличить количество" [ref=e270] [cursor=pointer]:
+                  - img [ref=e271]
+                - button "В корзину" [ref=e273] [cursor=pointer]
+            - generic [ref=e275]:
+              - generic [ref=e276]:
+                - img [ref=e280]
+                - img "Йогурт с фруктами 0.5 л" [ref=e282]
+              - generic [ref=e283]:
+                - heading "Йогурт с фруктами 0.5 л" [level=6] [ref=e284]
+                - generic [ref=e285]: Йогурт с фруктовыми кусочками
+                - generic [ref=e286]:
+                  - generic [ref=e288]: Молочная продукция
+                  - heading "5,15 BYN" [level=6] [ref=e289]
+                - generic [ref=e290]: "Остаток: 110"
+              - generic [ref=e292]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e293]: "0"
+                - button "Увеличить количество" [ref=e294] [cursor=pointer]:
+                  - img [ref=e295]
+                - button "В корзину" [ref=e297] [cursor=pointer]
+            - generic [ref=e299]:
+              - generic [ref=e300]:
+                - img [ref=e304]
+                - img "Кефир 0.5 л" [ref=e306]
+              - generic [ref=e307]:
+                - heading "Кефир 0.5 л" [level=6] [ref=e308]
+                - generic [ref=e309]: Кефир 2,5% жирности
+                - generic [ref=e310]:
+                  - generic [ref=e312]: Молочная продукция
+                  - heading "1,63 BYN" [level=6] [ref=e313]
+                - generic [ref=e314]: "Остаток: 140"
+              - generic [ref=e316]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e317]: "0"
+                - button "Увеличить количество" [ref=e318] [cursor=pointer]:
+                  - img [ref=e319]
+                - button "В корзину" [ref=e321] [cursor=pointer]
+            - generic [ref=e323]:
+              - generic [ref=e324]:
+                - img [ref=e328]
+                - img "Кефир 1 л" [ref=e330]
+              - generic [ref=e331]:
+                - heading "Кефир 1 л" [level=6] [ref=e332]
+                - generic [ref=e333]: Кефир 2,5% жирности
+                - generic [ref=e334]:
+                  - generic [ref=e336]: Молочная продукция
+                  - heading "3,06 BYN" [level=6] [ref=e337]
+                - generic [ref=e338]: "Остаток: 90"
+              - generic [ref=e340]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e341]: "0"
+                - button "Увеличить количество" [ref=e342] [cursor=pointer]:
+                  - img [ref=e343]
+                - button "В корзину" [ref=e345] [cursor=pointer]
+            - generic [ref=e347]:
+              - generic [ref=e348]:
+                - img [ref=e352]
+                - img "Молоко 1 л" [ref=e354]
+              - generic [ref=e355]:
+                - heading "Молоко 1 л" [level=6] [ref=e356]
+                - generic [ref=e357]: Свежее коровье молоко с фермы
+                - generic [ref=e358]:
+                  - generic [ref=e360]: Молочная продукция
+                  - heading "2,98 BYN" [level=6] [ref=e361]
+                - generic [ref=e362]: "Остаток: 120"
+              - generic [ref=e364]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e365]: "0"
+                - button "Увеличить количество" [ref=e366] [cursor=pointer]:
+                  - img [ref=e367]
+                - button "В корзину" [ref=e369] [cursor=pointer]
+            - generic [ref=e371]:
+              - generic [ref=e372]:
+                - img [ref=e376]
+                - img "Молоко 2 л" [ref=e378]
+              - generic [ref=e379]:
+                - heading "Молоко 2 л" [level=6] [ref=e380]
+                - generic [ref=e381]: Молоко пастеризованное 3,2%
+                - generic [ref=e382]:
+                  - generic [ref=e384]: Молочная продукция
+                  - heading "5,76 BYN" [level=6] [ref=e385]
+                - generic [ref=e386]: "Остаток: 90"
+              - generic [ref=e388]:
+                - button "Уменьшить количество" [disabled]:
+                  - img
+                - paragraph [ref=e389]: "0"
+                - button "Увеличить количество" [ref=e390] [cursor=pointer]:
+                  - img [ref=e391]
+                - button "В корзину" [ref=e393] [cursor=pointer]
+            - generic [ref=e395]:
+              - button "Показать ещё" [ref=e396] [cursor=pointer]
+              - generic [ref=e397]: Загружено 12 из 35
+      - button "0,00 BYN" [disabled]:
+        - img
+        - text: 0,00 BYN
+  - generic [ref=e17]:
+    - button "Профиль" [ref=e18] [cursor=pointer]:
+      - img [ref=e19]
+      - generic [ref=e21]: Профиль
+    - button "Адреса" [ref=e22] [cursor=pointer]:
+      - img [ref=e23]
+      - generic [ref=e26]: Адреса
+    - button "Каталог" [active] [ref=e27] [cursor=pointer]:
+      - img [ref=e28]
+      - generic [ref=e30]: Каталог
+    - button "История" [ref=e31] [cursor=pointer]:
+      - img [ref=e32]
+      - generic [ref=e34]: История
