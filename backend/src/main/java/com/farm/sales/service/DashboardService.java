@@ -23,20 +23,16 @@ public class DashboardService {
 
   @Transactional(readOnly = true)
   public DashboardSummaryResponse getSummary(Instant from, Instant to) {
-    long totalOrders = orderRepository.countForDashboard(from, to);
-    BigDecimal totalAllOrders = orderRepository.sumTotalForDashboard(from, to);
-    BigDecimal totalDeliveredRevenue = orderRepository.sumDeliveredForDashboard(from, to);
-    List<OrderRepository.DashboardStatusAggregate> aggregatedStatuses = orderRepository.countByStatusForDashboard(from, to);
+    OrderRepository.DashboardSummaryAggregate aggregate = orderRepository.summarizeForDashboard(from, to);
+    long totalOrders = longOrZero(aggregate == null ? null : aggregate.getTotalOrders());
+    BigDecimal totalAllOrders = decimalOrZero(aggregate == null ? null : aggregate.getTotalAmount());
+    BigDecimal totalDeliveredRevenue = decimalOrZero(aggregate == null ? null : aggregate.getDeliveredRevenue());
 
     EnumMap<OrderStatus, Long> byStatus = new EnumMap<>(OrderStatus.class);
-    for (OrderStatus status : OrderStatus.values()) {
-      byStatus.put(status, 0L);
-    }
-    for (OrderRepository.DashboardStatusAggregate row : aggregatedStatuses) {
-      if (row.getStatus() != null && row.getCount() != null) {
-        byStatus.put(row.getStatus(), row.getCount());
-      }
-    }
+    byStatus.put(OrderStatus.CREATED, longOrZero(aggregate == null ? null : aggregate.getCreatedCount()));
+    byStatus.put(OrderStatus.APPROVED, longOrZero(aggregate == null ? null : aggregate.getApprovedCount()));
+    byStatus.put(OrderStatus.ASSIGNED, longOrZero(aggregate == null ? null : aggregate.getAssignedCount()));
+    byStatus.put(OrderStatus.DELIVERED, longOrZero(aggregate == null ? null : aggregate.getDeliveredCount()));
 
     BigDecimal averageCheck = BigDecimal.ZERO;
     if (totalOrders > 0) {
@@ -56,5 +52,13 @@ public class DashboardService {
         averageCheck,
         statusRows
     );
+  }
+
+  private long longOrZero(Long value) {
+    return value == null ? 0L : value;
+  }
+
+  private BigDecimal decimalOrZero(BigDecimal value) {
+    return value == null ? BigDecimal.ZERO : value;
   }
 }

@@ -325,6 +325,85 @@ function Resolve-ComposeBackendPort {
   return $FallbackPort
 }
 
+function Test-DockerTransientError {
+  param([string]$OutputText)
+
+  if ([string]::IsNullOrWhiteSpace($OutputText)) {
+    return $false
+  }
+
+  $patterns = @(
+    "unexpected EOF",
+    "TLS handshake timeout",
+    "i/o timeout",
+    "connection reset by peer",
+    "reset by peer",
+    "context canceled",
+    "temporary failure in name resolution",
+    "net/http: request canceled",
+    "failed to do request",
+    "failed to copy: httpReadSeeker",
+    "no route to host",
+    "received unexpected HTTP status",
+    "failed to solve:.*EOF"
+  )
+
+  foreach ($pattern in $patterns) {
+    if ($OutputText -match $pattern) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Invoke-CommandWithDockerRetry {
+  param(
+    [string]$CommandLine,
+    [string]$FailureMessage,
+    [int]$MaxAttempts = 3,
+    [switch]$SoftFail
+  )
+
+  for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+    $capturedOutput = @()
+    cmd /c "$CommandLine 2>&1" | Tee-Object -Variable capturedOutput | Out-Host
+    $exitCode = $LASTEXITCODE
+    $output = @($capturedOutput)
+
+    if ($exitCode -eq 0) {
+      return
+    }
+
+    $outputText = ($output -join "`n")
+    $isTransient = Test-DockerTransientError -OutputText $outputText
+    if (-not $isTransient -or $attempt -eq $MaxAttempts) {
+      if ($SoftFail) {
+        Write-Warning "$FailureMessage failed with exit code $exitCode. Continuing..."
+        return $false
+      }
+      throw "$FailureMessage failed with exit code $exitCode."
+    }
+
+    $delaySeconds = [Math]::Min(30, [Math]::Pow(2, $attempt + 1))
+    Write-Warning "Transient Docker error detected. Retry $($attempt + 1)/$MaxAttempts in $delaySeconds sec..."
+    Start-Sleep -Seconds $delaySeconds
+  }
+
+  return $true
+}
+
+function Test-DockerImageLocal {
+  param([string]$ImageName)
+
+  if ([string]::IsNullOrWhiteSpace($ImageName)) {
+    return $false
+  }
+
+  cmd /c "docker image inspect $ImageName >nul 2>&1"
+  return $LASTEXITCODE -eq 0
+}
+
 function Start-Backend {
   param(
     [int]$MysqlPort,
@@ -363,17 +442,32 @@ function Start-Backend {
 
     if ($RebuildBackend) {
       Write-Host "Rebuilding backend image without cache..."
-      cmd /c "docker compose --env-file ""$EnvFilePath"" build --no-cache backend 2>&1" | Out-Host
-      if ($LASTEXITCODE -ne 0) {
-        throw "docker compose build --no-cache backend failed with exit code $LASTEXITCODE."
+      Invoke-CommandWithDockerRetry `
+        -CommandLine "docker compose --env-file ""$EnvFilePath"" build --no-cache backend" `
+        -FailureMessage "docker compose build --no-cache backend"
+    }
+
+    $requiredBaseImages = @(
+      "maven:3.9-eclipse-temurin-25",
+      "eclipse-temurin:25-jre"
+    )
+    foreach ($image in $requiredBaseImages) {
+      if (Test-DockerImageLocal -ImageName $image) {
+        continue
       }
+      Write-Host "Pulling missing backend base image '$image' (with retry on transient network errors)..."
+      Invoke-CommandWithDockerRetry `
+        -CommandLine "docker pull $image" `
+        -FailureMessage "docker pull $image" `
+        -MaxAttempts 5 `
+        -SoftFail
     }
 
     Write-Host "Starting backend and database with docker compose..."
-    cmd /c "docker compose --env-file ""$EnvFilePath"" up -d --build 2>&1" | Out-Host
-    if ($LASTEXITCODE -ne 0) {
-      throw "docker compose up -d --build failed with exit code $LASTEXITCODE."
-    }
+    Invoke-CommandWithDockerRetry `
+      -CommandLine "docker compose --env-file ""$EnvFilePath"" up -d --build" `
+      -FailureMessage "docker compose up -d --build" `
+      -MaxAttempts 5
 
     $actualApiPort = Resolve-ComposeBackendPort -EnvFilePath $EnvFilePath -FallbackPort $ApiPort
     if ($actualApiPort -ne $ApiPort) {

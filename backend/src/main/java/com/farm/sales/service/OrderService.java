@@ -23,7 +23,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
@@ -65,6 +67,16 @@ public class OrderService {
     User director = requireUserRole(directorId, Role.DIRECTOR, "Директор не найден");
     StoreAddress deliveryAddress = directorProfileService.getOwnedAddress(directorId, request.deliveryAddressId());
 
+    List<Long> productIds = request.items().stream()
+        .map(OrderItemRequest::productId)
+        .distinct()
+        .toList();
+    Map<Long, Product> productsById = productRepository.findAllByIdInForUpdate(productIds).stream()
+        .collect(Collectors.toMap(Product::getId, Function.identity()));
+    if (productsById.size() != productIds.size()) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Товар не найден");
+    }
+
     Order order = new Order();
     order.setCustomer(director);
     order.setDeliveryAddress(deliveryAddress);
@@ -82,8 +94,10 @@ public class OrderService {
 
     try {
       for (var itemRequest : request.items()) {
-        Product product = productRepository.findByIdForUpdate(itemRequest.productId())
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Товар не найден"));
+        Product product = productsById.get(itemRequest.productId());
+        if (product == null) {
+          throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Товар не найден");
+        }
 
         if (product.getStockQuantity() < itemRequest.quantity()) {
           throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Недостаточно остатка по товару: " + product.getName());
@@ -173,7 +187,7 @@ public class OrderService {
     };
     return orders.stream()
         .map(this::toResponse)
-        .collect(Collectors.toList());
+        .toList();
   }
 
   @Transactional

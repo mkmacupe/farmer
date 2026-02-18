@@ -2,6 +2,7 @@ package com.farm.sales.repository;
 
 import com.farm.sales.model.Product;
 import jakarta.persistence.LockModeType;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
@@ -14,6 +15,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
   @Lock(LockModeType.PESSIMISTIC_WRITE)
   @Query("select p from Product p where p.id = :id")
   Optional<Product> findByIdForUpdate(@Param("id") Long id);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @Query("select p from Product p where p.id in :ids")
+  List<Product> findAllByIdInForUpdate(@Param("ids") Collection<Long> ids);
 
   boolean existsByNameIgnoreCase(String name);
 

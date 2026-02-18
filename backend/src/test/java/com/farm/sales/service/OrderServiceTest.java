@@ -74,8 +74,7 @@ class OrderServiceTest {
 
     when(userRepository.findById(7L)).thenReturn(Optional.of(director));
     when(directorProfileService.getOwnedAddress(7L, 5L)).thenReturn(address);
-    when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(milk));
-    when(productRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(cheese));
+    when(productRepository.findAllByIdInForUpdate(List.of(1L, 2L))).thenReturn(List.of(milk, cheese));
     when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
       Order order = invocation.getArgument(0);
       order.setId(101L);
@@ -106,7 +105,7 @@ class OrderServiceTest {
 
     when(userRepository.findById(7L)).thenReturn(Optional.of(director));
     when(directorProfileService.getOwnedAddress(7L, 5L)).thenReturn(address);
-    when(productRepository.findByIdForUpdate(1L)).thenReturn(Optional.of(milk));
+    when(productRepository.findAllByIdInForUpdate(List.of(1L))).thenReturn(List.of(milk));
 
     OrderCreateRequest request = new OrderCreateRequest(5L, List.of(
         new OrderItemRequest(1L, 2)
@@ -234,9 +233,9 @@ class OrderServiceTest {
     address.setId(id);
     address.setUser(director);
     address.setLabel("Main Store");
-    address.setAddressLine("Kyiv, Khreshchatyk 1");
-    address.setLatitude(new BigDecimal("50.4501000"));
-    address.setLongitude(new BigDecimal("30.5234000"));
+    address.setAddressLine("Могилёв, ул. Челюскинцев 105");
+    address.setLatitude(new BigDecimal("53.8654000"));
+    address.setLongitude(new BigDecimal("30.2905000"));
     address.setCreatedAt(Instant.now());
     address.setUpdatedAt(Instant.now());
     return address;

@@ -7,7 +7,6 @@ import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -26,16 +25,15 @@ class DashboardServiceTest {
     Instant from = Instant.parse("2026-01-01T00:00:00Z");
     Instant to = Instant.parse("2026-01-31T23:59:59Z");
 
-    OrderRepository.DashboardStatusAggregate delivered = org.mockito.Mockito.mock(OrderRepository.DashboardStatusAggregate.class);
-    when(delivered.getStatus()).thenReturn(OrderStatus.DELIVERED);
-    when(delivered.getCount()).thenReturn(2L);
-    OrderRepository.DashboardStatusAggregate created = org.mockito.Mockito.mock(OrderRepository.DashboardStatusAggregate.class);
-    when(created.getStatus()).thenReturn(OrderStatus.CREATED);
-    when(created.getCount()).thenReturn(1L);
-    when(orderRepository.countForDashboard(from, to)).thenReturn(3L);
-    when(orderRepository.sumTotalForDashboard(from, to)).thenReturn(new BigDecimal("220.00"));
-    when(orderRepository.sumDeliveredForDashboard(from, to)).thenReturn(new BigDecimal("170.00"));
-    when(orderRepository.countByStatusForDashboard(from, to)).thenReturn(List.of(delivered, created));
+    OrderRepository.DashboardSummaryAggregate aggregate = org.mockito.Mockito.mock(OrderRepository.DashboardSummaryAggregate.class);
+    when(aggregate.getTotalOrders()).thenReturn(3L);
+    when(aggregate.getTotalAmount()).thenReturn(new BigDecimal("220.00"));
+    when(aggregate.getDeliveredRevenue()).thenReturn(new BigDecimal("170.00"));
+    when(aggregate.getCreatedCount()).thenReturn(1L);
+    when(aggregate.getApprovedCount()).thenReturn(0L);
+    when(aggregate.getAssignedCount()).thenReturn(0L);
+    when(aggregate.getDeliveredCount()).thenReturn(2L);
+    when(orderRepository.summarizeForDashboard(from, to)).thenReturn(aggregate);
 
     var summary = dashboardService.getSummary(from, to);
 

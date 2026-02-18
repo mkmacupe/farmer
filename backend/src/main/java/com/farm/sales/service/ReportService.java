@@ -1,6 +1,5 @@
 package com.farm.sales.service;
 
-import com.farm.sales.model.Order;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
 import java.io.ByteArrayOutputStream;
@@ -22,6 +21,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ReportService {
+  private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+      .withLocale(Locale.US)
+      .withZone(ZoneOffset.UTC);
   private final OrderRepository orderRepository;
 
   public ReportService(OrderRepository orderRepository) {
@@ -32,7 +34,7 @@ public class ReportService {
   public byte[] buildOrdersReport(Instant from, Instant to, String statusValue) {
     OrderStatus status = parseStatus(statusValue);
 
-    List<Order> orders = orderRepository.findForReport(from, to, status);
+    List<OrderRepository.ReportRow> orders = orderRepository.findReportRows(from, to, status);
 
     try (Workbook workbook = new XSSFWorkbook();
          ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
@@ -40,23 +42,17 @@ public class ReportService {
       createHeader(sheet);
       setColumnWidths(sheet);
 
-      DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-          .withLocale(Locale.US)
-          .withZone(ZoneOffset.UTC);
-
       int rowIndex = 1;
-      for (Order order : orders) {
+      for (OrderRepository.ReportRow order : orders) {
         Row row = sheet.createRow(rowIndex++);
-        row.createCell(0).setCellValue(order.getId());
-        row.createCell(1).setCellValue(order.getCustomer().getLegalEntityName() == null
-            ? order.getCustomer().getFullName()
-            : order.getCustomer().getLegalEntityName());
+        row.createCell(0).setCellValue(order.getOrderId() == null ? 0 : order.getOrderId());
+        row.createCell(1).setCellValue(order.getStoreName());
         row.createCell(2).setCellValue(order.getStatus().name());
-        row.createCell(3).setCellValue(formatter.format(order.getCreatedAt()));
+        row.createCell(3).setCellValue(REPORT_DATE_FORMATTER.format(order.getCreatedAt()));
         row.createCell(4).setCellValue(order.getTotalAmount().doubleValue());
-        row.createCell(5).setCellValue(order.getItems().size());
+        row.createCell(5).setCellValue(order.getItemCount() == null ? 0 : order.getItemCount());
         row.createCell(6).setCellValue(order.getDeliveryAddressText() == null ? "-" : order.getDeliveryAddressText());
-        row.createCell(7).setCellValue(order.getAssignedDriver() == null ? "-" : order.getAssignedDriver().getFullName());
+        row.createCell(7).setCellValue(order.getDriverName() == null ? "-" : order.getDriverName());
       }
 
       workbook.write(outputStream);

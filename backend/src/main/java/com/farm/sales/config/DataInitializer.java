@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
@@ -43,6 +44,7 @@ public class DataInitializer implements CommandLineRunner {
   }
 
   @Override
+  @Transactional
   public void run(String... args) {
     String normalizedDemoPassword = validateDemoPassword();
     archiveLegacyDirectorUser();
@@ -77,9 +79,9 @@ public class DataInitializer implements CommandLineRunner {
     createUserIfMissing("driver2", "Водитель 2", "+375290000006", null, Role.DRIVER, normalizedDemoPassword);
     createUserIfMissing("driver3", "Водитель 3", "+375290000007", null, Role.DRIVER, normalizedDemoPassword);
 
-    createAddressIfMissing(mogilevkhimDirector, "Основной склад", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
-    createAddressIfMissing(mogilevliftDirector, "Точка отгрузки", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
-    createAddressIfMissing(babushkinaDirector, "Центральный магазин", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
+    resetDemoAddress(mogilevkhimDirector, "Основной склад", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
+    resetDemoAddress(mogilevliftDirector, "Точка отгрузки", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
+    resetDemoAddress(babushkinaDirector, "Центральный магазин", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
 
     createOrUpdateProduct(
         "Молоко 1 л",
@@ -460,6 +462,27 @@ public class DataInitializer implements CommandLineRunner {
     address.setLongitude(new BigDecimal(longitude));
     address.setUpdatedAt(Instant.now());
     storeAddressRepository.save(address);
+  }
+
+  private void resetDemoAddress(User user, String label, String addressLine, String latitude, String longitude) {
+    var addresses = storeAddressRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
+    if (addresses.isEmpty()) {
+      createAddressIfMissing(user, label, addressLine, latitude, longitude);
+      return;
+    }
+
+    BigDecimal targetLatitude = new BigDecimal(latitude);
+    BigDecimal targetLongitude = new BigDecimal(longitude);
+    Instant now = Instant.now();
+
+    for (StoreAddress address : addresses) {
+      address.setLabel(label);
+      address.setAddressLine(addressLine);
+      address.setLatitude(targetLatitude);
+      address.setLongitude(targetLongitude);
+      address.setUpdatedAt(now);
+      storeAddressRepository.save(address);
+    }
   }
 
   private String validateDemoPassword() {
