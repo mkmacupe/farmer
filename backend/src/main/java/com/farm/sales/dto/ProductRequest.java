@@ -4,6 +4,7 @@ import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.math.BigDecimal;
 
@@ -16,7 +17,12 @@ public record ProductRequest(
     String category,
     @Size(max = 500, message = "Описание не должно превышать 500 символов")
     String description,
+    @NotBlank(message = "Фото товара обязательно")
     @Size(max = 500, message = "URL фото не должен превышать 500 символов")
+    @Pattern(
+        regexp = "^/images/products/[a-z0-9-]+\\.webp$",
+        message = "Фото товара должно быть в формате /images/products/<slug>.webp"
+    )
     String photoUrl,
     @NotNull(message = "Цена обязательна")
     @DecimalMin(value = "0.0", message = "Цена должна быть неотрицательной")

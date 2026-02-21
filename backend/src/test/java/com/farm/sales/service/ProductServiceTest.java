@@ -75,7 +75,7 @@ class ProductServiceTest {
         "Молоко 1 л",
         "Молочная продукция",
         "Свежее молоко",
-        "https://example.com/milk.jpg",
+        "/images/products/milk.webp",
         new BigDecimal("10.00"),
         5
     );
@@ -93,10 +93,11 @@ class ProductServiceTest {
         "Молоко 1 л",
         "Молочная продукция",
         "Свежее молоко",
-        "https://example.com/milk.jpg",
+        "/images/products/milk.webp",
         new BigDecimal("10.00"),
         5
     );
+    when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/milk.webp")).thenReturn(false);
     when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
       Product product = invocation.getArgument(0);
       product.setId(9L);
@@ -110,6 +111,87 @@ class ProductServiceTest {
     assertThat(response.category()).isEqualTo("Молочная продукция");
     assertThat(response.price()).isEqualByComparingTo("10.00");
     assertThat(response.stockQuantity()).isEqualTo(5);
+    verify(productRepository).existsByPhotoUrlIgnoreCase("/images/products/milk.webp");
+  }
+
+  @Test
+  void createRejectsInvalidPhotoPath() {
+    ProductRequest request = new ProductRequest(
+        "Молоко 1 л",
+        "Молочная продукция",
+        "Свежее молоко",
+        "https://example.com/milk.jpg",
+        new BigDecimal("10.00"),
+        5
+    );
+
+    assertThatThrownBy(() -> productService.create(request))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+          assertThat(ex.getReason()).contains("/images/products/<slug>.webp");
+        });
+
+    verify(productRepository, never()).save(any(Product.class));
+  }
+
+  @Test
+  void createRejectsDuplicatePhotoPath() {
+    ProductRequest request = new ProductRequest(
+        "Молоко 1 л",
+        "Молочная продукция",
+        "Свежее молоко",
+        "/images/products/milk.webp",
+        new BigDecimal("10.00"),
+        5
+    );
+    when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/milk.webp")).thenReturn(true);
+
+    assertThatThrownBy(() -> productService.create(request))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+          assertThat(ex.getReason()).contains("уникальная картинка");
+        });
+
+    verify(productRepository, never()).save(any(Product.class));
+  }
+
+  @Test
+  void updateRejectsDuplicatePhotoPathFromAnotherProduct() {
+    Product existing = new Product(
+        "Молоко 1 л",
+        "Молочная продукция",
+        "Свежее молоко",
+        "/images/products/milk.webp",
+        new BigDecimal("10.00"),
+        5
+    );
+    existing.setId(55L);
+    when(productRepository.findById(55L)).thenReturn(Optional.of(existing));
+    when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/cheese.webp", 55L))
+        .thenReturn(true);
+
+    ProductRequest request = new ProductRequest(
+        "Молоко 1 л",
+        "Молочная продукция",
+        "Свежее молоко",
+        "/images/products/cheese.webp",
+        new BigDecimal("10.00"),
+        5
+    );
+
+    assertThatThrownBy(() -> productService.update(55L, request))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+          assertThat(ex.getReason()).contains("уникальная картинка");
+        });
+
+    verify(productRepository, never()).save(any(Product.class));
   }
 
   @Test

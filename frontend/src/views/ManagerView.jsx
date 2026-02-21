@@ -116,6 +116,7 @@ function formatMoney(value) {
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MAX_DASHBOARD_DAYS = 31;
 const CATEGORY_COLORS = ['#1d4ed8', '#15803d', '#92400e', '#7c3aed', '#be123c', '#0f766e'];
+const PRODUCT_PHOTO_URL_PATTERN = /^\/images\/products\/[a-z0-9-]+\.webp$/;
 
 function parseDateInput(value) {
   if (!value) return null;
@@ -621,9 +622,23 @@ export default function ManagerView({ token, activeSection }) {
   const handleProductSave = async () => {
     const price = Number(productDraft.price);
     const stockQuantity = Number(productDraft.stockQuantity);
+    const normalizedPhotoUrl = productDraft.photoUrl.trim();
 
     if (!productDraft.name.trim()) return showMessage('Укажите наименование', 'error');
     if (!productDraft.category.trim()) return showMessage('Укажите категорию', 'error');
+    if (!normalizedPhotoUrl) return showMessage('Укажите фото товара', 'error');
+    if (!PRODUCT_PHOTO_URL_PATTERN.test(normalizedPhotoUrl)) {
+      return showMessage('Фото должно быть в формате /images/products/<slug>.webp', 'error');
+    }
+    const duplicatePhotoProduct = products.find((product) => {
+      if (editingProductId && product.id === editingProductId) {
+        return false;
+      }
+      return String(product.photoUrl || '').trim().toLowerCase() === normalizedPhotoUrl.toLowerCase();
+    });
+    if (duplicatePhotoProduct) {
+      return showMessage(`Это фото уже используется у "${duplicatePhotoProduct.name}"`, 'error');
+    }
     if (!Number.isFinite(price) || price < 0) return showMessage('Некорректная цена', 'error');
     if (!Number.isInteger(stockQuantity) || stockQuantity < 0) return showMessage('Некорректное количество', 'error');
 
@@ -631,7 +646,7 @@ export default function ManagerView({ token, activeSection }) {
       name: productDraft.name.trim(),
       category: productDraft.category.trim(),
       description: productDraft.description.trim(),
-      photoUrl: productDraft.photoUrl.trim(),
+      photoUrl: normalizedPhotoUrl,
       price,
       stockQuantity
     };
@@ -1493,6 +1508,7 @@ export default function ManagerView({ token, activeSection }) {
             fullWidth
             value={productDraft.photoUrl}
             onChange={(e) => setProductDraft({ ...productDraft, photoUrl: e.target.value })}
+            helperText="Уникальный путь вида /images/products/<slug>.webp"
           />
           {productDraft.photoUrl && (
             <Box sx={{ display: 'flex', justifyContent: 'center', p: 1, border: '1px dashed grey', borderRadius: 1 }}>

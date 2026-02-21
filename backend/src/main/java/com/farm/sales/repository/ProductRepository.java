@@ -24,6 +24,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
   Optional<Product> findByNameIgnoreCase(String name);
 
+  boolean existsByPhotoUrlIgnoreCase(String photoUrl);
+
+  boolean existsByPhotoUrlIgnoreCaseAndIdNot(String photoUrl, Long id);
+
   @Query("""
       select p from Product p
       where (:category is null or lower(p.category) = lower(:category))

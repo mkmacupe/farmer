@@ -1,5 +1,6 @@
 package com.farm.sales.config;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -15,6 +16,7 @@ import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -66,8 +68,16 @@ class DataInitializerTest {
     dataInitializer.run();
 
     verify(userRepository, times(8)).save(any(User.class));
-    verify(productRepository, times(34)).save(any(Product.class));
+    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+    verify(productRepository, times(34)).save(productCaptor.capture());
     verify(storeAddressRepository, times(3)).save(any(StoreAddress.class));
+
+    var photoUrls = productCaptor.getAllValues().stream()
+        .map(Product::getPhotoUrl)
+        .toList();
+    assertThat(photoUrls).doesNotContainNull();
+    assertThat(photoUrls).doesNotHaveDuplicates();
+    assertThat(photoUrls).allMatch(url -> url.matches("^/images/products/[a-z0-9-]+\\.webp$"));
   }
 
   @Test

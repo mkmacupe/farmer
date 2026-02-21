@@ -10,6 +10,10 @@
 - Realtime: SSE
 - Геоинтеграция: Nominatim (OpenStreetMap)
 
+## Деплой в интернет (бесплатно)
+- Готовый сценарий `Render (backend) + Cloudflare Pages (frontend)`:
+  - `docs/deploy/free-deploy-render-cloudflare.md`
+
 ## Роли и процессы
 - `MANAGER`:
   - регистрирует директоров магазинов вручную (внутренний процесс),

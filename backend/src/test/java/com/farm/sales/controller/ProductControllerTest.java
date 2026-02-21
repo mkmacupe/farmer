@@ -31,7 +31,7 @@ class ProductControllerTest {
         "Молоко 1 л",
         "Молочная продукция",
         "Свежее молоко",
-        "https://example.com/milk.jpg",
+        "/images/products/milk.webp",
         new BigDecimal("45.00"),
         10
     );
@@ -40,7 +40,7 @@ class ProductControllerTest {
         "Молоко 1 л",
         "Молочная продукция",
         "Свежее молоко",
-        "https://example.com/milk.jpg",
+        "/images/products/milk.webp",
         new BigDecimal("45.00"),
         10
     );

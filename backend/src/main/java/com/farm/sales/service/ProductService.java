@@ -9,6 +9,7 @@ import com.farm.sales.model.StockMovementType;
 import com.farm.sales.repository.ProductRepository;
 import jakarta.transaction.Transactional;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
@@ -22,6 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 public class ProductService {
   private static final int DEFAULT_PRODUCTS_PAGE_SIZE = 24;
   private static final int MAX_PRODUCTS_PAGE_SIZE = 100;
+  private static final Pattern PRODUCT_IMAGE_PATH_PATTERN =
+      Pattern.compile("^/images/products/[a-z0-9-]+\\.webp$");
   private final ProductRepository productRepository;
   private final AuditTrailPublisher auditTrailPublisher;
   private final StockMovementService stockMovementService;
@@ -69,11 +72,14 @@ public class ProductService {
 
   @CacheEvict(value = "product-categories", allEntries = true)
   public ProductResponse create(ProductRequest request) {
+    String normalizedPhotoUrl = normalizeAndValidatePhotoUrl(request.photoUrl());
+    ensureUniquePhotoUrl(normalizedPhotoUrl, null);
+
     Product product = new Product(
         request.name().trim(),
         request.category().trim(),
         normalizeNullable(request.description()),
-        normalizeNullable(request.photoUrl()),
+        normalizedPhotoUrl,
         request.price(),
         request.stockQuantity()
     );
@@ -94,11 +100,14 @@ public class ProductService {
   public ProductResponse update(Long id, ProductRequest request) {
     Product product = productRepository.findById(id)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Товар не найден"));
+    String normalizedPhotoUrl = normalizeAndValidatePhotoUrl(request.photoUrl());
+    ensureUniquePhotoUrl(normalizedPhotoUrl, id);
+
     Integer previousStock = product.getStockQuantity();
     product.setName(request.name().trim());
     product.setCategory(request.category().trim());
     product.setDescription(normalizeNullable(request.description()));
-    product.setPhotoUrl(normalizeNullable(request.photoUrl()));
+    product.setPhotoUrl(normalizedPhotoUrl);
     product.setPrice(request.price());
     product.setStockQuantity(request.stockQuantity());
     Product saved = productRepository.save(product);
@@ -160,6 +169,35 @@ public class ProductService {
     }
     String normalized = raw.trim();
     return normalized.isEmpty() ? null : normalized;
+  }
+
+  private String normalizeAndValidatePhotoUrl(String raw) {
+    String normalized = normalizeNullable(raw);
+    if (normalized == null) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Для товара обязательно фото в формате /images/products/<slug>.webp"
+      );
+    }
+    if (!PRODUCT_IMAGE_PATH_PATTERN.matcher(normalized).matches()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Фото товара должно быть в формате /images/products/<slug>.webp"
+      );
+    }
+    return normalized;
+  }
+
+  private void ensureUniquePhotoUrl(String photoUrl, Long currentProductId) {
+    boolean alreadyUsed = currentProductId == null
+        ? productRepository.existsByPhotoUrlIgnoreCase(photoUrl)
+        : productRepository.existsByPhotoUrlIgnoreCaseAndIdNot(photoUrl, currentProductId);
+    if (alreadyUsed) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "У каждого товара должна быть уникальная картинка"
+      );
+    }
   }
 
   private int normalizePage(Integer rawPage) {
