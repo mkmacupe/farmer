@@ -1,4 +1,4 @@
-import React, { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import Box from '@mui/material/Box';
 import Skeleton from '@mui/material/Skeleton';
 import { alpha } from '@mui/material/styles';
@@ -140,8 +140,7 @@ function ProductImage({
           display: 'block',
           opacity: loaded ? 1 : 0,
           transform: 'scale(1)',
-          transition: 'opacity 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-          willChange: 'transform, opacity'
+          transition: 'opacity 0.4s ease, transform 0.4s cubic-bezier(0.4, 0, 0.2, 1)'
         }}
       />
     </Box>

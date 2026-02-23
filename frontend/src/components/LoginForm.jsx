@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Container from '@mui/material/Container';
@@ -8,16 +8,11 @@ import Alert from '@mui/material/Alert';
 import Stack from '@mui/material/Stack';
 import Chip from '@mui/material/Chip';
 import Fade from '@mui/material/Fade';
-import IconButton from '@mui/material/IconButton';
-import InputAdornment from '@mui/material/InputAdornment';
 import Divider from '@mui/material/Divider';
-import VisibilityIcon from '@mui/icons-material/Visibility';
-import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 
 export default function LoginForm({ onLogin, loading, error }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
 
   const demoAccounts = [
     { label: 'mogilevkhim', username: 'mogilevkhim' },
@@ -94,25 +89,11 @@ export default function LoginForm({ onLogin, loading, error }) {
                     />
                     <TextField
                       label="Пароль"
-                      type={showPassword ? 'text' : 'password'}
+                      type="password"
                       autoComplete="current-password"
                       required
                       value={password}
                       onChange={(event) => setPassword(event.target.value)}
-                      InputProps={{
-                        endAdornment: (
-                          <InputAdornment position="end">
-                            <IconButton
-                              edge="end"
-                              aria-label={showPassword ? 'Скрыть символы' : 'Показать символы'}
-                              onClick={() => setShowPassword((prev) => !prev)}
-                              size="small"
-                            >
-                              {showPassword ? <VisibilityOffIcon fontSize="small" /> : <VisibilityIcon fontSize="small" />}
-                            </IconButton>
-                          </InputAdornment>
-                        )
-                      }}
                     />
                     <Button
                       type="submit"

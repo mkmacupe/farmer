@@ -52,6 +52,52 @@ export default defineConfig(({ mode }) => {
         }
       }
     },
+    build: {
+      target: 'es2022',
+      modulePreload: {
+        polyfill: false
+      },
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            const n = id.replace(/\\/g, '/');
+            if (!n.includes('/node_modules/')) {
+              return undefined;
+            }
+            // React core: react, react-dom, scheduler, react-is (shared dep)
+            if (
+              n.includes('/react/') ||
+              n.includes('/react-dom/') ||
+              n.includes('/scheduler/') ||
+              n.includes('/react-is/')
+            ) {
+              return 'react-vendor';
+            }
+            // MUI icons — large, rarely changes, cache-friendly
+            if (n.includes('/@mui/icons-material/')) {
+              return 'mui-icons';
+            }
+            // MUI + Emotion + supporting libs
+            if (
+              n.includes('/@mui/') ||
+              n.includes('/@emotion/') ||
+              n.includes('/clsx/') ||
+              n.includes('/react-transition-group/') ||
+              n.includes('/@floating-ui/') ||
+              n.includes('/@popperjs/')
+            ) {
+              return 'mui-core';
+            }
+            // Leaflet — only loaded with map component
+            if (n.includes('/leaflet/')) {
+              return 'leaflet';
+            }
+            // All other vendor modules stay in default chunk (avoids circular deps)
+            return undefined;
+          }
+        }
+      }
+    },
     test: {
       environment: 'jsdom',
       setupFiles: './src/test/setup.js',

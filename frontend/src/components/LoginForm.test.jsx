@@ -50,15 +50,13 @@ describe('LoginForm', () => {
     expect(screen.getByText('Неверный пароль')).toBeInTheDocument();
   });
 
-  it('toggles password visibility', async () => {
-    const uiUser = userEvent.setup();
+  it('keeps password field masked', () => {
     render(<LoginForm onLogin={() => {}} loading={false} error="" />);
 
     const passwordInput = screen.getByLabelText(/пароль/i);
     expect(passwordInput).toHaveAttribute('type', 'password');
-
-    await uiUser.click(screen.getByRole('button', { name: /показать символы/i }));
-    expect(passwordInput).toHaveAttribute('type', 'text');
+    expect(screen.queryByRole('button', { name: /показать символы/i })).toBeNull();
+    expect(screen.queryByRole('button', { name: /скрыть символы/i })).toBeNull();
   });
 
   it('disables submit button while loading', () => {

@@ -57,8 +57,8 @@ const themeMinimal = createTheme({
   },
   typography: {
     fontFamily: '"IBM Plex Sans", "Noto Sans", "system-ui", sans-serif',
-    h1: { fontWeight: 700, fontSize: '2rem', letterSpacing: '-0.025em', lineHeight: 1.2 },
-    h2: { fontWeight: 700, fontSize: '1.5rem', letterSpacing: '-0.02em', lineHeight: 1.3 },
+    h1: { fontWeight: 600, fontSize: '2rem', letterSpacing: '-0.025em', lineHeight: 1.2 },
+    h2: { fontWeight: 600, fontSize: '1.5rem', letterSpacing: '-0.02em', lineHeight: 1.3 },
     h3: { fontWeight: 600, fontSize: '1.25rem', letterSpacing: '-0.01em' },
     h4: { fontWeight: 600, fontSize: '1.125rem' },
     h5: { fontWeight: 600, fontSize: '1.05rem' },
@@ -401,7 +401,7 @@ const themeMinimal = createTheme({
     MuiDialogTitle: {
       styleOverrides: {
         root: {
-          fontWeight: 700,
+          fontWeight: 600,
           fontSize: '1.1rem'
         }
       }

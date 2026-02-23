@@ -1,16 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App.jsx';
 import { clearAuth, loadAuth, saveAuth } from './authStorage.js';
-import {
-  getAssignedOrders,
-  getDirectorAddresses,
-  getDirectorProfile,
-  getMyOrders,
-  getProductCategories,
-  getProductsPage,
-  login,
-  subscribeNotifications
-} from './api.js';
+import { login } from './api.js';
 
 vi.mock('./authStorage.js', () => ({
   loadAuth: vi.fn(),
@@ -18,54 +9,18 @@ vi.mock('./authStorage.js', () => ({
   clearAuth: vi.fn()
 }));
 
-vi.mock('./views/DirectorView.jsx', () => ({
-  default: () => <h2>Профиль директора</h2>
-}));
-
-vi.mock('./views/ManagerView.jsx', () => ({
-  default: () => <h2>Панель менеджера</h2>
-}));
-
-vi.mock('./views/LogisticianView.jsx', () => ({
-  default: () => <h2>Логистика и назначения</h2>
-}));
-
-vi.mock('./views/DriverView.jsx', () => ({
-  default: () => <h2>Мои доставки</h2>
-}));
-
 vi.mock('./api.js', () => ({
-  login: vi.fn(),
-  getProductsPage: vi.fn(),
-  getProductCategories: vi.fn(),
-  getDirectorProfile: vi.fn(),
-  updateDirectorProfile: vi.fn(),
-  getDirectorAddresses: vi.fn(),
-  createDirectorAddress: vi.fn(),
-  updateDirectorAddress: vi.fn(),
-  deleteDirectorAddress: vi.fn(),
-  lookupGeo: vi.fn(),
-  reverseGeo: vi.fn(),
-  createOrder: vi.fn(),
-  repeatOrder: vi.fn(),
-  getMyOrders: vi.fn(),
-  getAssignedOrders: vi.fn(),
-  getAllOrders: vi.fn(),
-  approveOrder: vi.fn(),
-  assignOrderDriver: vi.fn(),
-  markOrderDelivered: vi.fn(),
-  getOrderTimeline: vi.fn(),
-  createDirectorUser: vi.fn(),
-  getDirectors: vi.fn(),
-  getDrivers: vi.fn(),
-  createProduct: vi.fn(),
-  updateProduct: vi.fn(),
-  deleteProduct: vi.fn(),
-  downloadOrdersReport: vi.fn(),
-  getDashboardSummary: vi.fn(),
-  getAuditLogs: vi.fn(),
-  getStockMovements: vi.fn(),
-  subscribeNotifications: vi.fn()
+  login: vi.fn()
+}));
+
+vi.mock('./AuthenticatedApp.jsx', () => ({
+  default: ({ auth, activeSection, onLogout }) => (
+    <div>
+      <h1>{auth.role === 'DRIVER' ? 'Мои доставки' : 'Рабочий кабинет'}</h1>
+      <p data-testid="active-section">{activeSection}</p>
+      <button type="button" onClick={onLogout}>Выйти</button>
+    </div>
+  )
 }));
 
 describe('App', () => {
@@ -78,26 +33,6 @@ describe('App', () => {
       fullName: 'Driver One',
       role: 'DRIVER'
     });
-    getProductsPage.mockResolvedValue({
-      items: [],
-      page: 0,
-      size: 24,
-      totalItems: 0,
-      totalPages: 0,
-      hasNext: false
-    });
-    getProductCategories.mockResolvedValue([]);
-    getDirectorProfile.mockResolvedValue({
-      id: 1,
-      username: 'mogilevkhim',
-      fullName: 'Олег Курилин',
-      phone: '+375291112233',
-      legalEntityName: 'ОАО "Могилевхимволокно"'
-    });
-    getDirectorAddresses.mockResolvedValue([]);
-    getMyOrders.mockResolvedValue([]);
-    getAssignedOrders.mockResolvedValue([]);
-    subscribeNotifications.mockReturnValue(() => {});
   });
 
   it('shows login form for anonymous user', () => {
@@ -105,7 +40,7 @@ describe('App', () => {
     expect(screen.getByRole('heading', { name: /вход/i })).toBeInTheDocument();
   });
 
-  it('switches to role view after successful login', async () => {
+  it('switches to authenticated shell after successful login', async () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText(/логин/i), { target: { value: 'driver' } });
@@ -114,10 +49,55 @@ describe('App', () => {
 
     await waitFor(() => expect(login).toHaveBeenCalledWith('driver', 'secret123'));
     expect(await screen.findByRole('heading', { name: /мои доставки/i, level: 1 })).toBeInTheDocument();
-    expect(saveAuth).toHaveBeenCalled();
+    expect(screen.getByTestId('active-section')).toHaveTextContent('driver-orders');
+    expect(saveAuth).toHaveBeenCalledWith(expect.objectContaining({
+      token: 'jwt-token',
+      username: 'driver',
+      role: 'DRIVER'
+    }));
   });
 
-  it('renders role view from persisted auth', async () => {
+  it('shows backend error on failed login', async () => {
+    login.mockRejectedValueOnce(new Error('Неверный логин или пароль'));
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/логин/i), { target: { value: 'driver' } });
+    fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: 'wrong-password' } });
+    fireEvent.click(screen.getByRole('button', { name: /войти/i }));
+
+    expect(await screen.findByText('Неверный логин или пароль')).toBeInTheDocument();
+    expect(saveAuth).not.toHaveBeenCalled();
+  });
+
+  it('trims username before login request', async () => {
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/логин/i), { target: { value: '  driver  ' } });
+    fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getByRole('button', { name: /войти/i }));
+
+    await waitFor(() => expect(login).toHaveBeenCalledWith('driver', 'secret123'));
+  });
+
+  it('sets role default section after login', async () => {
+    login.mockResolvedValueOnce({
+      token: 'manager-token',
+      username: 'manager',
+      fullName: 'Manager',
+      role: 'MANAGER'
+    });
+
+    render(<App />);
+
+    fireEvent.change(screen.getByLabelText(/логин/i), { target: { value: 'manager' } });
+    fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: 'secret123' } });
+    fireEvent.click(screen.getByRole('button', { name: /войти/i }));
+
+    expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 })).toBeInTheDocument();
+    expect(screen.getByTestId('active-section')).toHaveTextContent('manager-dashboard');
+  });
+
+  it('renders authenticated shell from persisted auth', async () => {
     loadAuth.mockReturnValue({
       token: 'persisted-token',
       username: 'driver',
@@ -128,6 +108,7 @@ describe('App', () => {
     render(<App />);
 
     expect(await screen.findByRole('heading', { name: /мои доставки/i, level: 1 })).toBeInTheDocument();
+    expect(screen.getByTestId('active-section')).toHaveTextContent('driver-orders');
     expect(login).not.toHaveBeenCalled();
   });
 
@@ -138,6 +119,7 @@ describe('App', () => {
       fullName: 'Driver One',
       role: 'DRIVER'
     });
+
     render(<App />);
     await screen.findByRole('heading', { name: /мои доставки/i, level: 1 });
 
@@ -147,6 +129,5 @@ describe('App', () => {
       expect(clearAuth).toHaveBeenCalledTimes(1);
     });
     expect(await screen.findByRole('heading', { name: /вход/i })).toBeInTheDocument();
-  }, 30000);
-
+  });
 });

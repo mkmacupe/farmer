@@ -1,27 +1,23 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { getAssignedOrders, markOrderDelivered, subscribeNotifications } from '../api.js';
 
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Paper,
-  Stack,
-  Typography,
-  Alert,
-  Snackbar,
-  Slide
-} from '@mui/material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import Paper from '@mui/material/Paper';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+import Snackbar from '@mui/material/Snackbar';
+import Slide from '@mui/material/Slide';
 
-import {
-  LocalShipping as LocalShippingIcon,
-  CheckCircle as CheckCircleIcon,
-  Map as MapIcon,
-  Check as CheckIcon,
-  InboxOutlined as InboxOutlinedIcon
-} from '@mui/icons-material';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import MapIcon from '@mui/icons-material/Map';
+import CheckIcon from '@mui/icons-material/Check';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import Skeleton from '@mui/material/Skeleton';
 
 function normalizeCoord(value, min, max) {
@@ -221,7 +217,7 @@ export default function DriverView({ token, activeSection }) {
                         <Chip label={meta.label} color={meta.color} />
                         <Typography variant="caption" color="text.secondary">#{order.id}</Typography>
                       </Stack>
-                      <Typography variant="h6" fontWeight={700}>
+                      <Typography variant="h6" fontWeight={600}>
                         {order.deliveryAddressText || 'Адрес не указан'}
                       </Typography>
                       <Typography variant="body2" color="text.secondary">

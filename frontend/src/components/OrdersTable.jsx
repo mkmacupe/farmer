@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -275,7 +275,7 @@ export default function OrdersTable({
                 <Card key={order.id} variant="outlined" sx={{ borderRadius: 2.5 }}>
                   <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between">
-                      <Typography variant="subtitle2" fontWeight={700}>
+                      <Typography variant="subtitle2" fontWeight={600}>
                         Заказ #{order.id}
                       </Typography>
                       <Chip
@@ -302,7 +302,7 @@ export default function OrdersTable({
                     <Divider />
                     <Stack direction="row" justifyContent="space-between">
                       <Typography variant="caption" color="text.secondary">Сумма</Typography>
-                      <Typography variant="subtitle2" fontWeight={700}>
+                      <Typography variant="subtitle2" fontWeight={600}>
                         {formatMoney(order.totalAmount)} BYN
                       </Typography>
                     </Stack>
@@ -311,7 +311,7 @@ export default function OrdersTable({
                       <Chip
                         label={order.items?.length || 0}
                         size="small"
-                        sx={{ minWidth: 32, height: 22, fontWeight: 700, fontSize: '0.75rem' }}
+                        sx={{ minWidth: 32, height: 22, fontWeight: 600, fontSize: '0.75rem' }}
                       />
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
@@ -369,15 +369,15 @@ export default function OrdersTable({
         >
           <TableHead>
             <TableRow>
-              <TableCell sx={{ fontWeight: 700, width: 80 }}>№</TableCell>
-              {showCustomer && <TableCell sx={{ fontWeight: 700 }}>Директор</TableCell>}
-              <TableCell sx={{ fontWeight: 700 }}>Адрес доставки</TableCell>
-              <TableCell sx={{ fontWeight: 700, width: 140 }}>Водитель</TableCell>
-              <TableCell sx={{ fontWeight: 700, width: 120 }}>Статус</TableCell>
-              <TableCell sx={{ fontWeight: 700, width: 140 }}>Дата</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 700, width: 100 }}>Сумма</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 700, width: 70 }}>Поз.</TableCell>
-              {hasActions && <TableCell sx={{ fontWeight: 700, width: 140 }}>Действия</TableCell>}
+              <TableCell sx={{ fontWeight: 600, width: 80 }}>№</TableCell>
+              {showCustomer && <TableCell sx={{ fontWeight: 600 }}>Директор</TableCell>}
+              <TableCell sx={{ fontWeight: 600 }}>Адрес доставки</TableCell>
+              <TableCell sx={{ fontWeight: 600, width: 140 }}>Водитель</TableCell>
+              <TableCell sx={{ fontWeight: 600, width: 120 }}>Статус</TableCell>
+              <TableCell sx={{ fontWeight: 600, width: 140 }}>Дата</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 600, width: 100 }}>Сумма</TableCell>
+              <TableCell align="center" sx={{ fontWeight: 600, width: 70 }}>Поз.</TableCell>
+              {hasActions && <TableCell sx={{ fontWeight: 600, width: 140 }}>Действия</TableCell>}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -396,7 +396,7 @@ export default function OrdersTable({
                   <TableCell>
                     <Typography
                       variant="subtitle2"
-                      fontWeight={700}
+                      fontWeight={600}
                       color="primary"
                     >
                       #{order.id}
@@ -446,7 +446,7 @@ export default function OrdersTable({
                     </Typography>
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="subtitle2" fontWeight={700}>
+                    <Typography variant="subtitle2" fontWeight={600}>
                       {formatMoney(order.totalAmount)}
                     </Typography>
                   </TableCell>
@@ -457,7 +457,7 @@ export default function OrdersTable({
                       sx={{
                         minWidth: 32,
                         height: 24,
-                        fontWeight: 700,
+                        fontWeight: 600,
                         fontSize: '0.75rem'
                       }}
                     />

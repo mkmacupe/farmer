@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   createDirectorAddress,
   createOrder,
@@ -48,11 +48,10 @@ import SaveIcon from '@mui/icons-material/Save';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import AddIcon from '@mui/icons-material/Add';
 import RemoveIcon from '@mui/icons-material/Remove';
-import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
 import ProductImage from '../components/ProductImage.jsx';
 import { filterLocalizedCategories, filterLocalizedProducts } from '../utils/productFilters.js';
-import { ProductGridSkeleton, ProfileSkeleton, AddressCardSkeleton } from '../components/LoadingSkeletons.jsx';
+import { ProductGridSkeleton, ProfileSkeleton } from '../components/LoadingSkeletons.jsx';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 
 const AddressMapPicker = lazy(() => import('../components/AddressMapPicker.jsx'));
@@ -123,6 +122,9 @@ export default function DirectorView({ token, activeSection }) {
   const [reverseGeoLoading, setReverseGeoLoading] = useState(false);
 
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
+  const isAddressSectionVisible = showSection('director-addresses');
+  const isCatalogSectionVisible = showSection('director-catalog');
+  const shouldLoadAddresses = isAddressSectionVisible || isCatalogSectionVisible;
 
   const selectedItems = useMemo(() => (
     products
@@ -197,7 +199,7 @@ export default function DirectorView({ token, activeSection }) {
     setLoading(true);
     setError('');
     try {
-      await Promise.all([loadProfile(), loadAddresses(), loadCatalog(), loadOrders()]);
+      await Promise.all([loadProfile(), loadOrders()]);
     } catch (err) {
       setError(err.message || 'Не удалось загрузить данные');
     } finally {
@@ -216,8 +218,18 @@ export default function DirectorView({ token, activeSection }) {
   }, [token]);
 
   useEffect(() => {
+    if (!shouldLoadAddresses) {
+      return;
+    }
+    loadAddresses().catch((err) => setError(err.message || 'Не удалось загрузить адреса'));
+  }, [token, shouldLoadAddresses]);
+
+  useEffect(() => {
+    if (!isCatalogSectionVisible) {
+      return;
+    }
     loadCatalog().catch((err) => setError(err.message || 'Не удалось загрузить каталог'));
-  }, [catalogCategory, catalogSearch]);
+  }, [isCatalogSectionVisible, catalogCategory, catalogSearch]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -442,7 +454,7 @@ export default function DirectorView({ token, activeSection }) {
         top: { md: 96 }
       }}
     >
-      <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
         Корзина
       </Typography>
       <Stack spacing={1.5}>
@@ -471,15 +483,15 @@ export default function DirectorView({ token, activeSection }) {
         <Divider />
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <Typography variant="body2" color="text.secondary">Позиций</Typography>
-          <Typography fontWeight={700}>{selectedProductsCount}</Typography>
+          <Typography fontWeight={600}>{selectedProductsCount}</Typography>
         </Box>
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
           <Typography variant="body2" color="text.secondary">Единиц</Typography>
-          <Typography fontWeight={700}>{selectedUnitsCount}</Typography>
+          <Typography fontWeight={600}>{selectedUnitsCount}</Typography>
         </Box>
         <Divider />
         <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-          <Typography variant="subtitle2" fontWeight={700}>Итого</Typography>
+          <Typography variant="subtitle2" fontWeight={600}>Итого</Typography>
           <Typography variant="subtitle1" fontWeight={800} color="primary">
             {formatMoney(selectedTotal)} BYN
           </Typography>
@@ -558,7 +570,7 @@ export default function DirectorView({ token, activeSection }) {
               <Typography variant="overline" sx={{ color: 'text.secondary' }}>
                 Панель директора
               </Typography>
-              <Typography variant="h5" fontWeight={700} sx={{ mt: 0.5, mb: 0.5, letterSpacing: '-0.02em' }}>
+              <Typography variant="h5" fontWeight={600} sx={{ mt: 0.5, mb: 0.5, letterSpacing: '-0.02em' }}>
                 Закупки без лишних шагов
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -579,7 +591,7 @@ export default function DirectorView({ token, activeSection }) {
                   <Typography variant="caption" color="text.secondary" fontWeight={500}>
                     Корзина
                   </Typography>
-                  <Typography variant="h5" fontWeight={700} sx={{ mt: 0.5, color: 'primary.main' }}>
+                  <Typography variant="h5" fontWeight={600} sx={{ mt: 0.5, color: 'primary.main' }}>
                     {formatMoney(selectedTotal)} <Typography component="span" variant="body2" fontWeight={500}>BYN</Typography>
                   </Typography>
                 </Box>
@@ -595,7 +607,7 @@ export default function DirectorView({ token, activeSection }) {
                   <Typography variant="caption" color="text.secondary" fontWeight={500}>
                     Активные заказы
                   </Typography>
-                  <Typography variant="h5" fontWeight={700} sx={{ mt: 0.5 }}>
+                  <Typography variant="h5" fontWeight={600} sx={{ mt: 0.5 }}>
                     {activeOrdersCount}
                   </Typography>
                 </Box>
@@ -621,7 +633,7 @@ export default function DirectorView({ token, activeSection }) {
                     }}
                   >
                     <Stack direction="row" alignItems="center" justifyContent="space-between">
-                      <Typography variant="subtitle2" fontWeight={700}>
+                      <Typography variant="subtitle2" fontWeight={600}>
                         Заказ #{order.id}
                       </Typography>
                       <Chip
@@ -643,7 +655,7 @@ export default function DirectorView({ token, activeSection }) {
                       <Typography variant="caption" color="text.secondary">
                         {formatShortDate(order.createdAt) || '—'}
                       </Typography>
-                      <Typography variant="subtitle2" fontWeight={700}>
+                      <Typography variant="subtitle2" fontWeight={600}>
                         {formatMoney(order.totalAmount)} BYN
                       </Typography>
                     </Stack>
@@ -707,7 +719,7 @@ export default function DirectorView({ token, activeSection }) {
           }}
           id="director-profile"
         >
-          <Typography variant="h6" fontWeight={700} sx={{ mb: 2.5 }}>
+          <Typography variant="h6" fontWeight={600} sx={{ mb: 2.5 }}>
             Профиль директора
           </Typography>
 
@@ -768,7 +780,7 @@ export default function DirectorView({ token, activeSection }) {
             mb={2.5}
             spacing={1}
           >
-            <Typography variant="h6" fontWeight={700}>Адреса доставки</Typography>
+            <Typography variant="h6" fontWeight={600}>Адреса доставки</Typography>
             {editingAddressId && (
               <Typography variant="caption" color="primary">
                 Редактирование #{editingAddressId}
@@ -848,7 +860,7 @@ export default function DirectorView({ token, activeSection }) {
                           <LocationOnOutlinedIcon />
                         </Avatar>
                         <Box sx={{ flexGrow: 1 }}>
-                          <Typography variant="subtitle1" fontWeight={700}>
+                          <Typography variant="subtitle1" fontWeight={600}>
                             {address.label}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
@@ -901,7 +913,7 @@ export default function DirectorView({ token, activeSection }) {
           id="director-catalog"
         >
           <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} justifyContent="space-between" mb={2.5} spacing={1}>
-            <Typography variant="h6" fontWeight={700}>Каталог и корзина</Typography>
+            <Typography variant="h6" fontWeight={600}>Каталог и корзина</Typography>
           </Stack>
 
           <Grid container spacing={2} mb={3} alignItems="center">
@@ -962,7 +974,7 @@ export default function DirectorView({ token, activeSection }) {
                           priority={index < 6}
                         />
                         <CardContent sx={{ flexGrow: 1 }}>
-                          <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                          <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                             {product.name}
                           </Typography>
                           <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
@@ -988,7 +1000,7 @@ export default function DirectorView({ token, activeSection }) {
                             >
                               <RemoveIcon fontSize="small" />
                             </IconButton>
-                            <Typography fontWeight={700}>{quantity}</Typography>
+                            <Typography fontWeight={600}>{quantity}</Typography>
                             <IconButton
                               size="small"
                               onClick={() => updateQuantity(product, quantity + 1)}
@@ -1061,7 +1073,7 @@ export default function DirectorView({ token, activeSection }) {
           }}
           id="director-orders"
         >
-          <Typography variant="h6" fontWeight={700} gutterBottom>История заказов</Typography>
+          <Typography variant="h6" fontWeight={600} gutterBottom>История заказов</Typography>
                     <OrdersTable
             orders={orders}
             loading={loading && !orders.length}

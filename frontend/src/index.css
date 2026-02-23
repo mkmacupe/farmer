@@ -4,7 +4,9 @@
   background-color: #ffffff;
 }
 
-* {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
@@ -21,6 +23,7 @@ body {
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeSpeed;
 }
 
 button,
@@ -39,8 +42,10 @@ textarea {
   background-color: rgba(46, 91, 78, 0.12);
 }
 
+/* Page transition — GPU-accelerated */
 .page-enter {
   animation: fadeSlideIn 0.25s ease-out;
+  will-change: opacity, transform;
 }
 
 @keyframes fadeSlideIn {
@@ -61,4 +66,24 @@ textarea {
   min-height: 200px;
   color: rgba(0, 0, 0, 0.6);
   font-size: 0.875rem;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Lazy render offscreen content for long scrollable views */
+.content-auto {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 500px;
 }

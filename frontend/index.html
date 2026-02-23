@@ -3,11 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#2E5B4E" />
+    <meta name="description" content="Рабочий кабинет отдела сбыта фермерского хозяйства" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" /></noscript>
     <title>Рабочий кабинет отдела сбыта</title>
+    <style>
+      /* Critical CSS inlined to avoid FOUC */
+      *, *::before, *::after { box-sizing: border-box; }
+      body { margin: 0; background: #fafafa; font-family: "IBM Plex Sans", system-ui, sans-serif; }
+      #root { min-height: 100vh; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   approveOrder,
   createDirectorUser,
@@ -16,59 +16,57 @@ import {
   updateProduct
 } from '../api.js';
 
-import {
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Drawer,
-  Grid,
-  IconButton,
-  MenuItem,
-  Paper,
-  TableContainer,
-  Stack,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableRow,
-  TextField,
-  Typography,
-  Alert,
-  Snackbar,
-  Avatar,
-  Slide
-} from '@mui/material';
-import {
-  Add as AddIcon,
-  Refresh as RefreshIcon,
-  Download as DownloadIcon,
-  Edit as EditIcon,
-  Delete as DeleteIcon,
-  Check as CheckIcon,
-  History as HistoryIcon,
-  Notifications as NotificationsIcon,
-  LocalShipping,
-  AttachMoney,
-  Receipt,
-  Group as GroupIcon,
-  DragIndicator as DragIndicatorIcon,
-  TrendingUp as TrendingUpIcon,
-  TrendingDown as TrendingDownIcon,
-  WarningAmber as WarningAmberIcon
-} from '@mui/icons-material';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Chip from '@mui/material/Chip';
+import Dialog from '@mui/material/Dialog';
+import DialogActions from '@mui/material/DialogActions';
+import DialogContent from '@mui/material/DialogContent';
+import DialogTitle from '@mui/material/DialogTitle';
+import Drawer from '@mui/material/Drawer';
+import Grid from '@mui/material/Grid';
+import IconButton from '@mui/material/IconButton';
+import MenuItem from '@mui/material/MenuItem';
+import Paper from '@mui/material/Paper';
+import TableContainer from '@mui/material/TableContainer';
+import Stack from '@mui/material/Stack';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
+import Alert from '@mui/material/Alert';
+import Snackbar from '@mui/material/Snackbar';
+import Avatar from '@mui/material/Avatar';
+import Slide from '@mui/material/Slide';
+import useMediaQuery from '@mui/material/useMediaQuery';
+import { useTheme } from '@mui/material/styles';
+
+import AddIcon from '@mui/icons-material/Add';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import DownloadIcon from '@mui/icons-material/Download';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteIcon from '@mui/icons-material/Delete';
+import CheckIcon from '@mui/icons-material/Check';
+import HistoryIcon from '@mui/icons-material/History';
+import NotificationsIcon from '@mui/icons-material/Notifications';
+import LocalShipping from '@mui/icons-material/LocalShipping';
+import AttachMoney from '@mui/icons-material/AttachMoney';
+import Receipt from '@mui/icons-material/Receipt';
+import GroupIcon from '@mui/icons-material/Group';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import TrendingDownIcon from '@mui/icons-material/TrendingDown';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
+import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
+
 import ProductImage from '../components/ProductImage.jsx';
 import { filterLocalizedCategories, filterLocalizedProducts } from '../utils/productFilters.js';
 import { DashboardSkeleton } from '../components/LoadingSkeletons.jsx';
-import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { useTheme } from '@mui/material/styles';
 
 const KANBAN_COLUMNS = [
   { id: 'CREATED', title: 'Создан', color: 'info' },
@@ -499,10 +497,6 @@ export default function ManagerView({ token, activeSection }) {
     }
   };
 
-  const loadMain = async () => {
-    await Promise.all([loadOrders(), loadProductsAndCategories(), loadUsers()]);
-  };
-
   const loadDashboard = async () => {
     try {
       const data = await getDashboardSummary(token, {
@@ -515,10 +509,24 @@ export default function ManagerView({ token, activeSection }) {
     }
   };
 
-  const load = async () => {
+  const loadForSection = async (sectionId) => {
+    const tasks = [];
+    if (sectionId === 'manager-dashboard') {
+      tasks.push(loadOrders, loadProductsAndCategories, loadDashboard);
+    } else if (sectionId === 'manager-orders') {
+      tasks.push(loadOrders);
+    } else if (sectionId === 'manager-products') {
+      tasks.push(loadProductsAndCategories);
+    } else if (sectionId === 'manager-users') {
+      tasks.push(loadUsers);
+    }
+    if (!tasks.length) {
+      return;
+    }
+
     setLoading(true);
     try {
-      await Promise.all([loadMain(), loadDashboard()]);
+      await Promise.all(tasks.map((task) => task()));
     } catch (err) {
       showMessage(err.message || 'Не удалось загрузить данные', 'error');
     } finally {
@@ -527,7 +535,11 @@ export default function ManagerView({ token, activeSection }) {
   };
 
   useEffect(() => {
-    load();
+    const sectionId = activeSection || 'manager-dashboard';
+    loadForSection(sectionId);
+  }, [token, activeSection]);
+
+  useEffect(() => {
     const unsubscribe = subscribeNotifications(token, {
       onNotification: (payload) => {
         setNotifications((prev) => [payload, ...prev].slice(0, 20));
@@ -780,7 +792,7 @@ export default function ManagerView({ token, activeSection }) {
           <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
             <Stack direction="row" alignItems="center" spacing={1}>
               {dragEnabled && <DragIndicatorIcon fontSize="small" color="action" />}
-              <Typography variant="subtitle2" fontWeight={700}>
+              <Typography variant="subtitle2" fontWeight={600}>
                 Заказ #{order.id}
               </Typography>
             </Stack>
@@ -871,7 +883,7 @@ export default function ManagerView({ token, activeSection }) {
           <Paper sx={{ p: 3, mb: 3, borderRadius: 2.5, border: '1px solid', borderColor: 'divider' }}>
             <Stack direction={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ md: 'center' }} spacing={2}>
               <Box>
-                <Typography variant="h5" fontWeight={700} gutterBottom sx={{ letterSpacing: '-0.02em' }}>
+                <Typography variant="h5" fontWeight={600} gutterBottom sx={{ letterSpacing: '-0.02em' }}>
                   Панель менеджера
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -927,7 +939,7 @@ export default function ManagerView({ token, activeSection }) {
                       <Typography variant="subtitle2" color="text.secondary">
                         {card.title}
                       </Typography>
-                      <Typography variant="h4" fontWeight={700}>
+                      <Typography variant="h4" fontWeight={600}>
                         {card.value}
                       </Typography>
                     </Box>
@@ -939,7 +951,7 @@ export default function ManagerView({ token, activeSection }) {
 
           <Paper sx={{ p: 2.5, mb: 3, borderRadius: 2.5, border: '1px solid', borderColor: 'divider' }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
-              <Typography variant="subtitle1" fontWeight={700}>
+              <Typography variant="subtitle1" fontWeight={600}>
                 Что требует внимания сейчас
               </Typography>
               <Chip
@@ -957,7 +969,7 @@ export default function ManagerView({ token, activeSection }) {
                   icon={item.severity === 'success' ? false : <WarningAmberIcon fontSize="inherit" />}
                   sx={{ alignItems: 'flex-start' }}
                 >
-                  <Typography variant="subtitle2" fontWeight={700}>
+                  <Typography variant="subtitle2" fontWeight={600}>
                     {item.title}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -973,7 +985,7 @@ export default function ManagerView({ token, activeSection }) {
               <Paper sx={{ p: 2.5, borderRadius: 2.5, height: '100%', border: '1px solid', borderColor: 'divider' }}>
                 <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} justifyContent="space-between" alignItems={{ sm: 'center' }}>
                   <Box>
-                    <Typography variant="subtitle1" fontWeight={700}>
+                    <Typography variant="subtitle1" fontWeight={600}>
                       Тренд заказов
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -1081,7 +1093,7 @@ export default function ManagerView({ token, activeSection }) {
             </Grid>
             <Grid size={{ xs: 12, md: 4 }}>
               <Paper sx={{ p: 2.5, borderRadius: 2.5, height: '100%', border: '1px solid', borderColor: 'divider' }}>
-                <Typography variant="subtitle1" fontWeight={700} gutterBottom>
+                <Typography variant="subtitle1" fontWeight={600} gutterBottom>
                   Структура спроса
                 </Typography>
                 {categoryInsights.totalUnits > 0 ? (
@@ -1111,7 +1123,7 @@ export default function ManagerView({ token, activeSection }) {
                           px: 1
                         }}
                       >
-                        <Typography variant="subtitle2" fontWeight={700}>
+                        <Typography variant="subtitle2" fontWeight={600}>
                           {categoryInsights.totalUnits}
                           <br />
                           ед.
@@ -1127,7 +1139,7 @@ export default function ManagerView({ token, activeSection }) {
                               {segment.name}
                             </Typography>
                           </Stack>
-                          <Typography variant="caption" fontWeight={700}>
+                          <Typography variant="caption" fontWeight={600}>
                             {segment.value} ({(segment.share * 100).toFixed(0)}%)
                           </Typography>
                         </Stack>
@@ -1177,7 +1189,7 @@ export default function ManagerView({ token, activeSection }) {
       {showSection('manager-orders') && (
         <Box>
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h5" fontWeight={700} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Заявки на доставку</Typography>
+            <Typography variant="h5" fontWeight={600} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Заявки на доставку</Typography>
             <Typography variant="body2" color="text.secondary">
               {isMobile ? 'Используйте действия на карточках для управления.' : 'Перетаскивайте карточки между статусами'}
             </Typography>
@@ -1199,7 +1211,7 @@ export default function ManagerView({ token, activeSection }) {
                   }}
                 >
                   <Stack direction="row" alignItems="center" justifyContent="space-between" mb={2}>
-                    <Typography variant="subtitle1" fontWeight={700}>{column.title}</Typography>
+                    <Typography variant="subtitle1" fontWeight={600}>{column.title}</Typography>
                     <Chip label={ordersByStatus[column.id]?.length || 0} size="small" color={column.color} />
                   </Stack>
                   <Stack spacing={1.5}>
@@ -1222,7 +1234,7 @@ export default function ManagerView({ token, activeSection }) {
         <Box>
           <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
             <Box>
-              <Typography variant="h5" fontWeight={700} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Товары</Typography>
+              <Typography variant="h5" fontWeight={600} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Товары</Typography>
               <Typography variant="body2" color="text.secondary">
                 Каталог продукции ({products.length}/{productTotalItems} поз.)
               </Typography>
@@ -1255,7 +1267,7 @@ export default function ManagerView({ token, activeSection }) {
                   priority={index < 6}
                 />
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle1" fontWeight={700} noWrap={!isMobile}>
+                  <Typography variant="subtitle1" fontWeight={600} noWrap={!isMobile}>
                     {product.name}
                   </Typography>
                   <Typography variant="caption" color="text.secondary" noWrap={!isMobile} display="block">
@@ -1300,7 +1312,7 @@ export default function ManagerView({ token, activeSection }) {
       {showSection('manager-users') && (
         <Box>
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h5" fontWeight={700} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Пользователи</Typography>
+            <Typography variant="h5" fontWeight={600} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Пользователи</Typography>
             <Typography variant="body2" color="text.secondary">Регистрация директоров магазинов</Typography>
           </Box>
 
@@ -1399,7 +1411,7 @@ export default function ManagerView({ token, activeSection }) {
       {showSection('manager-reports') && (
         <Box>
           <Box sx={{ mb: 3 }}>
-            <Typography variant="h5" fontWeight={700} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Отчёты</Typography>
+            <Typography variant="h5" fontWeight={600} gutterBottom sx={{ letterSpacing: '-0.02em' }}>Отчёты</Typography>
             <Typography variant="body2" color="text.secondary">Экспорт данных в Excel</Typography>
           </Box>
           <Paper variant="outlined" sx={{ p: 3, maxWidth: 600, borderRadius: 2.5 }}>
@@ -1459,7 +1471,7 @@ export default function ManagerView({ token, activeSection }) {
         PaperProps={{ sx: { width: { xs: '100%', sm: 420 }, p: 3 } }}
       >
         <Stack spacing={2}>
-          <Typography variant="h6" fontWeight={700}>
+          <Typography variant="h6" fontWeight={600}>
             {editingProductId ? 'Редактирование товара' : 'Новый товар'}
           </Typography>
           <TextField

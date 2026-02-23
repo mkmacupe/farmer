@@ -1,4 +1,3 @@
-import React from 'react';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import List from '@mui/material/List';
@@ -42,7 +41,7 @@ export default function Sidebar({
             bgcolor: 'primary.main',
             color: 'white',
             fontSize: '0.875rem',
-            fontWeight: 700
+            fontWeight: 600
           }}
         >
           {(user.fullName || user.username || 'U').charAt(0).toUpperCase()}
