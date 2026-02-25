@@ -82,4 +82,24 @@ class AuthServiceTest {
     verify(passwordEncoder).matches("secret123", "dummy-hash");
   }
 
+  @Test
+  void loginFailsWhenPasswordDoesNotMatchExistingUser() {
+    User user = new User();
+    user.setId(9L);
+    user.setUsername("manager");
+    user.setRole(Role.MANAGER);
+    user.setPasswordHash("stored-hash");
+    when(userRepository.findByUsername("manager")).thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("wrong", "stored-hash")).thenReturn(false);
+
+    assertThatThrownBy(() -> authService.login(new AuthRequest("manager", "wrong")))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        });
+
+    verify(passwordEncoder).matches("wrong", "stored-hash");
+  }
+
 }

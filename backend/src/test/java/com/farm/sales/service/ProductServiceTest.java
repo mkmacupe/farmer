@@ -3,6 +3,8 @@ package com.farm.sales.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
@@ -19,6 +21,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -224,5 +227,156 @@ class ProductServiceTest {
     assertThat(page.size()).isEqualTo(24);
     assertThat(page.items()).isEmpty();
     assertThat(page.hasNext()).isFalse();
+  }
+
+  @Test
+  void getPageCapsRequestedSize() {
+    when(productRepository.search(any(), any(), any())).thenReturn(List.of());
+    when(productRepository.countSearch(any(), any())).thenReturn(0L);
+
+    var page = productService.getPage("  Категория ", "  query ", null, 1000);
+
+    assertThat(page.page()).isEqualTo(0);
+    assertThat(page.size()).isEqualTo(100);
+    verify(productRepository).search(eq("Категория"), eq("query"), any());
+  }
+
+  @Test
+  void getPageTreatsBlankFiltersAsNullAndUsesDefaultSizeWhenNull() {
+    when(productRepository.search(any(), any(), any())).thenReturn(List.of());
+    when(productRepository.countSearch(any(), any())).thenReturn(0L);
+
+    var page = productService.getPage("   ", "   ", 1, null);
+
+    assertThat(page.page()).isEqualTo(1);
+    assertThat(page.size()).isEqualTo(24);
+    verify(productRepository).search(eq(null), eq(null), any());
+  }
+
+  @Test
+  void getCategoriesReturnsRepositoryValues() {
+    when(productRepository.findDistinctCategories()).thenReturn(List.of("Мёд", "Овощи"));
+
+    assertThat(productService.getCategories()).containsExactly("Мёд", "Овощи");
+  }
+
+  @Test
+  void createDoesNotRecordStockMovementWhenInitialStockIsZero() {
+    ProductRequest request = new ProductRequest(
+        "Вода 1 л",
+        "Напитки",
+        null,
+        "/images/products/water.webp",
+        new BigDecimal("1.20"),
+        0
+    );
+    when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/water.webp")).thenReturn(false);
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+      Product product = invocation.getArgument(0);
+      product.setId(77L);
+      return product;
+    });
+
+    ProductResponse response = productService.create(request);
+
+    assertThat(response.id()).isEqualTo(77L);
+    verify(stockMovementService, never()).record(any(Product.class), any(), any(), anyInt(), any());
+  }
+
+  @Test
+  void createRejectsBlankPhotoPath() {
+    ProductRequest request = new ProductRequest(
+        "Вода 1 л",
+        "Напитки",
+        null,
+        "   ",
+        new BigDecimal("1.20"),
+        1
+    );
+
+    assertThatThrownBy(() -> productService.create(request))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+          assertThat(ex.getReason()).contains("обязательно фото");
+        });
+  }
+
+  @Test
+  void updateRecordsInboundMovementWhenStockIncreases() {
+    Product existing = new Product("Мёд", "Мёд", "old", "/images/products/honey.webp", new BigDecimal("9.00"), 10);
+    existing.setId(4L);
+    when(productRepository.findById(4L)).thenReturn(Optional.of(existing));
+    when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/honey.webp", 4L)).thenReturn(false);
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    ProductRequest request = new ProductRequest(
+        "  Мёд  ",
+        "  Мёд  ",
+        "  свежий ",
+        "/images/products/honey.webp",
+        new BigDecimal("10.50"),
+        14
+    );
+
+    ProductResponse response = productService.update(4L, request);
+
+    assertThat(response.stockQuantity()).isEqualTo(14);
+    verify(stockMovementService).record(existing, null, com.farm.sales.model.StockMovementType.INBOUND, 4, "PRODUCT_UPDATED");
+  }
+
+  @Test
+  void updateRecordsAdjustmentWhenStockDecreases() {
+    Product existing = new Product("Сыр", "Молочная продукция", "old", "/images/products/cheese.webp", new BigDecimal("10.00"), 20);
+    existing.setId(8L);
+    when(productRepository.findById(8L)).thenReturn(Optional.of(existing));
+    when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/cheese.webp", 8L)).thenReturn(false);
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    ProductRequest request = new ProductRequest(
+        "Сыр",
+        "Молочная продукция",
+        "",
+        "/images/products/cheese.webp",
+        new BigDecimal("10.00"),
+        15
+    );
+
+    ProductResponse response = productService.update(8L, request);
+
+    assertThat(response.stockQuantity()).isEqualTo(15);
+    verify(stockMovementService).record(existing, null, com.farm.sales.model.StockMovementType.ADJUSTMENT, -5, "PRODUCT_UPDATED");
+  }
+
+  @Test
+  void updateDoesNotRecordMovementWhenStockUnchanged() {
+    Product existing = new Product("Кефир", "Молочная продукция", "desc", "/images/products/kefir.webp", new BigDecimal("3.00"), 9);
+    existing.setId(9L);
+    when(productRepository.findById(9L)).thenReturn(Optional.of(existing));
+    when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/kefir.webp", 9L)).thenReturn(false);
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    productService.update(9L, new ProductRequest(
+        "Кефир",
+        "Молочная продукция",
+        "desc",
+        "/images/products/kefir.webp",
+        new BigDecimal("3.00"),
+        9
+    ));
+
+    verify(stockMovementService, never()).record(eq(existing), eq(null), any(), anyInt(), eq("PRODUCT_UPDATED"));
+  }
+
+  @Test
+  void deletePublishesAuditWhenSuccessful() {
+    when(productRepository.existsById(11L)).thenReturn(true);
+    doNothing().when(productRepository).deleteById(11L);
+    doNothing().when(productRepository).flush();
+
+    productService.delete(11L);
+
+    verify(auditTrailPublisher).publish("PRODUCT_DELETED", "PRODUCT", "11", null);
   }
 }

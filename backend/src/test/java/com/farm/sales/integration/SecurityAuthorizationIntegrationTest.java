@@ -50,7 +50,7 @@ class SecurityAuthorizationIntegrationTest {
                   "name": "Яблоки",
                   "category": "Фрукты",
                   "description": "Зелёные яблоки",
-                  "photoUrl": "https://example.com/apples.jpg",
+                  "photoUrl": "/images/products/apple.webp",
                   "price": 12.50,
                   "stockQuantity": 10
                 }
@@ -68,7 +68,7 @@ class SecurityAuthorizationIntegrationTest {
                   "name": "Яблоки",
                   "category": "Фрукты",
                   "description": "Зелёные яблоки",
-                  "photoUrl": "https://example.com/apples.jpg",
+                  "photoUrl": "/images/products/apple.webp",
                   "price": 12.50,
                   "stockQuantity": 10
                 }

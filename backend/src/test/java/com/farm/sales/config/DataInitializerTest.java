@@ -4,16 +4,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.farm.sales.model.Product;
+import com.farm.sales.model.Role;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
 import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
+import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
+import java.math.BigDecimal;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import org.mockito.ArgumentCaptor;
@@ -93,5 +98,203 @@ class DataInitializerTest {
     assertThatThrownBy(insecureInitializer::run)
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("app.demo.password");
+  }
+
+  @Test
+  void createUserIfMissingReturnsExistingWhenNoChangesNeeded() throws Exception {
+    User existing = new User("manager", "stored", "Менеджер", "+375290000002", null, Role.MANAGER);
+    existing.setId(1L);
+    when(userRepository.findByUsername("manager")).thenReturn(Optional.of(existing));
+    when(passwordEncoder.matches(DEMO_PASSWORD, "stored")).thenReturn(true);
+
+    User result = (User) invoke(
+        dataInitializer,
+        "createUserIfMissing",
+        new Class<?>[] {String.class, String.class, String.class, String.class, Role.class, String.class},
+        "manager", "Менеджер", "+375290000002", null, Role.MANAGER, DEMO_PASSWORD
+    );
+
+    assertThat(result).isSameAs(existing);
+    verify(userRepository, never()).save(existing);
+  }
+
+  @Test
+  void createUserIfMissingUpdatesExistingWhenFieldsDiffer() throws Exception {
+    User existing = new User("manager", "stored", "Старое имя", "+375299999999", "Old", Role.DRIVER);
+    existing.setId(2L);
+    when(userRepository.findByUsername("manager")).thenReturn(Optional.of(existing));
+    when(passwordEncoder.matches(DEMO_PASSWORD, "stored")).thenReturn(false);
+    when(passwordEncoder.encode(DEMO_PASSWORD)).thenReturn("new-hash");
+    when(userRepository.save(existing)).thenReturn(existing);
+
+    User result = (User) invoke(
+        dataInitializer,
+        "createUserIfMissing",
+        new Class<?>[] {String.class, String.class, String.class, String.class, Role.class, String.class},
+        "manager", "Менеджер", "+375290000002", null, Role.MANAGER, DEMO_PASSWORD
+    );
+
+    assertThat(result.getPasswordHash()).isEqualTo("new-hash");
+    assertThat(result.getFullName()).isEqualTo("Менеджер");
+    assertThat(result.getPhone()).isEqualTo("+375290000002");
+    assertThat(result.getLegalEntityName()).isNull();
+    assertThat(result.getRole()).isEqualTo(Role.MANAGER);
+    verify(userRepository).save(existing);
+  }
+
+  @Test
+  void createOrUpdateProductCoversCreateUpdateAndNoop() throws Exception {
+    when(productRepository.findByNameIgnoreCase("Мёд")).thenReturn(Optional.empty());
+    invoke(
+        dataInitializer,
+        "createOrUpdateProduct",
+        new Class<?>[] {String.class, String.class, String.class, String.class, String.class, int.class},
+        "Мёд", "Мёд", "Описание", "/images/products/honey.webp", "12.34", 10
+    );
+    verify(productRepository).save(any(Product.class));
+
+    Product existing = new Product("Мёд", "Старая", "Старое", "/images/products/old.webp", new BigDecimal("1.00"), 1);
+    when(productRepository.findByNameIgnoreCase("Мёд")).thenReturn(Optional.of(existing));
+    invoke(
+        dataInitializer,
+        "createOrUpdateProduct",
+        new Class<?>[] {String.class, String.class, String.class, String.class, String.class, int.class},
+        "Мёд", "Новая", "Новое", "/images/products/new.webp", "2.00", 5
+    );
+    assertThat(existing.getCategory()).isEqualTo("Новая");
+    assertThat(existing.getDescription()).isEqualTo("Новое");
+    assertThat(existing.getPhotoUrl()).isEqualTo("/images/products/new.webp");
+    assertThat(existing.getPrice()).isEqualByComparingTo("2.00");
+    assertThat(existing.getStockQuantity()).isEqualTo(5);
+
+    when(productRepository.findByNameIgnoreCase("Мёд")).thenReturn(Optional.of(existing));
+    invoke(
+        dataInitializer,
+        "createOrUpdateProduct",
+        new Class<?>[] {String.class, String.class, String.class, String.class, String.class, int.class},
+        "Мёд", "Новая", "Новое", "/images/products/new.webp", "2.00", 5
+    );
+    verify(productRepository).save(existing);
+    verify(productRepository, times(2)).save(any(Product.class));
+  }
+
+  @Test
+  void resetDemoAddressUpdatesAllExistingAddresses() throws Exception {
+    User user = new User();
+    user.setId(5L);
+    StoreAddress first = new StoreAddress();
+    first.setId(10L);
+    StoreAddress second = new StoreAddress();
+    second.setId(11L);
+    when(storeAddressRepository.findByUserIdOrderByCreatedAtDesc(5L)).thenReturn(java.util.List.of(first, second));
+
+    invoke(
+        dataInitializer,
+        "resetDemoAddress",
+        new Class<?>[] {User.class, String.class, String.class, String.class, String.class},
+        user, "Label", "Address", "53.1", "30.2"
+    );
+
+    verify(storeAddressRepository, times(2)).save(any(StoreAddress.class));
+    assertThat(first.getLabel()).isEqualTo("Label");
+    assertThat(second.getLongitude()).isEqualByComparingTo("30.2");
+  }
+
+  @Test
+  void validateDemoPasswordRejectsPlaceholderPrefixAndEqualsNullableBranches() throws Exception {
+    DataInitializer placeholderInitializer = new DataInitializer(
+        userRepository, productRepository, storeAddressRepository, passwordEncoder, "replace-with-secret"
+    );
+    assertThatThrownBy(() -> invoke(placeholderInitializer, "validateDemoPassword", new Class<?>[] {}))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("app.demo.password");
+
+    assertThat((Boolean) invoke(dataInitializer, "equalsNullable", new Class<?>[] {String.class, String.class}, null, null))
+        .isTrue();
+    assertThat((Boolean) invoke(dataInitializer, "equalsNullable", new Class<?>[] {String.class, String.class}, null, "x"))
+        .isFalse();
+    assertThat((Boolean) invoke(dataInitializer, "equalsNullable", new Class<?>[] {String.class, String.class}, "x", "x"))
+        .isTrue();
+    assertThat((Boolean) invoke(dataInitializer, "equalsNullable", new Class<?>[] {String.class, String.class}, "x", "y"))
+        .isFalse();
+
+    DataInitializer nullPasswordInitializer = new DataInitializer(
+        userRepository, productRepository, storeAddressRepository, passwordEncoder, null
+    );
+    assertThatThrownBy(() -> invoke(nullPasswordInitializer, "validateDemoPassword", new Class<?>[] {}))
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("app.demo.password");
+  }
+
+  @Test
+  void archiveLegacyDirectorUserHandlesMissingAndCollision() throws Exception {
+    when(userRepository.findByUsername("director")).thenReturn(Optional.empty());
+    invoke(dataInitializer, "archiveLegacyDirectorUser", new Class<?>[] {});
+    verify(userRepository, never()).save(any(User.class));
+
+    User legacy = new User("director", "hash", "Директор", "+37529", "ООО", Role.DIRECTOR);
+    legacy.setId(12L);
+    when(userRepository.findByUsername("director")).thenReturn(Optional.of(legacy));
+    when(userRepository.existsByUsername("legacy-director-12")).thenReturn(true);
+    when(userRepository.save(legacy)).thenReturn(legacy);
+
+    invoke(dataInitializer, "archiveLegacyDirectorUser", new Class<?>[] {});
+
+    assertThat(legacy.getUsername()).startsWith("legacy-director-12-");
+    assertThat(legacy.getFullName()).isEqualTo("Архивный пользователь");
+    assertThat(legacy.getPhone()).isNull();
+    assertThat(legacy.getLegalEntityName()).isNull();
+    assertThat(legacy.getRole()).isEqualTo(Role.MANAGER);
+    verify(userRepository).save(legacy);
+
+    User legacyNoCollision = new User("director", "hash", "Директор", "+37529", "ООО", Role.DIRECTOR);
+    legacyNoCollision.setId(13L);
+    when(userRepository.findByUsername("director")).thenReturn(Optional.of(legacyNoCollision));
+    when(userRepository.existsByUsername("legacy-director-13")).thenReturn(false);
+
+    invoke(dataInitializer, "archiveLegacyDirectorUser", new Class<?>[] {});
+
+    assertThat(legacyNoCollision.getUsername()).isEqualTo("legacy-director-13");
+    verify(userRepository).save(legacyNoCollision);
+  }
+
+  @Test
+  void createOrUpdateProductHandlesNullPriceAndStockOnExistingEntity() throws Exception {
+    Product existing = new Product();
+    existing.setName("Тест");
+    existing.setCategory("Cat");
+    existing.setDescription("Desc");
+    existing.setPhotoUrl("/images/products/test.webp");
+    existing.setPrice(null);
+    existing.setStockQuantity(null);
+    when(productRepository.findByNameIgnoreCase("Тест")).thenReturn(Optional.of(existing));
+
+    invoke(
+        dataInitializer,
+        "createOrUpdateProduct",
+        new Class<?>[] {String.class, String.class, String.class, String.class, String.class, int.class},
+        "Тест", "Cat", "Desc", "/images/products/test.webp", "9.99", 3
+    );
+
+    assertThat(existing.getPrice()).isEqualByComparingTo("9.99");
+    assertThat(existing.getStockQuantity()).isEqualTo(3);
+    verify(productRepository).save(existing);
+  }
+
+  private Object invoke(Object target, String name, Class<?>[] types, Object... args) throws Exception {
+    Method method = target.getClass().getDeclaredMethod(name, types);
+    method.setAccessible(true);
+    try {
+      return method.invoke(target, args);
+    } catch (InvocationTargetException ex) {
+      Throwable cause = ex.getCause();
+      if (cause instanceof RuntimeException runtimeException) {
+        throw runtimeException;
+      }
+      if (cause instanceof Error error) {
+        throw error;
+      }
+      throw new RuntimeException(cause);
+    }
   }
 }

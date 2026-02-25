@@ -130,6 +130,63 @@ class OrderControllerTest {
     verify(orderTimelineService).getTimeline(101L, Role.MANAGER, 42L);
   }
 
+  @Test
+  void repeatDelegatesToService() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(42L);
+    when(orderService.repeatOrder(42L, 77L)).thenReturn(sampleOrder());
+
+    var response = controller.repeat(77L, jwt);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    verify(orderService).repeatOrder(42L, 77L);
+  }
+
+  @Test
+  void myOrdersAndAssignedOrdersDelegateToService() {
+    Jwt directorJwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(directorJwt)).thenReturn(42L);
+    when(orderService.getOrdersForRole(Role.DIRECTOR, 42L)).thenReturn(List.of(sampleOrder()));
+
+    var myOrders = controller.myOrders(directorJwt);
+
+    assertThat(myOrders.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(myOrders.getBody()).hasSize(1);
+    verify(orderService).getOrdersForRole(Role.DIRECTOR, 42L);
+
+    Jwt driverJwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(driverJwt)).thenReturn(55L);
+    when(orderService.getOrdersForRole(Role.DRIVER, 55L)).thenReturn(List.of(sampleOrder()));
+
+    var assigned = controller.assignedOrders(driverJwt);
+
+    assertThat(assigned.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(assigned.getBody()).hasSize(1);
+    verify(orderService).getOrdersForRole(Role.DRIVER, 55L);
+  }
+
+  @Test
+  void allOrdersApproveAndDeliverDelegateToService() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireSingleRole(jwt)).thenReturn(Role.MANAGER);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(10L);
+    when(orderService.getOrdersForRole(Role.MANAGER, 10L)).thenReturn(List.of(sampleOrder()));
+    when(orderService.approveOrder(101L, 10L)).thenReturn(sampleOrder());
+    when(orderService.markDelivered(101L, 10L)).thenReturn(sampleOrder());
+
+    var allOrders = controller.allOrders(jwt);
+    var approved = controller.approve(101L, jwt);
+    var delivered = controller.deliver(101L, jwt);
+
+    assertThat(allOrders.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(allOrders.getBody()).hasSize(1);
+    assertThat(approved.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(delivered.getStatusCode()).isEqualTo(HttpStatus.OK);
+    verify(orderService).getOrdersForRole(Role.MANAGER, 10L);
+    verify(orderService).approveOrder(101L, 10L);
+    verify(orderService).markDelivered(101L, 10L);
+  }
+
   private OrderResponse sampleOrder() {
     Instant now = Instant.now();
     return new OrderResponse(

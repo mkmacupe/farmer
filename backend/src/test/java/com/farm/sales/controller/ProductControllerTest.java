@@ -89,4 +89,38 @@ class ProductControllerTest {
     assertThat(httpResponse.getBody()).isEqualTo(response);
     verify(productService).getPage("Молочная продукция", "мол", 0, 12);
   }
+
+  @Test
+  void categoriesAndUpdateDelegateToService() {
+    when(productService.getCategories()).thenReturn(List.of("Молочная продукция", "Овощи"));
+
+    ProductRequest request = new ProductRequest(
+        "Сыр 0.5 кг",
+        "Молочная продукция",
+        "Фермерский сыр",
+        "/images/products/cheese.webp",
+        new BigDecimal("13.42"),
+        60
+    );
+    ProductResponse updated = new ProductResponse(
+        2L,
+        "Сыр 0.5 кг",
+        "Молочная продукция",
+        "Фермерский сыр",
+        "/images/products/cheese.webp",
+        new BigDecimal("13.42"),
+        60
+    );
+    when(productService.update(2L, request)).thenReturn(updated);
+
+    var categoriesResponse = controller.categories();
+    var updateResponse = controller.update(2L, request);
+
+    assertThat(categoriesResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(categoriesResponse.getBody()).containsExactly("Молочная продукция", "Овощи");
+    assertThat(updateResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(updateResponse.getBody()).isEqualTo(updated);
+    verify(productService).getCategories();
+    verify(productService).update(2L, request);
+  }
 }

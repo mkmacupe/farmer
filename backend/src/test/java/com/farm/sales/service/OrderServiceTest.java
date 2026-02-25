@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +15,7 @@ import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderItemRequest;
 import com.farm.sales.dto.OrderResponse;
 import com.farm.sales.model.Order;
+import com.farm.sales.model.OrderItem;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.model.Product;
 import com.farm.sales.model.Role;
@@ -28,6 +31,7 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -206,6 +210,248 @@ class OrderServiceTest {
     verify(orderRepository, never()).findAllByOrderByCreatedAtDesc(any(Pageable.class));
   }
 
+  @Test
+  void createOrderRestoresStockWhenPersistenceFails() {
+    User director = user(7L, "Director One", Role.DIRECTOR);
+    StoreAddress address = address(5L, director);
+    Product milk = product(1L, "Молоко", "5.00", 10);
+    when(userRepository.findById(7L)).thenReturn(Optional.of(director));
+    when(directorProfileService.getOwnedAddress(7L, 5L)).thenReturn(address);
+    when(productRepository.findAllByIdInForUpdate(List.of(1L))).thenReturn(List.of(milk));
+    when(orderRepository.save(any(Order.class))).thenThrow(new IllegalStateException("db-failure"));
+
+    assertThatThrownBy(() -> orderService.createOrder(
+        7L,
+        new OrderCreateRequest(5L, List.of(new OrderItemRequest(1L, 2)))
+    )).isInstanceOf(IllegalStateException.class);
+
+    assertThat(milk.getStockQuantity()).isEqualTo(10);
+    verify(productRepository).save(milk);
+    verify(orderTimelineService, never()).recordCreation(any());
+  }
+
+  @Test
+  void createOrderFailsWhenProductIsMissingOrDirectorRoleIsInvalid() {
+    User manager = user(7L, "Manager", Role.MANAGER);
+    when(userRepository.findById(7L)).thenReturn(Optional.of(manager));
+
+    assertThatThrownBy(() -> orderService.createOrder(
+        7L,
+        new OrderCreateRequest(5L, List.of(new OrderItemRequest(1L, 1)))
+    )).isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        });
+
+    User director = user(8L, "Director", Role.DIRECTOR);
+    StoreAddress address = address(5L, director);
+    when(userRepository.findById(8L)).thenReturn(Optional.of(director));
+    when(directorProfileService.getOwnedAddress(8L, 5L)).thenReturn(address);
+    when(productRepository.findAllByIdInForUpdate(List.of(99L))).thenReturn(List.of());
+
+    assertThatThrownBy(() -> orderService.createOrder(
+        8L,
+        new OrderCreateRequest(5L, List.of(new OrderItemRequest(99L, 1)))
+    )).isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+          assertThat(ex.getReason()).contains("Товар не найден");
+        });
+  }
+
+  @Test
+  void repeatOrderRejectsMissingForbiddenAndAddresslessSourceOrders() {
+    User director = user(7L, "Director", Role.DIRECTOR);
+    User anotherDirector = user(8L, "Another", Role.DIRECTOR);
+    when(userRepository.findById(7L)).thenReturn(Optional.of(director));
+    when(orderRepository.findById(404L)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> orderService.repeatOrder(7L, 404L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+
+    Order foreignOrder = order(405L, anotherDirector, OrderStatus.CREATED);
+    when(orderRepository.findById(405L)).thenReturn(Optional.of(foreignOrder));
+    assertThatThrownBy(() -> orderService.repeatOrder(7L, 405L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+
+    Order noAddress = order(406L, director, OrderStatus.CREATED);
+    noAddress.setDeliveryAddress(null);
+    when(orderRepository.findById(406L)).thenReturn(Optional.of(noAddress));
+    assertThatThrownBy(() -> orderService.repeatOrder(7L, 406L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+  }
+
+  @Test
+  void repeatOrderBuildsCreateRequestFromSourceItems() {
+    OrderService spyService = spy(orderService);
+    User director = user(7L, "Director", Role.DIRECTOR);
+    Product milk = product(1L, "Молоко", "5.00", 10);
+    StoreAddress sourceAddress = address(15L, director);
+    Order source = order(500L, director, OrderStatus.DELIVERED);
+    source.setDeliveryAddress(sourceAddress);
+    source.setItems(List.of(item(source, milk, 3)));
+    when(userRepository.findById(7L)).thenReturn(Optional.of(director));
+    when(orderRepository.findById(500L)).thenReturn(Optional.of(source));
+    doReturn(sampleResponse(700L, director, OrderStatus.CREATED)).when(spyService)
+        .createOrder(eq(7L), any(OrderCreateRequest.class));
+
+    OrderResponse response = spyService.repeatOrder(7L, 500L);
+
+    assertThat(response.id()).isEqualTo(700L);
+    ArgumentCaptor<OrderCreateRequest> requestCaptor = ArgumentCaptor.forClass(OrderCreateRequest.class);
+    verify(spyService).createOrder(eq(7L), requestCaptor.capture());
+    assertThat(requestCaptor.getValue().deliveryAddressId()).isEqualTo(15L);
+    assertThat(requestCaptor.getValue().items()).containsExactly(new OrderItemRequest(1L, 3));
+  }
+
+  @Test
+  void getOrdersForRoleUsesDirectorAndManagerQueries() {
+    User director = user(7L, "Director", Role.DIRECTOR);
+    Order order = order(88L, director, OrderStatus.CREATED);
+    when(orderRepository.findByCustomerIdOrderByCreatedAtDesc(eq(7L), any(Pageable.class))).thenReturn(List.of(order));
+    when(orderRepository.findAllByOrderByCreatedAtDesc(any(Pageable.class))).thenReturn(List.of(order));
+
+    List<OrderResponse> directorOrders = orderService.getOrdersForRole(Role.DIRECTOR, 7L);
+    List<OrderResponse> managerOrders = orderService.getOrdersForRole(Role.MANAGER, 1L);
+
+    assertThat(directorOrders).hasSize(1);
+    assertThat(managerOrders).hasSize(1);
+    verify(orderRepository).findByCustomerIdOrderByCreatedAtDesc(eq(7L), any(Pageable.class));
+    verify(orderRepository).findAllByOrderByCreatedAtDesc(any(Pageable.class));
+  }
+
+  @Test
+  void approveOrderRejectsWrongStatusAndMissingEntities() {
+    when(userRepository.findById(1L)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> orderService.approveOrder(10L, 1L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+
+    User manager = user(1L, "Manager", Role.MANAGER);
+    when(userRepository.findById(1L)).thenReturn(Optional.of(manager));
+    when(orderRepository.findById(10L)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> orderService.approveOrder(10L, 1L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+
+    User director = user(7L, "Director", Role.DIRECTOR);
+    Order approved = order(11L, director, OrderStatus.APPROVED);
+    when(orderRepository.findById(11L)).thenReturn(Optional.of(approved));
+    assertThatThrownBy(() -> orderService.approveOrder(11L, 1L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+  }
+
+  @Test
+  void assignDriverSuccessAndRoleValidation() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driver = user(3L, "Driver", Role.DRIVER);
+    User director = user(7L, "Director", Role.DIRECTOR);
+    Order order = order(120L, director, OrderStatus.APPROVED);
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(userRepository.findById(3L)).thenReturn(Optional.of(driver));
+    when(orderRepository.findById(120L)).thenReturn(Optional.of(order));
+    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    OrderResponse response = orderService.assignDriver(120L, 2L, 3L);
+
+    assertThat(response.status()).isEqualTo(OrderStatus.ASSIGNED.name());
+    assertThat(response.assignedDriverId()).isEqualTo(3L);
+
+    User wrongRole = user(4L, "Wrong", Role.MANAGER);
+    when(userRepository.findById(4L)).thenReturn(Optional.of(wrongRole));
+    assertThatThrownBy(() -> orderService.assignDriver(120L, 4L, 3L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+  }
+
+  @Test
+  void markDeliveredValidatesStateAndCanSucceed() {
+    User driver = user(3L, "Driver", Role.DRIVER);
+    User director = user(7L, "Director", Role.DIRECTOR);
+    Order order = order(130L, director, OrderStatus.ASSIGNED);
+    order.setAssignedDriver(driver);
+    when(userRepository.findById(3L)).thenReturn(Optional.of(driver));
+    when(orderRepository.findById(130L)).thenReturn(Optional.of(order));
+    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    OrderResponse delivered = orderService.markDelivered(130L, 3L);
+
+    assertThat(delivered.status()).isEqualTo(OrderStatus.DELIVERED.name());
+    assertThat(delivered.deliveredAt()).isNotNull();
+
+    Order wrongStatus = order(131L, director, OrderStatus.APPROVED);
+    wrongStatus.setAssignedDriver(driver);
+    when(orderRepository.findById(131L)).thenReturn(Optional.of(wrongStatus));
+    assertThatThrownBy(() -> orderService.markDelivered(131L, 3L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST));
+
+    when(orderRepository.findById(999L)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> orderService.markDelivered(999L, 3L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+  }
+
+  @Test
+  void createOrderHandlesUnexpectedMissingProductInMap() {
+    User director = user(99L, "Director", Role.DIRECTOR);
+    StoreAddress address = address(5L, director);
+    Product corrupted = product(null, "Corrupted", "1.00", 10);
+    when(userRepository.findById(99L)).thenReturn(Optional.of(director));
+    when(directorProfileService.getOwnedAddress(99L, 5L)).thenReturn(address);
+    when(productRepository.findAllByIdInForUpdate(List.of(1L))).thenReturn(List.of(corrupted));
+
+    assertThatThrownBy(() -> orderService.createOrder(
+        99L,
+        new OrderCreateRequest(5L, List.of(new OrderItemRequest(1L, 1)))
+    )).isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+          assertThat(ex.getReason()).contains("Товар не найден");
+        });
+  }
+
+  @Test
+  void assignDriverFailsWhenOrderNotFoundAndMarkDeliveredWhenDriverNotAssigned() {
+    User logistician = user(20L, "Logistician", Role.LOGISTICIAN);
+    User driver = user(21L, "Driver", Role.DRIVER);
+    when(userRepository.findById(20L)).thenReturn(Optional.of(logistician));
+    when(userRepository.findById(21L)).thenReturn(Optional.of(driver));
+    when(orderRepository.findById(777L)).thenReturn(Optional.empty());
+    assertThatThrownBy(() -> orderService.assignDriver(777L, 20L, 21L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND));
+
+    User director = user(30L, "Director", Role.DIRECTOR);
+    Order withoutAssignedDriver = order(778L, director, OrderStatus.ASSIGNED);
+    withoutAssignedDriver.setAssignedDriver(null);
+    when(userRepository.findById(21L)).thenReturn(Optional.of(driver));
+    when(orderRepository.findById(778L)).thenReturn(Optional.of(withoutAssignedDriver));
+    assertThatThrownBy(() -> orderService.markDelivered(778L, 21L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> assertThat(((ResponseStatusException) error).getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN));
+  }
+
+  @Test
+  void toResponseHandlesNullDeliveryAddressThroughListView() {
+    User director = user(44L, "Director", Role.DIRECTOR);
+    Order order = order(900L, director, OrderStatus.CREATED);
+    order.setDeliveryAddress(null);
+    order.setDeliveryAddressText("Текстовый адрес");
+    when(orderRepository.findAllByOrderByCreatedAtDesc(any(Pageable.class))).thenReturn(List.of(order));
+
+    List<OrderResponse> responses = orderService.getOrdersForRole(Role.MANAGER, 1L);
+
+    assertThat(responses).hasSize(1);
+    assertThat(responses.getFirst().deliveryAddressId()).isNull();
+  }
+
   private User user(Long id, String fullName, Role role) {
     User user = new User();
     user.setId(id);
@@ -256,5 +502,37 @@ class OrderServiceTest {
     order.setUpdatedAt(Instant.now().minusSeconds(60));
     order.setItems(new ArrayList<>());
     return order;
+  }
+
+  private OrderItem item(Order order, Product product, int quantity) {
+    OrderItem item = new OrderItem();
+    item.setOrder(order);
+    item.setProduct(product);
+    item.setQuantity(quantity);
+    item.setPrice(product.getPrice());
+    item.setLineTotal(product.getPrice().multiply(BigDecimal.valueOf(quantity)));
+    return item;
+  }
+
+  private OrderResponse sampleResponse(Long id, User director, OrderStatus status) {
+    return new OrderResponse(
+        id,
+        director.getId(),
+        director.getFullName(),
+        5L,
+        "Address",
+        new BigDecimal("53.1"),
+        new BigDecimal("30.1"),
+        null,
+        null,
+        status.name(),
+        Instant.now(),
+        Instant.now(),
+        null,
+        null,
+        null,
+        new BigDecimal("10.00"),
+        List.of()
+    );
   }
 }

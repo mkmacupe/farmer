@@ -46,4 +46,19 @@ class DashboardServiceTest {
       assertThat(row.count()).isEqualTo(1L);
     });
   }
+
+  @Test
+  void summaryHandlesNullAggregateAndZeroTotals() {
+    when(orderRepository.summarizeForDashboard(null, null)).thenReturn(null);
+
+    var summary = dashboardService.getSummary(null, null);
+
+    assertThat(summary.totalOrders()).isZero();
+    assertThat(summary.deliveredOrders()).isZero();
+    assertThat(summary.totalRevenue()).isEqualByComparingTo("0.00");
+    assertThat(summary.averageCheck()).isEqualByComparingTo("0");
+    assertThat(summary.ordersByStatus())
+        .extracting(status -> status.count())
+        .containsOnly(0L);
+  }
 }

@@ -58,4 +58,15 @@ class StockMovementControllerTest {
     assertThat(fromCaptor.getValue()).isEqualTo(from);
     assertThat(toCaptor.getValue()).isEqualTo(to);
   }
+
+  @Test
+  void listPassesNullDatesAsNullInstants() {
+    when(stockMovementService.list(any(), any(), any(), anyInt())).thenReturn(List.of());
+
+    var response = controller.list(null, null, null, 200);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isEmpty();
+    verify(stockMovementService).list(null, null, null, 200);
+  }
 }
