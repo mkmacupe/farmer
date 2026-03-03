@@ -11,11 +11,19 @@ const ROLE_CASES = [
   { username: 'driver1', heading: /мои доставки/i }
 ];
 
+async function waitForWorkspaceReady(page) {
+  const loadingPlaceholder = page.getByText(/загружаем рабочее пространство/i);
+  if (await loadingPlaceholder.count()) {
+    await expect(loadingPlaceholder).toBeHidden({ timeout: 15_000 });
+  }
+}
+
 for (const roleCase of ROLE_CASES) {
   test(`${roleCase.username} page has no critical accessibility violations`, async ({ page }) => {
     await installApiMock(page, { fixedNow: FIXED_NOW });
     await loginAs(page, roleCase.username);
-    await expect(page.getByRole('heading', { name: roleCase.heading })).toBeVisible();
+    await waitForWorkspaceReady(page);
+    await expect(page.getByRole('heading', { name: roleCase.heading, level: 5 })).toBeVisible();
 
     const results = await new AxeBuilder({ page }).analyze();
     const criticalViolations = results.violations.filter((item) => item.impact === 'critical');

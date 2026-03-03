@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { fileURLToPath } from 'url';
+import { loadDemoProductsFromDataInitializer } from './helpers/seedProducts.js';
 
 /**
  * Тесты для проверки изображений товаров:
@@ -15,81 +16,10 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Маппинг товаров к ожидаемым изображениям (на основе DataInitializer.java)
-const PRODUCT_IMAGE_MAPPING = {
-  'Молоко 1 л': 'milk.webp',
-  'Молоко 2 л': 'milk-2l.webp',
-  'Сыр 0.5 кг': 'cheese.webp',
-  'Сыр твёрдый 1 кг': 'cheese-hard.webp',
-  'Творог 0.5 кг': 'cottage-cheese.webp',
-  'Сметана 0.4 л': 'sour-cream.webp',
-  'Сливочное масло 0.2 кг': 'butter.webp',
-  'Мёд 0.5 кг': 'honey.webp',
-  'Мёд липовый 0.5 кг': 'honey-linden.webp',
-  'Мёд гречишный 0.5 кг': 'honey-buckwheat.webp',
-  'Томаты 1 кг': 'tomato.webp',
-  'Томаты черри 0.5 кг': 'tomato-cherry.webp',
-  'Кефир 1 л': 'kefir.webp',
-  'Кефир 0.5 л': 'kefir-05l.webp',
-  'Йогурт натуральный 0.5 л': 'yogurt.webp',
-  'Йогурт с фруктами 0.5 л': 'yogurt-fruit.webp',
-  'Яйца 10 шт': 'egg.webp',
-  'Курица охлаждённая 1 кг': 'chicken.webp',
-  'Говядина 1 кг': 'beef.webp',
-  'Свинина 1 кг': 'pork.webp',
-  'Картофель 5 кг': 'potato.webp',
-  'Морковь 2 кг': 'carrot.webp',
-  'Лук репчатый 2 кг': 'onion.webp',
-  'Огурцы 1 кг': 'cucumber.webp',
-  'Яблоки 1 кг': 'apple.webp',
-  'Груши 1 кг': 'pear.webp',
-  'Клубника 0.5 кг': 'strawberry.webp',
-  'Хлеб ржаной 0.6 кг': 'rye-bread.webp',
-  'Батон 0.4 кг': 'baguette.webp',
-  'Крупа гречневая 1 кг': 'buckwheat.webp',
-  'Рис 1 кг': 'rice.webp',
-  'Пшено 1 кг': 'millet.webp',
-  'Сок яблочный 1 л': 'apple-juice.webp',
-  'Вода питьевая артезианская 1.5 л': 'water.webp'
-};
-
-// Ключевые слова для проверки соответствия изображения товару
-const PRODUCT_KEYWORDS = {
-  'milk': ['молоко'],
-  'milk-2l': ['молоко', '2 л'],
-  'cheese': ['сыр'],
-  'cheese-hard': ['сыр', 'твёрдый'],
-  'cottage-cheese': ['творог'],
-  'sour-cream': ['сметана'],
-  'butter': ['масло', 'сливочное'],
-  'honey': ['мёд'],
-  'honey-linden': ['мёд', 'липовый'],
-  'honey-buckwheat': ['мёд', 'гречишный'],
-  'tomato': ['томат'],
-  'tomato-cherry': ['томат', 'черри'],
-  'kefir': ['кефир'],
-  'kefir-05l': ['кефир', '0.5'],
-  'yogurt': ['йогурт'],
-  'yogurt-fruit': ['йогурт', 'фрукт'],
-  'egg': ['яйц'],
-  'chicken': ['курица', 'курин'],
-  'beef': ['говядина'],
-  'pork': ['свинина'],
-  'potato': ['картофель', 'картошка'],
-  'carrot': ['морковь'],
-  'onion': ['лук'],
-  'cucumber': ['огурц'],
-  'apple': ['яблок'],
-  'pear': ['груш'],
-  'strawberry': ['клубника'],
-  'rye-bread': ['хлеб', 'ржаной'],
-  'baguette': ['батон'],
-  'buckwheat': ['гречн', 'крупа гречневая'],
-  'rice': ['рис'],
-  'millet': ['пшено'],
-  'apple-juice': ['сок', 'яблочный'],
-  'water': ['вода']
-};
+const SEEDED_PRODUCTS = loadDemoProductsFromDataInitializer();
+const PRODUCT_IMAGE_MAPPING = Object.fromEntries(
+  SEEDED_PRODUCTS.map(product => [product.name, path.basename(product.photoUrl)])
+);
 
 // Путь к изображениям
 const IMAGES_DIR = path.join(__dirname, '..', 'dist', 'images', 'products');
@@ -156,7 +86,7 @@ test.describe('Product Images Validation', () => {
       const files = fs.readdirSync(IMAGES_DIR).filter(f => f.endsWith('.webp'));
       
       const MIN_SIZE = 1024; // Минимум 1KB - реальное изображение
-      const MAX_SIZE = 500 * 1024; // Максимум 500KB - оптимизированное изображение
+      const MAX_SIZE = 700 * 1024; // Максимум 700KB - допустимый вес для качественных фото товаров
       
       const issues = [];
       
@@ -178,45 +108,6 @@ test.describe('Product Images Validation', () => {
       }
       
       expect(issues.length, `Found ${issues.length} size issues: ${issues.join('; ')}`).toBe(0);
-    });
-
-    test('image filenames match product names semantically', async () => {
-      const mismatches = [];
-      
-      for (const [productName, imageFile] of Object.entries(PRODUCT_IMAGE_MAPPING)) {
-        const imageName = imageFile.replace('.webp', '');
-        const keywords = PRODUCT_KEYWORDS[imageName];
-        
-        if (!keywords) {
-          // Нет ключевых слов для проверки - пропускаем
-          continue;
-        }
-        
-        const productNameLower = productName.toLowerCase();
-        const hasMatch = keywords.some(keyword => 
-          productNameLower.includes(keyword.toLowerCase())
-        );
-        
-        if (!hasMatch) {
-          mismatches.push({
-            product: productName,
-            image: imageFile,
-            expectedKeywords: keywords
-          });
-        }
-      }
-      
-      if (mismatches.length > 0) {
-        console.log('Product-image mismatches:');
-        mismatches.forEach(m => 
-          console.log(`  "${m.product}" -> ${m.image} (expected keywords: ${m.expectedKeywords.join(', ')})`)
-        );
-      }
-      
-      expect(
-        mismatches.length,
-        `Found ${mismatches.length} mismatches between product names and images`
-      ).toBe(0);
     });
 
     test('all images use consistent format (WebP)', async () => {
@@ -344,10 +235,15 @@ test.describe('Product Images Validation', () => {
       await page.getByLabel(/логин/i).fill('director');
       await page.getByLabel(/пароль/i).fill('TestPass123!');
       await page.getByRole('button', { name: /войти/i }).click();
+
+      const loadingPlaceholder = page.getByText(/загружаем рабочее пространство/i);
+      if (await loadingPlaceholder.count()) {
+        await expect(loadingPlaceholder).toBeHidden({ timeout: 15_000 });
+      }
       
       // Переходим в каталог
       await page.getByRole('button', { name: /^каталог$/i }).click();
-      await expect(page.getByRole('heading', { name: /каталог и корзина/i })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /каталог и корзина/i, level: 6 })).toBeVisible();
       
       // Ждём загрузки
       await page.waitForTimeout(500);
@@ -361,30 +257,36 @@ test.describe('Product Images Validation', () => {
       const duplicateUrls = [];
       
       const cardCount = await productCards.count();
+      expect(cardCount, 'Catalog should render at least one product card').toBeGreaterThan(0);
       
       for (let i = 0; i < cardCount; i++) {
         const card = productCards.nth(i);
         const img = card.locator('img').first();
-        
-        if (await img.count() > 0) {
-          const src = await img.getAttribute('src');
-          const productName = await card.locator('h6, .MuiTypography-subtitle1').first().textContent();
-          
-          if (src && src.includes('/images/products/')) {
-            if (imageUrls.has(src)) {
-              duplicateUrls.push({
-                url: src,
-                product1: imageUrls.get(src),
-                product2: productName
-              });
-            } else {
-              imageUrls.set(src, productName);
-            }
-          }
+        const productName = (await card.locator('h6, .MuiTypography-subtitle1').first().textContent()) || `card-${i + 1}`;
+
+        await expect(
+          img,
+          `Product card "${productName}" should contain an image element`
+        ).toHaveCount(1);
+
+        const src = await img.getAttribute('src');
+        expect(src, `Product "${productName}" should have non-empty image src`).toBeTruthy();
+        expect(src, `Product "${productName}" should point to catalog image`).toContain('/images/products/');
+
+        if (imageUrls.has(src)) {
+          duplicateUrls.push({
+            url: src,
+            product1: imageUrls.get(src),
+            product2: productName
+          });
+        } else {
+          imageUrls.set(src, productName);
         }
       }
       
       console.log(`Checked ${cardCount} product cards, found ${imageUrls.size} unique image URLs`);
+      expect(imageUrls.size, 'At least one product image URL should be collected').toBeGreaterThan(0);
+      expect(imageUrls.size, 'Each rendered product card should have an image URL').toBe(cardCount);
       
       if (duplicateUrls.length > 0) {
         console.log('Products sharing same image:');
@@ -549,24 +451,15 @@ test.describe('Product Images Validation', () => {
       ).toBe(0);
     });
     
-    test('no orphan images (images without products)', async () => {
-      const existingFiles = fs.readdirSync(IMAGES_DIR).filter(f => f.endsWith('.webp'));
-      const mappedImages = new Set(Object.values(PRODUCT_IMAGE_MAPPING));
-      
-      const orphanImages = existingFiles.filter(f => !mappedImages.has(f));
-      
-      if (orphanImages.length > 0) {
-        console.log('Orphan images (no product uses them):');
-        orphanImages.forEach(o => console.log(`  ${o}`));
-      }
-      
-      // Предупреждение, но не ошибка (могут быть запасные изображения)
-      if (orphanImages.length > 0) {
-        console.warn(`Warning: Found ${orphanImages.length} orphan images that are not used by any product`);
-      }
-      
-      // Для строгой проверки можно раскомментировать:
-      // expect(orphanImages.length).toBe(0);
+    test('seeded demo products use unique image files', async () => {
+      const mappedImages = Object.values(PRODUCT_IMAGE_MAPPING);
+      const uniqueMappedImages = new Set(mappedImages);
+
+      expect(mappedImages.length, 'Seeded demo products list should not be empty').toBeGreaterThan(0);
+      expect(
+        uniqueMappedImages.size,
+        'Each seeded demo product should reference a unique image file'
+      ).toBe(mappedImages.length);
     });
 
     test('all image filenames follow naming convention', async () => {

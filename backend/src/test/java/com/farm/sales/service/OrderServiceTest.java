@@ -7,10 +7,15 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.farm.sales.audit.AuditTrailPublisher;
+import com.farm.sales.dto.AutoAssignApproveItemRequest;
+import com.farm.sales.dto.AutoAssignApproveRequest;
+import com.farm.sales.dto.AutoAssignPreviewResponse;
+import com.farm.sales.dto.AutoAssignResultResponse;
 import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderItemRequest;
 import com.farm.sales.dto.OrderResponse;
@@ -439,6 +444,100 @@ class OrderServiceTest {
   }
 
   @Test
+  void previewAutoAssignPlanBuildsRoutesWithoutChangingOrderStatus() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driverNearFirst = user(3L, "Driver A", Role.DRIVER);
+    User driverNearSecond = user(4L, "Driver B", Role.DRIVER);
+    driverNearFirst.setUsername("driver1");
+    driverNearSecond.setUsername("driver2");
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Order firstApproved = orderWithCoordinates(201L, director, OrderStatus.APPROVED, "53.9395000", "30.3410000");
+    Order secondApproved = orderWithCoordinates(202L, director, OrderStatus.APPROVED, "53.8710000", "30.4095000");
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(firstApproved, secondApproved));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER)).thenReturn(List.of(driverNearFirst, driverNearSecond));
+    when(orderRepository.countByAssignedDriverIdAndStatus(3L, OrderStatus.ASSIGNED)).thenReturn(0L);
+    when(orderRepository.countByAssignedDriverIdAndStatus(4L, OrderStatus.ASSIGNED)).thenReturn(0L);
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+
+    assertThat(preview.totalApprovedOrders()).isEqualTo(2);
+    assertThat(preview.plannedOrders()).isEqualTo(2);
+    assertThat(preview.unplannedOrders()).isEqualTo(0);
+    assertThat(preview.routes())
+        .flatExtracting(route -> route.points())
+        .extracting(point -> point.orderId())
+        .containsExactlyInAnyOrder(201L, 202L);
+
+    assertThat(firstApproved.getStatus()).isEqualTo(OrderStatus.APPROVED);
+    assertThat(secondApproved.getStatus()).isEqualTo(OrderStatus.APPROVED);
+    verify(orderRepository, never()).save(any(Order.class));
+    verify(orderTimelineService, never()).recordStatusChange(any(Order.class), eq(OrderStatus.APPROVED), eq(OrderStatus.ASSIGNED));
+  }
+
+  @Test
+  void approveAutoAssignPlanAssignsOrdersFromProvidedPlan() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driverNearFirst = user(3L, "Driver 1", Role.DRIVER);
+    User driverNearSecond = user(4L, "Driver 2", Role.DRIVER);
+    driverNearFirst.setUsername("driver1");
+    driverNearSecond.setUsername("driver2");
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Order firstApproved = orderWithCoordinates(301L, director, OrderStatus.APPROVED, "53.9395000", "30.3410000");
+    Order secondApproved = orderWithCoordinates(302L, director, OrderStatus.APPROVED, "53.8709000", "30.4098000");
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(firstApproved, secondApproved));
+    when(orderRepository.findByStatusOrderByCreatedAtDescForUpdate(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(firstApproved, secondApproved));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER))
+        .thenReturn(List.of(driverNearFirst, driverNearSecond));
+    when(orderRepository.countByAssignedDriverIdAndStatus(3L, OrderStatus.ASSIGNED)).thenReturn(0L);
+    when(orderRepository.countByAssignedDriverIdAndStatus(4L, OrderStatus.ASSIGNED)).thenReturn(0L);
+    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+    List<AutoAssignApproveItemRequest> requestedAssignments = preview.routes().stream()
+        .flatMap(route -> route.points().stream()
+            .map(point -> new AutoAssignApproveItemRequest(point.orderId(), route.driverId(), point.stopSequence())))
+        .toList();
+    AutoAssignResultResponse result = orderService.approveAutoAssignPlan(2L, new AutoAssignApproveRequest(requestedAssignments));
+
+    assertThat(result.totalApprovedOrders()).isEqualTo(2);
+    assertThat(result.assignedOrders()).isEqualTo(2);
+    assertThat(result.unassignedOrders()).isEqualTo(0);
+    assertThat(result.assignments()).hasSize(2);
+    assertThat(firstApproved.getStatus()).isEqualTo(OrderStatus.ASSIGNED);
+    assertThat(secondApproved.getStatus()).isEqualTo(OrderStatus.ASSIGNED);
+    verify(orderTimelineService, times(2)).recordStatusChange(any(Order.class), eq(OrderStatus.APPROVED), eq(OrderStatus.ASSIGNED));
+  }
+
+  @Test
+  void autoAssignApprovedOrdersFailsWhenNoDriversAvailable() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User director = user(7L, "Director", Role.DIRECTOR);
+    Order approved = order(777L, director, OrderStatus.APPROVED);
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(approved));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER)).thenReturn(List.of());
+
+    assertThatThrownBy(() -> orderService.autoAssignApprovedOrders(2L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+          assertThat(ex.getReason()).contains("водители не найдены");
+        });
+  }
+
+  @Test
   void toResponseHandlesNullDeliveryAddressThroughListView() {
     User director = user(44L, "Director", Role.DIRECTOR);
     Order order = order(900L, director, OrderStatus.CREATED);
@@ -512,6 +611,13 @@ class OrderServiceTest {
     item.setPrice(product.getPrice());
     item.setLineTotal(product.getPrice().multiply(BigDecimal.valueOf(quantity)));
     return item;
+  }
+
+  private Order orderWithCoordinates(Long id, User director, OrderStatus status, String latitude, String longitude) {
+    Order order = order(id, director, status);
+    order.setDeliveryLatitude(new BigDecimal(latitude));
+    order.setDeliveryLongitude(new BigDecimal(longitude));
+    return order;
   }
 
   private OrderResponse sampleResponse(Long id, User director, OrderStatus status) {

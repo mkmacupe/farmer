@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
 import List from '@mui/material/List';
@@ -11,7 +12,7 @@ import { NAV_ITEMS, itemIcon, roleLabel } from './navigation.jsx';
 
 const DRAWER_WIDTH = 248;
 
-export default function Sidebar({
+export default memo(function Sidebar({
   user,
   activeSection,
   onNavigate,
@@ -159,4 +160,4 @@ export default function Sidebar({
       {drawerContent}
     </Drawer>
   );
-}
+});

@@ -6,6 +6,7 @@ import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
@@ -21,9 +22,18 @@ public class GeocodingService {
   public GeocodingService(@Value("${app.geo.nominatim-base-url:https://nominatim.openstreetmap.org}")
                           String nominatimBaseUrl,
                           @Value("${app.geo.user-agent:FarmSalesCourseProject/1.0}")
-                          String userAgent) {
+                          String userAgent,
+                          @Value("${app.geo.connect-timeout-ms:3000}")
+                          int connectTimeoutMs,
+                          @Value("${app.geo.read-timeout-ms:5000}")
+                          int readTimeoutMs) {
+    SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+    requestFactory.setConnectTimeout(Math.max(connectTimeoutMs, 100));
+    requestFactory.setReadTimeout(Math.max(readTimeoutMs, 100));
+
     this.restClient = RestClient.builder()
         .baseUrl(nominatimBaseUrl)
+        .requestFactory(requestFactory)
         .defaultHeader("User-Agent", userAgent)
         .build();
   }

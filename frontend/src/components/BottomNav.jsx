@@ -1,10 +1,11 @@
+import { memo } from 'react';
 import Box from '@mui/material/Box';
 import BottomNavigation from '@mui/material/BottomNavigation';
 import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 import Paper from '@mui/material/Paper';
 import { NAV_ITEMS, itemIcon } from './navigation.jsx';
 
-export default function BottomNav({ role, activeSection, onNavigate }) {
+export default memo(function BottomNav({ role, activeSection, onNavigate }) {
   const items = NAV_ITEMS[role] || [];
   if (!items.length) {
     return null;
@@ -60,4 +61,4 @@ export default function BottomNav({ role, activeSection, onNavigate }) {
       </Box>
     </Paper>
   );
-}
+});

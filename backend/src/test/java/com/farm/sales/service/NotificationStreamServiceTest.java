@@ -121,6 +121,7 @@ class NotificationStreamServiceTest {
   void dispatchPendingNotificationsSafelyHandlesRepositoryExceptions() throws Exception {
     when(notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(anyLong()))
         .thenThrow(new RuntimeException("fail"));
+    subscribers().add(newSubscriber(1L, Set.of("MANAGER"), mock(SseEmitter.class)));
 
     invoke(service, "dispatchPendingNotificationsSafely", new Class<?>[] {});
   }
@@ -137,6 +138,7 @@ class NotificationStreamServiceTest {
     when(notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(anyLong()))
         .thenReturn(fullBatch)
         .thenReturn(List.of());
+    subscribers().add(newSubscriber(1L, Set.of("MANAGER"), mock(SseEmitter.class)));
 
     invoke(service, "dispatchPendingNotifications", new Class<?>[] {});
 
@@ -148,6 +150,7 @@ class NotificationStreamServiceTest {
   @Test
   void dispatchPendingNotificationsReturnsImmediatelyForEmptyBatch() throws Exception {
     when(notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(anyLong())).thenReturn(List.of());
+    subscribers().add(newSubscriber(1L, Set.of("MANAGER"), mock(SseEmitter.class)));
 
     invoke(service, "dispatchPendingNotifications", new Class<?>[] {});
 
@@ -160,6 +163,7 @@ class NotificationStreamServiceTest {
     event.setId(55L);
     event.setTargetRoles("");
     when(notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(anyLong())).thenReturn(List.of(event));
+    subscribers().add(newSubscriber(1L, Set.of("MANAGER"), mock(SseEmitter.class)));
 
     invoke(service, "dispatchPendingNotifications", new Class<?>[] {});
 

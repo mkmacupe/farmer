@@ -8,6 +8,13 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.farm.sales.dto.AutoAssignApproveItemRequest;
+import com.farm.sales.dto.AutoAssignApproveRequest;
+import com.farm.sales.dto.AutoAssignDriverRouteResponse;
+import com.farm.sales.dto.AutoAssignItemResponse;
+import com.farm.sales.dto.AutoAssignPreviewResponse;
+import com.farm.sales.dto.AutoAssignResultResponse;
+import com.farm.sales.dto.AutoAssignRoutePointResponse;
 import com.farm.sales.dto.DriverAssignRequest;
 import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderItemRequest;
@@ -110,6 +117,72 @@ class OrderControllerTest {
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     verify(orderService).assignDriver(101L, 18L, 31L);
+  }
+
+  @Test
+  void autoAssignDelegatesToService() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(18L);
+    AutoAssignResultResponse result = new AutoAssignResultResponse(
+        2,
+        2,
+        0,
+        11.3,
+        List.of(new AutoAssignItemResponse(1L, 31L, "Driver One", 4.5))
+    );
+    when(orderService.autoAssignApprovedOrders(18L)).thenReturn(result);
+
+    var response = controller.autoAssign(jwt);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isEqualTo(result);
+    verify(orderService).autoAssignApprovedOrders(18L);
+  }
+
+  @Test
+  void autoAssignPreviewAndApproveDelegateToService() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(18L);
+
+    AutoAssignPreviewResponse preview = new AutoAssignPreviewResponse(
+        "Могилёв, тестовая точка",
+        53.89,
+        30.33,
+        2,
+        2,
+        0,
+        12.1,
+        List.of(new AutoAssignDriverRouteResponse(
+            31L,
+            "Driver One",
+            2,
+            12.1,
+            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 4.5))
+        ))
+    );
+    when(orderService.previewAutoAssignPlan(18L)).thenReturn(preview);
+
+    AutoAssignApproveRequest request = new AutoAssignApproveRequest(
+        List.of(new AutoAssignApproveItemRequest(1L, 31L, 1))
+    );
+    AutoAssignResultResponse approved = new AutoAssignResultResponse(
+        2,
+        2,
+        0,
+        12.1,
+        List.of(new AutoAssignItemResponse(1L, 31L, "Driver One", 4.5))
+    );
+    when(orderService.approveAutoAssignPlan(18L, request)).thenReturn(approved);
+
+    var previewResponse = controller.autoAssignPreview(jwt);
+    var approveResponse = controller.approveAutoAssign(jwt, request);
+
+    assertThat(previewResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(previewResponse.getBody()).isEqualTo(preview);
+    assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(approveResponse.getBody()).isEqualTo(approved);
+    verify(orderService).previewAutoAssignPlan(18L);
+    verify(orderService).approveAutoAssignPlan(18L, request);
   }
 
   @Test

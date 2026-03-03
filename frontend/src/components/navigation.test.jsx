@@ -41,4 +41,9 @@ describe('navigation helpers', () => {
     const { container } = render(itemIcon('unknown-id'));
     expect(container.querySelector('svg')).toBeTruthy();
   });
+
+  it('applies custom props to rendered icon', () => {
+    const { container } = render(itemIcon('manager-dashboard', { 'data-testid': 'custom-icon' }));
+    expect(container.querySelector('[data-testid=\"custom-icon\"]')).toBeTruthy();
+  });
 });

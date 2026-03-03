@@ -42,4 +42,16 @@ describe('BottomNav', () => {
     await uiUser.click(screen.getByRole('button', { name: /каталог/i }));
     expect(onNavigate).toHaveBeenCalledWith('director-catalog');
   });
+
+  it('renders compact layout for roles with more than four sections', () => {
+    render(
+      <BottomNav role="MANAGER" activeSection="manager-dashboard" onNavigate={() => {}} />
+    );
+
+    expect(screen.getByRole('button', { name: /сводка/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /заявки/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /товары/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /пользователи/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /отчёты/i })).toBeInTheDocument();
+  });
 });

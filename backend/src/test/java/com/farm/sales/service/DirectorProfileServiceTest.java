@@ -17,6 +17,7 @@ import com.farm.sales.dto.StoreAddressResponse;
 import com.farm.sales.model.Role;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
+import com.farm.sales.repository.OrderRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
@@ -32,6 +33,7 @@ import org.springframework.web.server.ResponseStatusException;
 class DirectorProfileServiceTest {
   private UserRepository userRepository;
   private StoreAddressRepository storeAddressRepository;
+  private OrderRepository orderRepository;
   private GeocodingService geocodingService;
   private AuditTrailPublisher auditTrailPublisher;
   private DirectorProfileService service;
@@ -40,9 +42,16 @@ class DirectorProfileServiceTest {
   void setUp() {
     userRepository = mock(UserRepository.class);
     storeAddressRepository = mock(StoreAddressRepository.class);
+    orderRepository = mock(OrderRepository.class);
     geocodingService = mock(GeocodingService.class);
     auditTrailPublisher = mock(AuditTrailPublisher.class);
-    service = new DirectorProfileService(userRepository, storeAddressRepository, geocodingService, auditTrailPublisher);
+    service = new DirectorProfileService(
+        userRepository,
+        storeAddressRepository,
+        orderRepository,
+        geocodingService,
+        auditTrailPublisher
+    );
   }
 
   @Test
@@ -115,11 +124,28 @@ class DirectorProfileServiceTest {
     assertThat(updated.latitude()).isEqualByComparingTo("53.9100000");
     assertThat(updated.longitude()).isEqualByComparingTo("30.4100000");
 
+    when(orderRepository.existsByDeliveryAddressId(3L)).thenReturn(false);
     service.deleteAddress(15L, 3L);
+    verify(orderRepository).existsByDeliveryAddressId(3L);
     verify(storeAddressRepository).delete(existing);
 
     StoreAddress owned = service.getOwnedAddress(15L, 3L);
     assertThat(owned).isSameAs(existing);
+  }
+
+  @Test
+  void deleteAddressReturnsConflictWhenAddressUsedInOrders() {
+    User director = user(16L, "director-used", Role.DIRECTOR);
+    when(userRepository.findById(16L)).thenReturn(Optional.of(director));
+    StoreAddress existing = address(4L, director, "Склад", "Минск, 1",
+        new BigDecimal("53.9000000"), new BigDecimal("27.5667000"));
+    when(storeAddressRepository.findByIdAndUserId(4L, 16L)).thenReturn(Optional.of(existing));
+    when(orderRepository.existsByDeliveryAddressId(4L)).thenReturn(true);
+
+    assertStatus(() -> service.deleteAddress(16L, 4L),
+        HttpStatus.CONFLICT, "используется в заказах");
+
+    verify(storeAddressRepository, never()).delete(any(StoreAddress.class));
   }
 
   @Test

@@ -2,6 +2,7 @@ package com.farm.sales.repository;
 
 import com.farm.sales.model.Order;
 import com.farm.sales.model.OrderStatus;
+import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
@@ -9,6 +10,7 @@ import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -62,6 +64,19 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
   @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
   List<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);
+
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
+  @Query("""
+      select o from Order o
+      where o.status = :status
+      order by o.createdAt desc
+      """)
+  List<Order> findByStatusOrderByCreatedAtDescForUpdate(@Param("status") OrderStatus status, Pageable pageable);
+
+  long countByAssignedDriverIdAndStatus(Long driverId, OrderStatus status);
+
+  boolean existsByDeliveryAddressId(Long deliveryAddressId);
 
   @Query("""
       select o.id as orderId,

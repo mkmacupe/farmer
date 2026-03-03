@@ -1,7 +1,13 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OrdersTable from './OrdersTable.jsx';
+
+const useMediaQueryMock = vi.fn();
+
+vi.mock('@mui/material/useMediaQuery', () => ({
+  default: (...args) => useMediaQueryMock(...args)
+}));
 
 const orders = [
   {
@@ -44,6 +50,10 @@ async function pickStatus(label) {
 }
 
 describe('OrdersTable', () => {
+  beforeEach(() => {
+    useMediaQueryMock.mockReturnValue(false);
+  });
+
   it('renders empty state for no orders', () => {
     render(<OrdersTable orders={[]} emptyText="Нет данных" />);
     expect(screen.getByText('Заказов пока нет')).toBeInTheDocument();
@@ -110,5 +120,176 @@ describe('OrdersTable', () => {
   it('renders loading skeleton state', () => {
     const { container } = render(<OrdersTable orders={orders} loading />);
     expect(container.querySelector('.MuiSkeleton-root')).toBeTruthy();
+  });
+
+  it('clears search by clear icon button', async () => {
+    const uiUser = userEvent.setup();
+    render(<OrdersTable orders={orders} />);
+
+    await uiUser.type(screen.getByPlaceholderText('Поиск по заказам...'), 'Соколова');
+    expect(screen.queryByText('#101')).toBeNull();
+    await uiUser.click(screen.getByRole('button', { name: /очистить поиск/i }));
+    expect(screen.getByText('#101')).toBeInTheDocument();
+    expect(screen.getByText('#102')).toBeInTheDocument();
+  });
+
+  it('shows fallback values for invalid money and date', () => {
+    render(
+      <OrdersTable
+        orders={[{
+          ...orders[0],
+          id: 999,
+          totalAmount: 'not-a-number',
+          createdAt: 'invalid-date'
+        }]}
+      />
+    );
+
+    expect(screen.getByText('invalid-date')).toBeInTheDocument();
+    expect(screen.getByText('0.00')).toBeInTheDocument();
+  });
+
+  it('shows desktop no-results state and resets filters', async () => {
+    const uiUser = userEvent.setup();
+    render(<OrdersTable orders={orders} />);
+
+    await uiUser.type(screen.getByPlaceholderText('Поиск по заказам...'), 'совпадений-нет');
+    expect(screen.getByText('По фильтрам ничего не найдено')).toBeInTheDocument();
+    await uiUser.click(screen.getByRole('button', { name: /сбросить фильтры/i }));
+    expect(screen.getByText('#101')).toBeInTheDocument();
+  });
+
+  it('renders desktop fallbacks for unknown status, empty address and missing items', () => {
+    render(
+      <OrdersTable
+        orders={[{
+          ...orders[0],
+          id: 666,
+          status: 'IN_PROGRESS',
+          deliveryAddressText: null,
+          createdAt: null,
+          items: undefined
+        }]}
+      />
+    );
+
+    expect(screen.getByText('IN_PROGRESS')).toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText('0', { selector: 'span.MuiChip-label' })).toBeInTheDocument();
+  });
+
+  it('renders mobile cards and action renderer', () => {
+    useMediaQueryMock.mockReturnValue(true);
+    render(
+      <OrdersTable
+        orders={orders}
+        actionRenderer={(order) => <button type="button">Mobile Action {order.id}</button>}
+      />
+    );
+
+    expect(screen.getByText('Заказ #101')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Mobile Action 101' })).toBeInTheDocument();
+    expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('shows no-results state in mobile mode and resets filters', async () => {
+    useMediaQueryMock.mockReturnValue(true);
+    const uiUser = userEvent.setup();
+    render(<OrdersTable orders={orders} />);
+
+    await uiUser.type(screen.getByPlaceholderText('Поиск по заказам...'), 'нет-совпадений');
+    expect(screen.getByText('По фильтрам ничего не найдено')).toBeInTheDocument();
+    await uiUser.click(screen.getByRole('button', { name: /сбросить фильтры/i }));
+    expect(screen.getByText('Заказ #101')).toBeInTheDocument();
+  });
+
+  it('uses raw status text when status metadata is unknown', () => {
+    useMediaQueryMock.mockReturnValue(true);
+    render(
+      <OrdersTable
+        orders={[{
+          ...orders[0],
+          id: 777,
+          status: 'IN_PROGRESS'
+        }]}
+      />
+    );
+
+    expect(screen.getByText('IN_PROGRESS')).toBeInTheDocument();
+  });
+
+  it('search falls back to raw unknown status text', async () => {
+    const uiUser = userEvent.setup();
+    render(
+      <OrdersTable
+        orders={[
+          orders[0],
+          { ...orders[1], id: 7777, status: 'IN_PROGRESS' }
+        ]}
+      />
+    );
+
+    await uiUser.type(screen.getByPlaceholderText('Поиск по заказам...'), 'in_progress');
+    expect(screen.getByText('#7777')).toBeInTheDocument();
+    expect(screen.queryByText('#101')).toBeNull();
+  });
+
+  it('formats zero money values through fallback branch', () => {
+    render(
+      <OrdersTable
+        orders={[{
+          ...orders[0],
+          id: 1001,
+          totalAmount: null
+        }]}
+      />
+    );
+
+    expect(screen.getByText(/^0[,.]00$/)).toBeInTheDocument();
+  });
+
+  it('hides customer and uses mobile fallbacks for empty values', () => {
+    useMediaQueryMock.mockReturnValue(true);
+    render(
+      <OrdersTable
+        showCustomer={false}
+        orders={[{
+          ...orders[0],
+          id: 555,
+          deliveryAddressText: null,
+          items: null
+        }]}
+      />
+    );
+
+    expect(screen.queryByText('Иван Петров')).toBeNull();
+    expect(screen.getByText('Заказ #555')).toBeInTheDocument();
+    expect(screen.getAllByText('—').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('0', { selector: 'span.MuiChip-label' })).toBeInTheDocument();
+  });
+
+  it('shows customer fallback dash in mobile cards', () => {
+    useMediaQueryMock.mockReturnValue(true);
+    render(
+      <OrdersTable
+        orders={[{
+          ...orders[0],
+          id: 444,
+          customerName: null
+        }]}
+      />
+    );
+
+    expect(screen.getByText('Заказ #444')).toBeInTheDocument();
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('searches by status label text produced by statusLabel helper', async () => {
+    const uiUser = userEvent.setup();
+    render(<OrdersTable orders={orders} />);
+
+    await uiUser.type(screen.getByPlaceholderText('Поиск по заказам...'), 'доставлен');
+    expect(screen.getByText('#103')).toBeInTheDocument();
+    expect(screen.queryByText('#101')).toBeNull();
   });
 });

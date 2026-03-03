@@ -53,7 +53,7 @@ class GeocodingServiceTest {
     server.createContext("/search", exchange -> respond(exchange, searchStatus.get(), searchBody.get(), lastSearchQuery));
     server.createContext("/reverse", exchange -> respond(exchange, reverseStatus.get(), reverseBody.get(), lastReverseQuery));
     server.start();
-    service = new GeocodingService("http://localhost:" + server.getAddress().getPort(), "test-agent");
+    service = new GeocodingService("http://localhost:" + server.getAddress().getPort(), "test-agent", 3000, 5000);
   }
 
   @AfterEach
@@ -104,7 +104,7 @@ class GeocodingServiceTest {
     searchBody.set(null);
     assertThat(service.search("addr", 3)).isEmpty();
 
-    GeocodingService failing = new GeocodingService("http://127.0.0.1:1", "ua");
+    GeocodingService failing = new GeocodingService("http://127.0.0.1:1", "ua", 3000, 5000);
     assertStatus(
         () -> failing.search("addr", 1),
         HttpStatus.BAD_GATEWAY,
@@ -175,7 +175,7 @@ class GeocodingServiceTest {
         "не найден"
     );
 
-    GeocodingService failing = new GeocodingService("http://127.0.0.1:1", "ua");
+    GeocodingService failing = new GeocodingService("http://127.0.0.1:1", "ua", 3000, 5000);
     assertStatus(
         () -> failing.reverse(new BigDecimal("53.1"), new BigDecimal("30.1")),
         HttpStatus.BAD_GATEWAY,
@@ -185,7 +185,7 @@ class GeocodingServiceTest {
 
   @Test
   void geocodeFirstReturnsOptionalFirstElementOrEmpty() {
-    GeocodingService spy = spy(new GeocodingService("http://localhost:" + server.getAddress().getPort(), "ua"));
+    GeocodingService spy = spy(new GeocodingService("http://localhost:" + server.getAddress().getPort(), "ua", 3000, 5000));
     GeoLookupResponse first = new GeoLookupResponse(
         "id-1",
         "Address",
@@ -212,7 +212,7 @@ class GeocodingServiceTest {
 
   @Test
   void reverseHandlesMissingNodePayload() throws Exception {
-    GeocodingService local = new GeocodingService("http://localhost:" + server.getAddress().getPort(), "ua");
+    GeocodingService local = new GeocodingService("http://localhost:" + server.getAddress().getPort(), "ua", 3000, 5000);
 
     RestClient restClient = mock(RestClient.class);
     @SuppressWarnings("rawtypes")

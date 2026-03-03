@@ -35,6 +35,16 @@ function mapUrl(latitude, longitude) {
   return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
 }
 
+const SHARED_DRIVER_BASE = { lat: 53.8971270, lon: 30.3320410 };
+
+function resolveDriverBase(assignedDriverName, assignedDriverId) {
+  const numericId = Number(assignedDriverId);
+  if (assignedDriverName == null && !Number.isInteger(numericId)) {
+    return null;
+  }
+  return SHARED_DRIVER_BASE;
+}
+
 function routeUrl(fromLat, fromLon, toLat, toLon) {
   const originLat = normalizeCoord(fromLat, -90, 90);
   const originLon = normalizeCoord(fromLon, -180, 180);
@@ -120,28 +130,14 @@ export default function DriverView({ token, activeSection }) {
       return;
     }
 
-    if (!navigator.geolocation) {
-      window.open(fallbackUrl, '_blank', 'noopener');
-      showMessage('Геолокация недоступна, открыт адрес на карте', 'warning');
-      return;
+    const driverBase = resolveDriverBase(order.assignedDriverName, order.assignedDriverId);
+    const route = driverBase
+      ? routeUrl(driverBase.lat, driverBase.lon, order.deliveryLatitude, order.deliveryLongitude)
+      : '';
+    window.open(route || fallbackUrl, '_blank', 'noopener');
+    if (!driverBase) {
+      showMessage('Для водителя не задана базовая точка, открыт только адрес доставки', 'warning');
     }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const route = routeUrl(
-          position.coords.latitude,
-          position.coords.longitude,
-          order.deliveryLatitude,
-          order.deliveryLongitude
-        );
-        window.open(route || fallbackUrl, '_blank', 'noopener');
-      },
-      () => {
-        window.open(fallbackUrl, '_blank', 'noopener');
-        showMessage('Не удалось получить GPS-координаты, открыт адрес на карте', 'warning');
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
-    );
   };
 
   return (

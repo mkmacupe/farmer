@@ -1,6 +1,6 @@
-import { useEffect, useRef } from 'react';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { useEffect, useRef, useState } from "react";
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
 
 const DEFAULT_CENTER = { lat: 53.8948, lng: 30.3312 };
 const DEFAULT_ZOOM = 12;
@@ -10,7 +10,7 @@ function parseCoordinate(value, min, max) {
   if (value == null) {
     return null;
   }
-  if (typeof value === 'string' && value.trim() === '') {
+  if (typeof value === "string" && value.trim() === "") {
     return null;
   }
   const numeric = Number(value);
@@ -27,11 +27,22 @@ function formatCoordinate(value) {
 function createMarker(map, position) {
   return L.circleMarker(position, {
     radius: 8,
-    color: '#2e7d32',
+    color: "#4f8a6d",
     weight: 2,
-    fillColor: '#d84315',
-    fillOpacity: 0.9
+    fillColor: "#b18a52",
+    fillOpacity: 0.9,
   }).addTo(map);
+}
+
+function setMapInteractive(map, enabled) {
+  const method = enabled ? "enable" : "disable";
+  map.dragging?.[method]?.();
+  map.touchZoom?.[method]?.();
+  map.doubleClickZoom?.[method]?.();
+  map.scrollWheelZoom?.[method]?.();
+  map.boxZoom?.[method]?.();
+  map.keyboard?.[method]?.();
+  map.tap?.[method]?.();
 }
 
 export default function AddressMapPicker({ latitude, longitude, onSelect }) {
@@ -39,10 +50,19 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
   const mapRef = useRef(null);
   const markerRef = useRef(null);
   const onSelectRef = useRef(onSelect);
+  const mapEnabledRef = useRef(false);
+  const [mapEnabled, setMapEnabled] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
   }, [onSelect]);
+
+  useEffect(() => {
+    mapEnabledRef.current = mapEnabled;
+    if (mapRef.current) {
+      setMapInteractive(mapRef.current, mapEnabled);
+    }
+  }, [mapEnabled]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {
@@ -52,46 +72,61 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
     const lat = parseCoordinate(latitude, -90, 90);
     const lng = parseCoordinate(longitude, -180, 180);
     const hasValidCoords = lat != null && lng != null;
-    const center = hasValidCoords ? [lat, lng] : [DEFAULT_CENTER.lat, DEFAULT_CENTER.lng];
+    const center = hasValidCoords
+      ? [lat, lng]
+      : [DEFAULT_CENTER.lat, DEFAULT_CENTER.lng];
 
     const map = L.map(containerRef.current, {
       zoomControl: true,
-      scrollWheelZoom: true
+      scrollWheelZoom: true,
+      attributionControl: false,
     }).setView(center, hasValidCoords ? PICKED_ZOOM : DEFAULT_ZOOM);
+    setMapInteractive(map, mapEnabledRef.current);
 
     mapRef.current = map;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 19,
-      attribution: '&copy; участники OpenStreetMap'
     }).addTo(map);
 
-    markerRef.current = createMarker(map, center);
-    if (!hasValidCoords) {
-      onSelectRef.current?.(formatCoordinate(DEFAULT_CENTER.lat), formatCoordinate(DEFAULT_CENTER.lng));
+    if (hasValidCoords) {
+      markerRef.current = createMarker(map, center);
     }
 
     const handleMapClick = (event) => {
+      if (!mapEnabledRef.current) {
+        return;
+      }
       const selectedPoint = [event.latlng.lat, event.latlng.lng];
       if (!markerRef.current) {
         markerRef.current = createMarker(map, selectedPoint);
       } else {
         markerRef.current.setLatLng(selectedPoint);
       }
-      map.setView(selectedPoint, Math.max(PICKED_ZOOM, map.getZoom()), { animate: true });
-      onSelectRef.current?.(formatCoordinate(event.latlng.lat), formatCoordinate(event.latlng.lng));
+      map.setView(selectedPoint, Math.max(PICKED_ZOOM, map.getZoom()), {
+        animate: true,
+      });
+      onSelectRef.current?.(
+        formatCoordinate(event.latlng.lat),
+        formatCoordinate(event.latlng.lng),
+      );
     };
 
-    map.on('click', handleMapClick);
-    setTimeout(() => map.invalidateSize(), 0);
+    map.on("click", handleMapClick);
+    const invalidateTimeoutId = window.setTimeout(() => {
+      if (mapRef.current === map) {
+        map.invalidateSize();
+      }
+    }, 0);
 
     return () => {
-      map.off('click', handleMapClick);
+      window.clearTimeout(invalidateTimeoutId);
+      map.off("click", handleMapClick);
       map.remove();
       mapRef.current = null;
       markerRef.current = null;
     };
-  }, []);
+  }, [latitude, longitude]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -120,25 +155,58 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
   }, [latitude, longitude]);
 
   return (
-    <div className="map-picker">
+    <div className="map-picker" style={{ position: "relative" }}>
       <div
         ref={containerRef}
         className="map-picker-canvas"
         role="application"
         aria-label="Карта выбора адреса"
         style={{
-          width: '100%',
-          height: 'clamp(360px, 50vh, 520px)',
-          minHeight: '360px',
-          borderRadius: '12px',
-          border: '1px solid #e4e4e7',
-          overflow: 'hidden',
-          background: '#f6f6f6'
+          width: "100%",
+          height: "clamp(360px, 50vh, 520px)",
+          minHeight: "360px",
+          position: "relative",
+          zIndex: 0,
+          borderRadius: "12px",
+          border: "1px solid #e4e4e7",
+          overflow: "hidden",
+          background: "#f6f6f6",
+          opacity: 1,
         }}
       />
-      <div className="header-meta">
-        Нажмите на карту, чтобы поставить метку. Широта и долгота заполнятся автоматически.
-      </div>
+      {!mapEnabled && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "12px",
+            background: "rgba(17, 24, 39, 0.18)",
+            backdropFilter: "blur(1px)",
+            zIndex: 20,
+            pointerEvents: "auto",
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => setMapEnabled(true)}
+            style={{
+              border: "1px solid #2E5B4E",
+              background: "#2E5B4E",
+              color: "#ffffff",
+              borderRadius: "8px",
+              padding: "10px 16px",
+              fontSize: "0.875rem",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            Открыть карту для выбора точки
+          </button>
+        </div>
+      )}
     </div>
   );
 }

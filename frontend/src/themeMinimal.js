@@ -14,24 +14,24 @@ const palette = {
     contrastText: '#FFFFFF'
   },
   success: {
-    main: '#16a34a',
-    light: '#bbf7d0',
-    dark: '#15803d'
+    main: '#4f8a6d',
+    light: '#e6f1eb',
+    dark: '#3f7059'
   },
   warning: {
-    main: '#d97706',
-    light: '#fef3c7',
-    dark: '#b45309'
+    main: '#b18a52',
+    light: '#f7efe2',
+    dark: '#8f6f43'
   },
   error: {
-    main: '#dc2626',
-    light: '#fecaca',
-    dark: '#b91c1c'
+    main: '#b97777',
+    light: '#f6eaea',
+    dark: '#975f5f'
   },
   info: {
-    main: '#2563eb',
-    light: '#dbeafe',
-    dark: '#1d4ed8'
+    main: '#5a7fa8',
+    light: '#e8eef5',
+    dark: '#48688b'
   },
   background: {
     default: '#fafafa',
@@ -56,7 +56,7 @@ const themeMinimal = createTheme({
     borderRadius: 10
   },
   typography: {
-    fontFamily: '"IBM Plex Sans", "Noto Sans", "system-ui", sans-serif',
+    fontFamily: 'system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif',
     h1: { fontWeight: 600, fontSize: '2rem', letterSpacing: '-0.025em', lineHeight: 1.2 },
     h2: { fontWeight: 600, fontSize: '1.5rem', letterSpacing: '-0.02em', lineHeight: 1.3 },
     h3: { fontWeight: 600, fontSize: '1.25rem', letterSpacing: '-0.01em' },
@@ -281,76 +281,76 @@ const themeMinimal = createTheme({
         {
           props: { variant: 'filled', color: 'secondary' },
           style: {
-            backgroundColor: '#475569',
-            color: '#ffffff'
+            backgroundColor: '#e6e9ee',
+            color: '#4b5563'
           }
         },
         {
           props: { variant: 'filled', color: 'info' },
           style: {
-            backgroundColor: '#1d4ed8',
-            color: '#ffffff'
+            backgroundColor: '#e8eef5',
+            color: '#48688b'
           }
         },
         {
           props: { variant: 'filled', color: 'success' },
           style: {
-            backgroundColor: '#15803d',
-            color: '#ffffff'
+            backgroundColor: '#e6f1eb',
+            color: '#3f7059'
           }
         },
         {
           props: { variant: 'filled', color: 'warning' },
           style: {
-            backgroundColor: '#92400e',
-            color: '#ffffff'
+            backgroundColor: '#f7efe2',
+            color: '#8f6f43'
           }
         },
         {
           props: { variant: 'filled', color: 'error' },
           style: {
-            backgroundColor: '#b91c1c',
-            color: '#ffffff'
+            backgroundColor: '#f6eaea',
+            color: '#975f5f'
           }
         },
         {
           props: { variant: 'outlined', color: 'secondary' },
           style: {
-            borderColor: '#475569',
-            color: '#334155',
+            borderColor: '#cfd6df',
+            color: '#5b6471',
             backgroundColor: '#f8fafc'
           }
         },
         {
           props: { variant: 'outlined', color: 'info' },
           style: {
-            borderColor: '#1d4ed8',
-            color: '#1e40af',
-            backgroundColor: '#eff6ff'
+            borderColor: '#bfd0e2',
+            color: '#48688b',
+            backgroundColor: '#f4f7fb'
           }
         },
         {
           props: { variant: 'outlined', color: 'success' },
           style: {
-            borderColor: '#15803d',
-            color: '#166534',
-            backgroundColor: '#f0fdf4'
+            borderColor: '#bfd8ca',
+            color: '#3f7059',
+            backgroundColor: '#f3f8f5'
           }
         },
         {
           props: { variant: 'outlined', color: 'warning' },
           style: {
-            borderColor: '#92400e',
-            color: '#7c2d12',
-            backgroundColor: '#fffbeb'
+            borderColor: '#dfcfb6',
+            color: '#8f6f43',
+            backgroundColor: '#fbf8f2'
           }
         },
         {
           props: { variant: 'outlined', color: 'error' },
           style: {
-            borderColor: '#b91c1c',
-            color: '#991b1b',
-            backgroundColor: '#fef2f2'
+            borderColor: '#e3c8c8',
+            color: '#975f5f',
+            backgroundColor: '#fbf6f6'
           }
         }
       ]
@@ -369,24 +369,43 @@ const themeMinimal = createTheme({
           fontSize: '0.875rem'
         },
         standardSuccess: {
-          backgroundColor: '#f0fdf4',
-          color: '#15803d',
-          '& .MuiAlert-icon': { color: '#16a34a' }
+          backgroundColor: '#f3f8f5',
+          color: '#3f7059',
+          '& .MuiAlert-icon': { color: '#4f8a6d' }
         },
         standardError: {
-          backgroundColor: '#fef2f2',
-          color: '#b91c1c',
-          '& .MuiAlert-icon': { color: '#dc2626' }
+          backgroundColor: '#fbf6f6',
+          color: '#975f5f',
+          '& .MuiAlert-icon': { color: '#b97777' }
         },
         standardInfo: {
-          backgroundColor: '#eff6ff',
-          color: '#1d4ed8',
-          '& .MuiAlert-icon': { color: '#2563eb' }
+          backgroundColor: '#f4f7fb',
+          color: '#48688b',
+          '& .MuiAlert-icon': { color: '#5a7fa8' }
         },
         standardWarning: {
-          backgroundColor: '#fffbeb',
-          color: '#b45309',
-          '& .MuiAlert-icon': { color: '#d97706' }
+          backgroundColor: '#fbf8f2',
+          color: '#8f6f43',
+          '& .MuiAlert-icon': { color: '#b18a52' }
+        }
+      }
+    },
+    MuiSvgIcon: {
+      styleOverrides: {
+        root: {
+          transition: 'color 0.15s ease'
+        },
+        colorInfo: {
+          color: palette.info.dark
+        },
+        colorSuccess: {
+          color: palette.success.dark
+        },
+        colorWarning: {
+          color: palette.warning.dark
+        },
+        colorError: {
+          color: palette.error.dark
         }
       }
     },

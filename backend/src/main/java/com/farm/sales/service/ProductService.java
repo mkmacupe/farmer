@@ -83,7 +83,12 @@ public class ProductService {
         request.price(),
         request.stockQuantity()
     );
-    Product saved = productRepository.save(product);
+    Product saved;
+    try {
+      saved = productRepository.save(product);
+    } catch (DataIntegrityViolationException ex) {
+      throw duplicatePhotoUrlConflict();
+    }
     if (saved.getStockQuantity() > 0) {
       stockMovementService.record(saved, null, StockMovementType.INBOUND, saved.getStockQuantity(), "PRODUCT_CREATED");
     }
@@ -110,7 +115,12 @@ public class ProductService {
     product.setPhotoUrl(normalizedPhotoUrl);
     product.setPrice(request.price());
     product.setStockQuantity(request.stockQuantity());
-    Product saved = productRepository.save(product);
+    Product saved;
+    try {
+      saved = productRepository.save(product);
+    } catch (DataIntegrityViolationException ex) {
+      throw duplicatePhotoUrlConflict();
+    }
     int stockDiff = saved.getStockQuantity() - previousStock;
     if (stockDiff != 0) {
       StockMovementType movementType = stockDiff > 0 ? StockMovementType.INBOUND : StockMovementType.ADJUSTMENT;
@@ -193,11 +203,15 @@ public class ProductService {
         ? productRepository.existsByPhotoUrlIgnoreCase(photoUrl)
         : productRepository.existsByPhotoUrlIgnoreCaseAndIdNot(photoUrl, currentProductId);
     if (alreadyUsed) {
-      throw new ResponseStatusException(
-          HttpStatus.CONFLICT,
-          "У каждого товара должна быть уникальная картинка"
-      );
+      throw duplicatePhotoUrlConflict();
     }
+  }
+
+  private ResponseStatusException duplicatePhotoUrlConflict() {
+    return new ResponseStatusException(
+        HttpStatus.CONFLICT,
+        "У каждого товара должна быть уникальная картинка"
+    );
   }
 
   private int normalizePage(Integer rawPage) {

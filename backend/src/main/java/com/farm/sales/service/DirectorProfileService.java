@@ -8,6 +8,7 @@ import com.farm.sales.dto.StoreAddressResponse;
 import com.farm.sales.model.Role;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
+import com.farm.sales.repository.OrderRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -22,15 +23,18 @@ import org.springframework.web.server.ResponseStatusException;
 public class DirectorProfileService {
   private final UserRepository userRepository;
   private final StoreAddressRepository storeAddressRepository;
+  private final OrderRepository orderRepository;
   private final GeocodingService geocodingService;
   private final AuditTrailPublisher auditTrailPublisher;
 
   public DirectorProfileService(UserRepository userRepository,
                                 StoreAddressRepository storeAddressRepository,
+                                OrderRepository orderRepository,
                                 GeocodingService geocodingService,
                                 AuditTrailPublisher auditTrailPublisher) {
     this.userRepository = userRepository;
     this.storeAddressRepository = storeAddressRepository;
+    this.orderRepository = orderRepository;
     this.geocodingService = geocodingService;
     this.auditTrailPublisher = auditTrailPublisher;
   }
@@ -108,6 +112,12 @@ public class DirectorProfileService {
     loadDirector(directorId);
     StoreAddress address = storeAddressRepository.findByIdAndUserId(addressId, directorId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Адрес не найден"));
+    if (orderRepository.existsByDeliveryAddressId(addressId)) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Нельзя удалить адрес, который используется в заказах"
+      );
+    }
     storeAddressRepository.delete(address);
     auditTrailPublisher.publish(
         "DIRECTOR_ADDRESS_DELETED",

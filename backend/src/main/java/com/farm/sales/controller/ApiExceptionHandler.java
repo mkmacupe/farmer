@@ -6,9 +6,11 @@ import java.time.Instant;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -71,6 +73,28 @@ public class ApiExceptionHandler {
         HttpStatus.BAD_REQUEST.value(),
         HttpStatus.BAD_REQUEST.getReasonPhrase(),
         "Некорректное тело запроса",
+        List.of()
+    ));
+  }
+
+  @ExceptionHandler(DataIntegrityViolationException.class)
+  public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException ex) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(
+        Instant.now(),
+        HttpStatus.CONFLICT.value(),
+        HttpStatus.CONFLICT.getReasonPhrase(),
+        "Операция нарушает ограничения целостности данных",
+        List.of()
+    ));
+  }
+
+  @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+  public ResponseEntity<ErrorResponse> handleOptimisticLockingFailure(ObjectOptimisticLockingFailureException ex) {
+    return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(
+        Instant.now(),
+        HttpStatus.CONFLICT.value(),
+        HttpStatus.CONFLICT.getReasonPhrase(),
+        "Данные были изменены другим пользователем. Обновите страницу и повторите действие.",
         List.of()
     ));
   }

@@ -463,10 +463,10 @@ function Start-Backend {
         -SoftFail
     }
 
-    Write-Host "Starting backend and database with docker compose..."
+    Write-Host "Starting backend and database with docker compose (without forced rebuild)..."
     Invoke-CommandWithDockerRetry `
-      -CommandLine "docker compose --env-file ""$EnvFilePath"" up -d --build" `
-      -FailureMessage "docker compose up -d --build" `
+      -CommandLine "docker compose --env-file ""$EnvFilePath"" up -d" `
+      -FailureMessage "docker compose up -d" `
       -MaxAttempts 5
 
     $actualApiPort = Resolve-ComposeBackendPort -EnvFilePath $EnvFilePath -FallbackPort $ApiPort

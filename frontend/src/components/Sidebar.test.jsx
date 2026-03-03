@@ -83,4 +83,42 @@ describe('Sidebar', () => {
     expect(onNavigate).toHaveBeenCalledWith('manager-products');
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('falls back to username when fullName is missing', () => {
+    render(
+      <Sidebar
+        user={{ role: 'MANAGER', username: 'manager_only' }}
+        activeSection="manager-dashboard"
+        onNavigate={() => {}}
+      />
+    );
+
+    expect(screen.getByText('manager_only')).toBeInTheDocument();
+    expect(screen.getByText('M')).toBeInTheDocument();
+  });
+
+  it('renders empty navigation list for unknown role', () => {
+    render(
+      <Sidebar
+        user={{ role: 'UNKNOWN', username: 'guest' }}
+        activeSection="none"
+        onNavigate={() => {}}
+      />
+    );
+
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByText('Навигация')).toBeInTheDocument();
+  });
+
+  it('uses U avatar fallback when both fullName and username are missing', () => {
+    render(
+      <Sidebar
+        user={{ role: 'UNKNOWN' }}
+        activeSection="none"
+        onNavigate={() => {}}
+      />
+    );
+
+    expect(screen.getByText('U')).toBeInTheDocument();
+  });
 });

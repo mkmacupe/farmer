@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, memo, useEffect, useMemo, useState } from 'react';
 import {
+  approveAutoAssignOrders,
   assignOrderDriver,
   getAllOrders,
   getDrivers,
   getOrderTimeline,
+  previewAutoAssignOrders,
   subscribeNotifications
 } from '../api.js';
 import OrdersTable from '../components/OrdersTable.jsx';
@@ -38,7 +40,10 @@ import { useTheme } from '@mui/material/styles';
 
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import HistoryIcon from '@mui/icons-material/History';
+import RouteOutlinedIcon from '@mui/icons-material/RouteOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+
+const RoutePlanMap = lazy(() => import('../components/RoutePlanMap.jsx'));
 
 function statusLabel(status) {
   const labels = {
@@ -57,11 +62,54 @@ function formatDateTime(value) {
   return parsed.toLocaleString('ru-RU');
 }
 
+const MetricCard = memo(function MetricCard({ title, value, icon, color }) {
+  return (
+    <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, height: '100%' }}>
+      <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3, '&:last-child': { pb: 3 } }}>
+        <Box sx={{ flexGrow: 1 }}>
+          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+            {title}
+          </Typography>
+          <Typography variant="h4" fontWeight="bold">
+            {value}
+          </Typography>
+        </Box>
+        <Avatar sx={{ bgcolor: `${color}.light`, color: `${color}.main`, width: 56, height: 56 }}>
+          {icon}
+        </Avatar>
+      </CardContent>
+    </Card>
+  );
+});
+
+const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
+
+function routeColor(routeIndex) {
+  return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
+}
+
+function compactAddress(address) {
+  if (!address) {
+    return '-';
+  }
+  return address.replace(/^Могил[её]в,\s*/i, '').trim();
+}
+
+function routeTimelineText(route, depotLabel) {
+  const orderedStops = [...(route?.points || [])].sort((left, right) => left.stopSequence - right.stopSequence);
+  const timeline = [depotLabel || 'База'];
+  orderedStops.forEach((point) => {
+    timeline.push(`#${point.stopSequence} ${compactAddress(point.deliveryAddress)}`);
+  });
+  return timeline.join(' → ');
+}
+
 export default function LogisticianView({ token, activeSection }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [orders, setOrders] = useState([]);
   const [drivers, setDrivers] = useState([]);
+  const [driversLoaded, setDriversLoaded] = useState(false);
   const [driverSelection, setDriverSelection] = useState({});
   const [notifications, setNotifications] = useState([]);
   
@@ -69,6 +117,8 @@ export default function LogisticianView({ token, activeSection }) {
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const [routePlan, setRoutePlan] = useState(null);
+  const [routePlanOpen, setRoutePlanOpen] = useState(false);
 
   // Timeline Dialog
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -80,21 +130,41 @@ export default function LogisticianView({ token, activeSection }) {
     [orders]
   );
   const latestNotifications = useMemo(() => notifications.slice(0, 4), [notifications]);
+  const routePlanAssignments = useMemo(() => {
+    if (!routePlan?.routes) {
+      return [];
+    }
+    return routePlan.routes.flatMap((route) =>
+      route.points.map((point) => ({
+        orderId: point.orderId,
+        driverId: route.driverId,
+        stopSequence: point.stopSequence
+      }))
+    );
+  }, [routePlan]);
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
 
   const showMessage = (message, severity = 'success') => {
     setSnackbar({ open: true, message, severity });
   };
 
-  const load = async () => {
+  const loadOrders = async () => {
+    const ordersData = await getAllOrders(token);
+    setOrders(ordersData);
+  };
+
+  const load = async ({ includeDrivers = false } = {}) => {
     setLoading(true);
     try {
       const [ordersData, driversData] = await Promise.all([
         getAllOrders(token),
-        getDrivers(token)
+        includeDrivers || !driversLoaded ? getDrivers(token) : Promise.resolve(null)
       ]);
       setOrders(ordersData);
-      setDrivers(driversData);
+      if (driversData) {
+        setDrivers(driversData);
+        setDriversLoaded(true);
+      }
     } catch (err) {
       showMessage(err.message || 'Не удалось загрузить данные', 'error');
     } finally {
@@ -103,7 +173,8 @@ export default function LogisticianView({ token, activeSection }) {
   };
 
   useEffect(() => {
-    load();
+    setDriversLoaded(false);
+    load({ includeDrivers: true });
     const unsubscribe = subscribeNotifications(token, {
       onNotification: (payload) => {
         setNotifications((prev) => [payload, ...prev].slice(0, 10));
@@ -123,12 +194,66 @@ export default function LogisticianView({ token, activeSection }) {
     try {
       await assignOrderDriver(token, orderId, driverId);
       showMessage(`Водитель назначен на заказ #${orderId}`);
-      await load();
+      await loadOrders();
     } catch (err) {
       showMessage(err.message || 'Не удалось назначить водителя', 'error');
     } finally {
       setActionLoading(false);
     }
+  };
+
+  const handleAutoAssign = async () => {
+    const mapModulePromise = import('../components/RoutePlanMap.jsx').catch(() => null);
+    setActionLoading(true);
+    try {
+      const result = await previewAutoAssignOrders(token);
+      if (result.totalApprovedOrders === 0) {
+        showMessage('Нет одобренных заказов для распределения', 'info');
+      } else if (result.plannedOrders === 0) {
+        showMessage('Не удалось построить маршрутный план для текущего набора заказов', 'warning');
+      } else {
+        setRoutePlan(result);
+        setRoutePlanOpen(true);
+        showMessage(
+          `План построен: ${result.plannedOrders}/${result.totalApprovedOrders}, ` +
+          `оценка пути ${result.estimatedTotalDistanceKm} км`,
+          'info'
+        );
+        mapModulePromise.then(() => undefined);
+      }
+    } catch (err) {
+      showMessage(err.message || 'Не удалось выполнить автоназначение', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleApproveRoutePlan = async () => {
+    if (!routePlanAssignments.length) {
+      showMessage('План пуст: нет точек для назначения', 'warning');
+      return;
+    }
+    setActionLoading(true);
+    try {
+      const result = await approveAutoAssignOrders(token, routePlanAssignments);
+      showMessage(
+        `Автораспределено: ${result.assignedOrders}/${result.totalApprovedOrders}, ` +
+        `оценка пути ${result.estimatedTotalDistanceKm} км`
+      );
+      setRoutePlanOpen(false);
+      setRoutePlan(null);
+      await loadOrders();
+    } catch (err) {
+      showMessage(err.message || 'Не удалось применить маршрутный план', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleRejectRoutePlan = () => {
+    setRoutePlanOpen(false);
+    setRoutePlan(null);
+    showMessage('Маршрутный план отклонен, назначения не сохранены', 'info');
   };
 
   const handleLoadTimeline = async (orderId) => {
@@ -144,24 +269,6 @@ export default function LogisticianView({ token, activeSection }) {
       setActionLoading(false);
     }
   };
-
-  const MetricCard = ({ title, value, icon, color }) => (
-    <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, height: '100%' }}>
-      <CardContent sx={{ display: 'flex', alignItems: 'center', p: 3, '&:last-child': { pb: 3 } }}>
-        <Box sx={{ flexGrow: 1 }}>
-          <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-            {title}
-          </Typography>
-          <Typography variant="h4" fontWeight="bold">
-            {value}
-          </Typography>
-        </Box>
-        <Avatar sx={{ bgcolor: `${color}.light`, color: `${color}.main`, width: 56, height: 56 }}>
-          {icon}
-        </Avatar>
-      </CardContent>
-    </Card>
-  );
 
   return (
     <Box sx={{ pb: 4 }}>
@@ -196,7 +303,16 @@ export default function LogisticianView({ token, activeSection }) {
                  Отображаются только одобренные менеджером заявки.
                </Typography>
             </div>
-            {loading && <CircularProgress size={24} />}
+            <Stack direction="row" spacing={1.5} alignItems="center">
+              <Button
+                variant="contained"
+                onClick={handleAutoAssign}
+                disabled={loading || actionLoading || pendingAssignmentCount === 0}
+              >
+                Транспортная задача
+              </Button>
+              {loading && <CircularProgress size={24} />}
+            </Stack>
           </Box>
 
           <Grid container spacing={3} sx={{ mb: 4 }}>
@@ -281,6 +397,161 @@ export default function LogisticianView({ token, activeSection }) {
           )}
         </Box>
       )}
+
+      <Dialog
+        open={routePlanOpen}
+        onClose={actionLoading ? undefined : handleRejectRoutePlan}
+        maxWidth="md"
+        fullWidth
+        fullScreen={isMobile}
+        PaperProps={{
+          sx: {
+            overflow: 'hidden',
+            maxHeight: { xs: '92vh', sm: '88vh' }
+          }
+        }}
+      >
+        <DialogTitle>Предпросмотр транспортной задачи</DialogTitle>
+        <DialogContent dividers sx={{ overflow: 'hidden', py: 1.5 }}>
+          {routePlan ? (
+            <Stack spacing={1.5}>
+              <Alert severity="info" icon={<RouteOutlinedIcon fontSize="inherit" />}>
+                <strong>Старт для всех 3 водителей:</strong> {routePlan.depotLabel}. План можно
+                одобрить или отклонить без сохранения.
+              </Alert>
+              <Grid container spacing={1.25}>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">Заказов в плане</Typography>
+                    <Typography variant="h6" fontWeight={700}>
+                      {routePlan.plannedOrders}/{routePlan.totalApprovedOrders}
+                    </Typography>
+                  </Paper>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 4 }}>
+                  <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">Вне плана</Typography>
+                    <Typography variant="h6" fontWeight={700}>{routePlan.unplannedOrders}</Typography>
+                  </Paper>
+                </Grid>
+                <Grid size={{ xs: 6, sm: 4 }}>
+                  <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">Километраж</Typography>
+                    <Typography variant="h6" fontWeight={700}>{routePlan.estimatedTotalDistanceKm} км</Typography>
+                  </Paper>
+                </Grid>
+              </Grid>
+
+              <Suspense
+                fallback={
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      height: { xs: 210, md: 250 },
+                      borderRadius: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 1.25
+                    }}
+                  >
+                    <CircularProgress size={18} />
+                    <Typography variant="body2" color="text.secondary">
+                      Загружаем карту маршрутов...
+                    </Typography>
+                  </Paper>
+                }
+              >
+                <RoutePlanMap plan={routePlan} />
+              </Suspense>
+
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
+                  Водители и их маршруты на карте
+                </Typography>
+                <Stack direction="row" useFlexGap flexWrap="wrap" gap={1} sx={{ mb: 1.25 }}>
+                  {routePlan.routes.map((route, index) => (
+                    <Stack
+                      key={`${route.driverId}-${index}-legend`}
+                      direction="row"
+                      alignItems="center"
+                      spacing={1}
+                      sx={{
+                        px: 1.25,
+                        py: 0.5,
+                        borderRadius: 999,
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        bgcolor: 'background.paper'
+                      }}
+                    >
+                      <Box
+                        sx={{
+                          width: 10,
+                          height: 10,
+                          borderRadius: '50%',
+                          bgcolor: routeColor(index),
+                          flexShrink: 0
+                        }}
+                      />
+                      <Typography variant="body2" fontWeight={600}>
+                        {route.driverName}
+                      </Typography>
+                    </Stack>
+                  ))}
+                </Stack>
+                <Grid container spacing={1}>
+                  {routePlan.routes.map((route, index) => (
+                    <Grid key={`${route.driverId}-${index}`} size={{ xs: 12, md: 4 }}>
+                      <Box
+                        sx={{
+                          p: 1.25,
+                          border: '1px solid',
+                          borderColor: 'divider',
+                          borderLeft: `6px solid ${routeColor(index)}`,
+                          borderRadius: 1.5,
+                          minHeight: 88
+                        }}
+                      >
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          {route.driverName}
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary">
+                          {route.assignedOrders} точек • {route.estimatedRouteDistanceKm} км
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {route.points.length
+                            ? `Старт: ${routePlan.depotLabel || 'База'}`
+                            : 'Маршрут пуст'}
+                        </Typography>
+                        {!!route.points.length && (
+                          <Typography variant="caption" component="div" color="text.secondary" sx={{ mt: 0.5 }}>
+                            {routeTimelineText(route, routePlan.depotLabel)}
+                          </Typography>
+                        )}
+                      </Box>
+                    </Grid>
+                  ))}
+                </Grid>
+              </Paper>
+            </Stack>
+          ) : (
+            <Typography color="text.secondary">План не построен.</Typography>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleRejectRoutePlan} disabled={actionLoading}>
+            Отклонить
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleApproveRoutePlan}
+            disabled={actionLoading || !routePlanAssignments.length}
+          >
+            {actionLoading ? 'Применение...' : 'Одобрить и назначить'}
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Timeline Dialog */}
       <Dialog open={timelineOpen} onClose={() => setTimelineOpen(false)} maxWidth="md" fullWidth fullScreen={isMobile}>

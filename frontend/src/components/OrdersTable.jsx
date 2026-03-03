@@ -1,52 +1,53 @@
-import { useMemo, useState } from 'react';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
-import Paper from '@mui/material/Paper';
-import Typography from '@mui/material/Typography';
-import Chip from '@mui/material/Chip';
-import Box from '@mui/material/Box';
-import Stack from '@mui/material/Stack';
-import TextField from '@mui/material/TextField';
-import MenuItem from '@mui/material/MenuItem';
-import InputAdornment from '@mui/material/InputAdornment';
-import Button from '@mui/material/Button';
-import IconButton from '@mui/material/IconButton';
-import Tooltip from '@mui/material/Tooltip';
-import Card from '@mui/material/Card';
-import CardContent from '@mui/material/CardContent';
-import Divider from '@mui/material/Divider';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import { useTheme } from '@mui/material/styles';
-import SearchIcon from '@mui/icons-material/Search';
-import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
-import FilterListIcon from '@mui/icons-material/FilterList';
-import ClearIcon from '@mui/icons-material/Clear';
-import { OrderTableSkeleton } from './LoadingSkeletons.jsx';
+import { memo, useMemo, useState } from "react";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import TextField from "@mui/material/TextField";
+import MenuItem from "@mui/material/MenuItem";
+import InputAdornment from "@mui/material/InputAdornment";
+import Button from "@mui/material/Button";
+import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Divider from "@mui/material/Divider";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import { useTheme } from "@mui/material/styles";
+import SearchIcon from "@mui/icons-material/Search";
+import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
+import FilterListIcon from "@mui/icons-material/FilterList";
+import ClearIcon from "@mui/icons-material/Clear";
+import { OrderTableSkeleton } from "./LoadingSkeletons.jsx";
+import { formatMoney } from "../utils/formatters.js";
 
 const STATUS_META = {
   CREATED: {
-    color: 'secondary',
-    label: 'Создан'
+    color: "secondary",
+    label: "Создан",
   },
   APPROVED: {
-    color: 'warning',
-    label: 'Одобрен'
+    color: "warning",
+    label: "Одобрен",
   },
   ASSIGNED: {
-    color: 'info',
-    label: 'Назначен'
+    color: "info",
+    label: "Назначен",
   },
   DELIVERED: {
-    color: 'success',
-    label: 'Доставлен'
+    color: "success",
+    label: "Доставлен",
   },
   CANCELLED: {
-    color: 'error',
-    label: 'Отменён'
-  }
+    color: "error",
+    label: "Отменён",
+  },
 };
 
 function statusLabel(status) {
@@ -55,46 +56,35 @@ function statusLabel(status) {
 
 function formatDateTime(value) {
   if (!value) {
-    return '—';
+    return "—";
   }
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return String(value);
   }
-  return parsed.toLocaleString('ru-RU', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
+  return parsed.toLocaleString("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
   });
 }
 
-function formatMoney(value) {
-  const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric)) {
-    return '0.00';
-  }
-  return numeric.toLocaleString('ru-RU', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
-
-export default function OrdersTable({
+export default memo(function OrdersTable({
   orders,
   actionRenderer,
   showCustomer = true,
-  emptyText = 'Заказов пока нет.',
+  emptyText = "Заказов пока нет.",
   searchEnabled = true,
-  loading = false
+  loading = false,
 }) {
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
-  const hasActions = typeof actionRenderer === 'function';
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const hasActions = typeof actionRenderer === "function";
   const hasFilters = searchEnabled && orders.length > 1;
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
 
   const filteredOrders = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -111,29 +101,32 @@ export default function OrdersTable({
         order.customerName,
         order.deliveryAddressText,
         order.assignedDriverName,
-        statusLabel(order.status)
-      ].filter(Boolean).join(' ').toLowerCase();
+        statusLabel(order.status),
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
 
       return searchable.includes(normalizedSearch);
     });
   }, [orders, searchTerm, statusFilter]);
 
   const clearFilters = () => {
-    setSearchTerm('');
-    setStatusFilter('');
+    setSearchTerm("");
+    setStatusFilter("");
   };
 
   const hasActiveFilters = searchTerm || statusFilter;
   const filterContainerSx = {
     p: 2,
-    borderBottom: isMobile ? 'none' : '1px solid',
-    borderColor: 'divider',
-    bgcolor: 'background.paper',
-    position: isMobile ? 'static' : 'sticky',
-    top: isMobile ? 'auto' : 0,
+    borderBottom: isMobile ? "none" : "1px solid",
+    borderColor: "divider",
+    bgcolor: "background.paper",
+    position: isMobile ? "static" : "sticky",
+    top: isMobile ? "auto" : 0,
     zIndex: 2,
     borderRadius: isMobile ? 2 : 0,
-    border: isMobile ? '1px solid' : 'none'
+    border: isMobile ? "1px solid" : "none",
   };
 
   if (loading) {
@@ -147,22 +140,27 @@ export default function OrdersTable({
         sx={{
           py: 8,
           px: 4,
-          textAlign: 'center',
+          textAlign: "center",
           borderRadius: 3,
-          background: 'background.paper',
-          border: '1px dashed',
-          borderColor: 'divider'
+          background: "background.paper",
+          border: "1px dashed",
+          borderColor: "divider",
         }}
       >
         <InboxOutlinedIcon
           sx={{
             fontSize: 72,
-            color: 'text.disabled',
+            color: "text.disabled",
             mb: 2,
-            opacity: 0.5
+            opacity: 0.5,
           }}
         />
-        <Typography variant="h6" color="text.secondary" fontWeight={600} gutterBottom>
+        <Typography
+          variant="h6"
+          color="text.secondary"
+          fontWeight={600}
+          gutterBottom
+        >
           Заказов пока нет
         </Typography>
         <Typography variant="body2" color="text.disabled">
@@ -175,19 +173,19 @@ export default function OrdersTable({
   const filtersNode = hasFilters ? (
     <Box sx={filterContainerSx}>
       <Stack
-        direction={{ xs: 'column', md: 'row' }}
+        direction={{ xs: "column", md: "row" }}
         spacing={2}
-        alignItems={{ xs: 'stretch', md: 'center' }}
+        alignItems={{ xs: "stretch", md: "center" }}
       >
         <TextField
           placeholder="Поиск по заказам..."
           size="small"
           value={searchTerm}
           onChange={(event) => setSearchTerm(event.target.value)}
-          inputProps={{ 'aria-label': 'Поиск по заказам' }}
+          inputProps={{ "aria-label": "Поиск по заказам" }}
           sx={{
-            minWidth: { xs: '100%', md: 280 },
-            mb: 0
+            minWidth: { xs: "100%", md: 280 },
+            mb: 0,
           }}
           InputProps={{
             startAdornment: (
@@ -199,14 +197,14 @@ export default function OrdersTable({
               <InputAdornment position="end">
                 <IconButton
                   size="small"
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => setSearchTerm("")}
                   edge="end"
                   aria-label="Очистить поиск"
                 >
                   <ClearIcon fontSize="small" />
                 </IconButton>
               </InputAdornment>
-            )
+            ),
           }}
         />
 
@@ -214,7 +212,7 @@ export default function OrdersTable({
           direction="row"
           spacing={1.5}
           alignItems="center"
-          sx={{ ml: { md: 'auto' } }}
+          sx={{ ml: { md: "auto" } }}
         >
           <TextField
             select
@@ -222,19 +220,36 @@ export default function OrdersTable({
             label="Статус"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            SelectProps={{ inputProps: { 'aria-label': 'Фильтр по статусу заказа' } }}
-            sx={{ minWidth: { xs: '100%', sm: 190 } }}
+            SelectProps={{
+              inputProps: { "aria-label": "Фильтр по статусу заказа" },
+            }}
+            sx={{ minWidth: { xs: "100%", sm: 190 } }}
           >
             <MenuItem value="">
-              <Chip label="Все" size="small" color="secondary" sx={{ fontWeight: 600 }} />
+              <Chip
+                label="Все"
+                size="small"
+                color="secondary"
+                sx={{ fontWeight: 600 }}
+              />
             </MenuItem>
             {Object.entries(STATUS_META).map(([status, meta]) => (
               <MenuItem key={status} value={status}>
-                <Chip label={meta.label} size="small" color={meta.color} variant="outlined" sx={{ fontWeight: 600 }} />
+                <Chip
+                  label={meta.label}
+                  size="small"
+                  color={meta.color}
+                  variant="outlined"
+                  sx={{ fontWeight: 600 }}
+                />
               </MenuItem>
             ))}
           </TextField>
-          <Typography variant="caption" color="text.secondary" whiteSpace="nowrap">
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            whiteSpace="nowrap"
+          >
             {filteredOrders.length} из {orders.length}
           </Typography>
           {hasActiveFilters && (
@@ -243,7 +258,7 @@ export default function OrdersTable({
               variant="outlined"
               onClick={clearFilters}
               startIcon={<ClearIcon fontSize="small" />}
-              sx={{ whiteSpace: 'nowrap' }}
+              sx={{ whiteSpace: "nowrap" }}
             >
               Сбросить
             </Button>
@@ -258,8 +273,23 @@ export default function OrdersTable({
       <Stack spacing={2}>
         {filtersNode}
         {!filteredOrders.length ? (
-          <Box sx={{ p: 5, textAlign: 'center', borderRadius: 2.5, border: '1px dashed', borderColor: 'divider' }}>
-            <FilterListIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5, opacity: 0.5 }} />
+          <Box
+            sx={{
+              p: 5,
+              textAlign: "center",
+              borderRadius: 2.5,
+              border: "1px dashed",
+              borderColor: "divider",
+            }}
+          >
+            <FilterListIcon
+              sx={{
+                fontSize: 48,
+                color: "text.disabled",
+                mb: 1.5,
+                opacity: 0.5,
+              }}
+            />
             <Typography variant="body1" color="text.secondary" fontWeight={500}>
               По фильтрам ничего не найдено
             </Typography>
@@ -272,55 +302,74 @@ export default function OrdersTable({
             {filteredOrders.map((order) => {
               const statusMeta = STATUS_META[order.status] || {};
               return (
-                <Card key={order.id} variant="outlined" sx={{ borderRadius: 2.5 }}>
-                  <CardContent sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                    <Stack direction="row" alignItems="center" justifyContent="space-between">
+                <Card
+                  key={order.id}
+                  variant="outlined"
+                  sx={{ borderRadius: 2.5 }}
+                >
+                  <CardContent
+                    sx={{ display: "flex", flexDirection: "column", gap: 1 }}
+                  >
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      justifyContent="space-between"
+                    >
                       <Typography variant="subtitle2" fontWeight={600}>
                         Заказ #{order.id}
                       </Typography>
                       <Chip
                         label={statusMeta.label || order.status}
-                        color={statusMeta.color || 'default'}
+                        color={statusMeta.color || "default"}
                         size="small"
                         variant="filled"
                       />
                     </Stack>
                     {showCustomer && (
                       <Typography variant="body2" fontWeight={600}>
-                        {order.customerName || '—'}
+                        {order.customerName || "—"}
                       </Typography>
                     )}
                     <Typography variant="body2" color="text.secondary" noWrap>
-                      {order.deliveryAddressText || '—'}
+                      {order.deliveryAddressText || "—"}
                     </Typography>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="caption" color="text.secondary">Водитель</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Водитель
+                      </Typography>
                       <Typography variant="body2">
-                        {order.assignedDriverName || '—'}
+                        {order.assignedDriverName || "—"}
                       </Typography>
                     </Stack>
                     <Divider />
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="caption" color="text.secondary">Сумма</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Сумма
+                      </Typography>
                       <Typography variant="subtitle2" fontWeight={600}>
                         {formatMoney(order.totalAmount)} BYN
                       </Typography>
                     </Stack>
                     <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="caption" color="text.secondary">Позиций</Typography>
+                      <Typography variant="caption" color="text.secondary">
+                        Позиций
+                      </Typography>
                       <Chip
                         label={order.items?.length || 0}
                         size="small"
-                        sx={{ minWidth: 32, height: 22, fontWeight: 600, fontSize: '0.75rem' }}
+                        sx={{
+                          minWidth: 32,
+                          height: 22,
+                          fontWeight: 600,
+                          fontSize: "0.75rem",
+                        }}
                       />
                     </Stack>
                     <Typography variant="caption" color="text.secondary">
                       {formatDateTime(order.createdAt)}
                     </Typography>
                     {hasActions && (
-                      <Box sx={{ pt: 0.5 }}>
-                        {actionRenderer(order)}
-                      </Box>
+                      <Box sx={{ pt: 0.5 }}>{actionRenderer(order)}</Box>
                     )}
                   </CardContent>
                 </Card>
@@ -337,19 +386,21 @@ export default function OrdersTable({
       elevation={0}
       sx={{
         borderRadius: 2.5,
-        overflow: 'hidden',
-        border: '1px solid',
-        borderColor: 'divider',
-        overflowX: 'auto',
-        overflowY: 'auto',
-        maxHeight: 560
+        overflow: "hidden",
+        border: "1px solid",
+        borderColor: "divider",
+        overflowX: "auto",
+        overflowY: "auto",
+        maxHeight: 560,
       }}
     >
       {filtersNode}
 
       {!filteredOrders.length ? (
-        <Box sx={{ p: 5, textAlign: 'center' }}>
-          <FilterListIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 1.5, opacity: 0.5 }} />
+        <Box sx={{ p: 5, textAlign: "center" }}>
+          <FilterListIcon
+            sx={{ fontSize: 48, color: "text.disabled", mb: 1.5, opacity: 0.5 }}
+          />
           <Typography variant="body1" color="text.secondary" fontWeight={500}>
             По фильтрам ничего не найдено
           </Typography>
@@ -362,7 +413,7 @@ export default function OrdersTable({
           stickyHeader
           sx={{
             minWidth: 700,
-            tableLayout: 'auto'
+            tableLayout: "auto",
           }}
           size="small"
           aria-label="таблица заказов"
@@ -370,14 +421,26 @@ export default function OrdersTable({
           <TableHead>
             <TableRow>
               <TableCell sx={{ fontWeight: 600, width: 80 }}>№</TableCell>
-              {showCustomer && <TableCell sx={{ fontWeight: 600 }}>Директор</TableCell>}
+              {showCustomer && (
+                <TableCell sx={{ fontWeight: 600 }}>Директор</TableCell>
+              )}
               <TableCell sx={{ fontWeight: 600 }}>Адрес доставки</TableCell>
-              <TableCell sx={{ fontWeight: 600, width: 140 }}>Водитель</TableCell>
+              <TableCell sx={{ fontWeight: 600, width: 140 }}>
+                Водитель
+              </TableCell>
               <TableCell sx={{ fontWeight: 600, width: 120 }}>Статус</TableCell>
               <TableCell sx={{ fontWeight: 600, width: 140 }}>Дата</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600, width: 100 }}>Сумма</TableCell>
-              <TableCell align="center" sx={{ fontWeight: 600, width: 70 }}>Поз.</TableCell>
-              {hasActions && <TableCell sx={{ fontWeight: 600, width: 140 }}>Действия</TableCell>}
+              <TableCell align="right" sx={{ fontWeight: 600, width: 100 }}>
+                Сумма
+              </TableCell>
+              <TableCell align="center" sx={{ fontWeight: 600, width: 70 }}>
+                Поз.
+              </TableCell>
+              {hasActions && (
+                <TableCell sx={{ fontWeight: 600, width: 140 }}>
+                  Действия
+                </TableCell>
+              )}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -389,8 +452,8 @@ export default function OrdersTable({
                   key={order.id}
                   hover
                   sx={{
-                    '&:last-child td, &:last-child th': { border: 0 },
-                    transition: 'background-color 0.15s ease'
+                    "&:last-child td, &:last-child th": { border: 0 },
+                    transition: "background-color 0.15s ease",
                   }}
                 >
                   <TableCell>
@@ -410,33 +473,44 @@ export default function OrdersTable({
                     </TableCell>
                   )}
                   <TableCell>
-                    <Tooltip title={order.deliveryAddressText || '—'} arrow placement="top">
+                    <Tooltip
+                      title={order.deliveryAddressText || "—"}
+                      arrow
+                      placement="top"
+                    >
                       <Typography
                         variant="body2"
                         sx={{
                           maxWidth: 200,
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap'
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
                         }}
                       >
-                        {order.deliveryAddressText || '—'}
+                        {order.deliveryAddressText || "—"}
                       </Typography>
                     </Tooltip>
                   </TableCell>
                   <TableCell>
-                    <Typography variant="body2" color={order.assignedDriverName ? 'text.primary' : 'text.disabled'}>
-                      {order.assignedDriverName || '—'}
+                    <Typography
+                      variant="body2"
+                      color={
+                        order.assignedDriverName
+                          ? "text.primary"
+                          : "text.disabled"
+                      }
+                    >
+                      {order.assignedDriverName || "—"}
                     </Typography>
                   </TableCell>
                   <TableCell>
                     <Chip
                       label={statusMeta.label || order.status}
-                      color={statusMeta.color || 'default'}
+                      color={statusMeta.color || "default"}
                       size="small"
                       variant="filled"
                       sx={{
-                        fontWeight: 600
+                        fontWeight: 600,
                       }}
                     />
                   </TableCell>
@@ -458,15 +532,11 @@ export default function OrdersTable({
                         minWidth: 32,
                         height: 24,
                         fontWeight: 600,
-                        fontSize: '0.75rem'
+                        fontSize: "0.75rem",
                       }}
                     />
                   </TableCell>
-                  {hasActions && (
-                    <TableCell>
-                      {actionRenderer(order)}
-                    </TableCell>
-                  )}
+                  {hasActions && <TableCell>{actionRenderer(order)}</TableCell>}
                 </TableRow>
               );
             })}
@@ -475,4 +545,4 @@ export default function OrdersTable({
       )}
     </Paper>
   );
-}
+});

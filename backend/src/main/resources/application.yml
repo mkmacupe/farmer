@@ -41,6 +41,8 @@ app:
   geo:
     nominatim-base-url: ${APP_GEO_NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
     user-agent: ${APP_GEO_USER_AGENT:FarmSalesCourseProject/1.0}
+    connect-timeout-ms: ${APP_GEO_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${APP_GEO_READ_TIMEOUT_MS:5000}
 
 management:
   endpoints:

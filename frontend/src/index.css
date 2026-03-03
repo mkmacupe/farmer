@@ -87,3 +87,18 @@ textarea {
   content-visibility: auto;
   contain-intrinsic-size: auto 500px;
 }
+
+/* Layout containment for heavy isolated sections (cards, panels) */
+.contain-layout {
+  contain: layout style;
+}
+
+/* Paint containment for scrollable containers */
+.contain-paint {
+  contain: paint;
+}
+
+/* Optimize images rendering globally */
+img {
+  content-visibility: auto;
+}

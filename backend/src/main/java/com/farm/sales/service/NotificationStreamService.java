@@ -116,6 +116,10 @@ public class NotificationStreamService {
   }
 
   private void dispatchPendingNotifications() {
+    if (subscribers.isEmpty()) {
+      return;
+    }
+
     while (true) {
       var batch = notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(lastDispatchedId);
       if (batch.isEmpty()) {

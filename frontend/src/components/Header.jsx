@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
@@ -6,7 +7,7 @@ import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
 import { sectionLabel } from './navigationData.js';
 
-export default function Header({
+export default memo(function Header({
   user,
   activeSection,
   onLogout,
@@ -71,4 +72,4 @@ export default function Header({
       </Toolbar>
     </AppBar>
   );
-}
+});

@@ -13,6 +13,7 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -54,6 +55,10 @@ public class Order {
 
   @Column(name = "updated_at", nullable = false)
   private Instant updatedAt;
+
+  @Version
+  @Column(name = "version", nullable = false)
+  private Long version;
 
   @ManyToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "approved_by_manager_id")
@@ -160,6 +165,14 @@ public class Order {
 
   public void setUpdatedAt(Instant updatedAt) {
     this.updatedAt = updatedAt;
+  }
+
+  public Long getVersion() {
+    return version;
+  }
+
+  public void setVersion(Long version) {
+    this.version = version;
   }
 
   public User getApprovedByManager() {

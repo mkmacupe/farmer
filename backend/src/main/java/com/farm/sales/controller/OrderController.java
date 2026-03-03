@@ -1,5 +1,8 @@
 package com.farm.sales.controller;
 
+import com.farm.sales.dto.AutoAssignApproveRequest;
+import com.farm.sales.dto.AutoAssignPreviewResponse;
+import com.farm.sales.dto.AutoAssignResultResponse;
 import com.farm.sales.dto.DriverAssignRequest;
 import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderResponse;
@@ -80,6 +83,22 @@ public class OrderController {
                                                     @AuthenticationPrincipal Jwt jwt,
                                                     @Valid @RequestBody DriverAssignRequest request) {
     return ResponseEntity.ok(orderService.assignDriver(id, jwtClaimsReader.requireUserId(jwt), request.driverId()));
+  }
+
+  @PostMapping("/auto-assign")
+  public ResponseEntity<AutoAssignResultResponse> autoAssign(@AuthenticationPrincipal Jwt jwt) {
+    return ResponseEntity.ok(orderService.autoAssignApprovedOrders(jwtClaimsReader.requireUserId(jwt)));
+  }
+
+  @PostMapping("/auto-assign/preview")
+  public ResponseEntity<AutoAssignPreviewResponse> autoAssignPreview(@AuthenticationPrincipal Jwt jwt) {
+    return ResponseEntity.ok(orderService.previewAutoAssignPlan(jwtClaimsReader.requireUserId(jwt)));
+  }
+
+  @PostMapping("/auto-assign/approve")
+  public ResponseEntity<AutoAssignResultResponse> approveAutoAssign(@AuthenticationPrincipal Jwt jwt,
+                                                                     @Valid @RequestBody AutoAssignApproveRequest request) {
+    return ResponseEntity.ok(orderService.approveAutoAssignPlan(jwtClaimsReader.requireUserId(jwt), request));
   }
 
   @PostMapping("/{id}/deliver")

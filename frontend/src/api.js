@@ -1,4 +1,36 @@
-const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+const normalizeApiBase = (value) => value.replace(/[\\/]+$/, '');
+
+const buildDefaultApiBase = () => {
+  const target = import.meta.env.VITE_PROXY_API_TARGET?.trim();
+  if (target) {
+    const normalizedTarget = normalizeApiBase(target);
+    if (/\/api$/i.test(normalizedTarget)) {
+      return normalizedTarget;
+    }
+    return `${normalizedTarget}/api`;
+  }
+
+  const host = import.meta.env.VITE_PROXY_API_HOST?.trim();
+  const port = import.meta.env.VITE_PROXY_API_PORT?.trim();
+  if (host && port) {
+    return `http://${host}:${port}/api`;
+  }
+
+  return '/api';
+};
+
+const resolveApiBase = () => {
+  const configuredApiBase = import.meta.env.VITE_API_BASE?.trim();
+  if (configuredApiBase) {
+    const normalizedConfiguredApiBase = normalizeApiBase(configuredApiBase);
+    if (normalizedConfiguredApiBase !== '/api') {
+      return normalizedConfiguredApiBase;
+    }
+  }
+  return buildDefaultApiBase();
+};
+
+const API_BASE = resolveApiBase();
 
 async function apiFetch(url, options = {}) {
   const { timeoutMs = 15000, ...rest } = options;
@@ -163,9 +195,11 @@ export async function getProducts(token, params = {}) {
   return page.items;
 }
 
-export async function getProductCategories(token) {
+export async function getProductCategories(token, options = {}) {
+  const { headers: extraHeaders, ...restOptions } = options || {};
   const response = await apiFetch(`${API_BASE}/products/categories`, {
-    headers: { ...authHeaders(token) }
+    ...restOptions,
+    headers: { ...authHeaders(token), ...(extraHeaders || {}) }
   });
   return handleResponse(response);
 }
@@ -312,6 +346,27 @@ export async function assignOrderDriver(token, id, driverId) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify({ driverId })
+  });
+  return handleResponse(response);
+}
+
+export async function autoAssignOrders(token) {
+  return previewAutoAssignOrders(token);
+}
+
+export async function previewAutoAssignOrders(token) {
+  const response = await apiFetch(`${API_BASE}/orders/auto-assign/preview`, {
+    method: 'POST',
+    headers: { ...authHeaders(token) }
+  });
+  return handleResponse(response);
+}
+
+export async function approveAutoAssignOrders(token, assignments) {
+  const response = await apiFetch(`${API_BASE}/orders/auto-assign/approve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({ assignments })
   });
   return handleResponse(response);
 }
@@ -482,7 +537,7 @@ export function subscribeNotifications(token, { onNotification, onError } = {}) 
 
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split(/\r?\n/);
-        buffer = lines.pop() ?? '';
+        buffer = lines.pop();
 
         for (const line of lines) {
           if (line === '') {

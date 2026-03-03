@@ -1,26 +1,42 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from 'react';
-import { login } from './api.js';
-import { clearAuth, loadAuth, saveAuth } from './authStorage.js';
-import LoginForm from './components/LoginForm.jsx';
+import {
+  Suspense,
+  lazy,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+import { login } from "./api.js";
+import { clearAuth, loadAuth, saveAuth } from "./authStorage.js";
+import LoginForm from "./components/LoginForm.jsx";
 
-const AuthenticatedApp = lazy(() => import('./AuthenticatedApp.jsx'));
+const AuthenticatedApp = lazy(() => import("./AuthenticatedApp.jsx"));
 
 const DEFAULT_SECTION_BY_ROLE = {
-  DIRECTOR: 'director-profile',
-  MANAGER: 'manager-dashboard',
-  LOGISTICIAN: 'logistic-orders',
-  DRIVER: 'driver-orders'
+  DIRECTOR: "director-profile",
+  MANAGER: "manager-dashboard",
+  LOGISTICIAN: "logistic-orders",
+  DRIVER: "driver-orders",
+};
+
+const ROLE_VIEW_PRELOADERS = {
+  DIRECTOR: () => import("./views/DirectorView.jsx"),
+  MANAGER: () => import("./views/ManagerView.jsx"),
+  LOGISTICIAN: () => import("./views/LogisticianView.jsx"),
+  DRIVER: () => import("./views/DriverView.jsx"),
 };
 
 function defaultSectionForRole(role) {
-  return DEFAULT_SECTION_BY_ROLE[role] || '';
+  return DEFAULT_SECTION_BY_ROLE[role] || "";
 }
 
 export default function App() {
   const initialAuth = useMemo(() => loadAuth(), []);
   const [auth, setAuth] = useState(initialAuth);
-  const [activeSection, setActiveSection] = useState(() => defaultSectionForRole(initialAuth?.role));
-  const [error, setError] = useState('');
+  const [activeSection, setActiveSection] = useState(() =>
+    defaultSectionForRole(initialAuth?.role),
+  );
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -41,21 +57,22 @@ export default function App() {
 
   const handleLogin = useCallback(async (username, password) => {
     setLoading(true);
-    setError('');
+    setError("");
     try {
-      const appShellPromise = import('./AuthenticatedApp.jsx');
+      const appShellPromise = import("./AuthenticatedApp.jsx");
       const response = await login(username, password);
+      ROLE_VIEW_PRELOADERS[response.role]?.().catch(() => null);
       await appShellPromise;
       const newAuth = {
         token: response.token,
         username: response.username,
         fullName: response.fullName,
-        role: response.role
+        role: response.role,
       };
       setAuth(newAuth);
       setActiveSection(defaultSectionForRole(newAuth.role));
     } catch (err) {
-      setError(err.message || 'Не удалось войти');
+      setError(err.message || "Не удалось войти");
     } finally {
       setLoading(false);
     }
@@ -63,7 +80,7 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     setAuth(null);
-    setActiveSection('');
+    setActiveSection("");
     clearAuth();
   }, []);
 
@@ -72,7 +89,18 @@ export default function App() {
   }
 
   return (
-    <Suspense fallback={<div className="loading-indicator">Загружаем рабочее пространство...</div>}>
+    <Suspense
+      fallback={
+        <div
+          className="loading-indicator"
+          role="status"
+          aria-live="polite"
+          aria-atomic="true"
+        >
+          Загружаем рабочее пространство...
+        </div>
+      }
+    >
       <AuthenticatedApp
         auth={auth}
         activeSection={activeSection}

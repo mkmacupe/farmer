@@ -16,6 +16,7 @@ import com.farm.sales.model.User;
 import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
+import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
@@ -74,7 +75,7 @@ class DataInitializerTest {
 
     verify(userRepository, times(8)).save(any(User.class));
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-    verify(productRepository, times(34)).save(productCaptor.capture());
+    verify(productRepository, times(20)).save(productCaptor.capture());
     verify(storeAddressRepository, times(3)).save(any(StoreAddress.class));
 
     var photoUrls = productCaptor.getAllValues().stream()
@@ -281,6 +282,57 @@ class DataInitializerTest {
     verify(productRepository).save(existing);
   }
 
+  @Test
+  void createOrUpdateProductUsesNullPhotoWhenPhotoAlreadyTakenForNewProduct() throws Exception {
+    when(productRepository.findByNameIgnoreCase("Тест")).thenReturn(Optional.empty());
+    when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/test.webp")).thenReturn(true);
+
+    invoke(
+        dataInitializer,
+        "createOrUpdateProduct",
+        new Class<?>[] {String.class, String.class, String.class, String.class, String.class, int.class},
+        "Тест", "Cat", "Desc", "/images/products/test.webp", "9.99", 3
+    );
+
+    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+    verify(productRepository).save(productCaptor.capture());
+    assertThat(productCaptor.getValue().getPhotoUrl()).isNull();
+  }
+
+  @Test
+  void createOrUpdateProductUsesNullPhotoWhenPhotoTakenByAnotherExistingProduct() throws Exception {
+    Product existing = new Product("Тест", "Cat", "Desc", "/images/products/old.webp", new BigDecimal("1.00"), 1);
+    existing.setId(7L);
+    when(productRepository.findByNameIgnoreCase("Тест")).thenReturn(Optional.of(existing));
+    when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/test.webp", 7L)).thenReturn(true);
+
+    invoke(
+        dataInitializer,
+        "createOrUpdateProduct",
+        new Class<?>[] {String.class, String.class, String.class, String.class, String.class, int.class},
+        "Тест", "Cat", "Desc", "/images/products/test.webp", "9.99", 3
+    );
+
+    assertThat(existing.getPhotoUrl()).isNull();
+    verify(productRepository).save(existing);
+  }
+
+  @Test
+  void createOrUpdateProductSkipsWhenDemoLimitReachedWithoutDeletingRows() throws Exception {
+    setIntField(dataInitializer, "seededProductsCount", 20);
+
+    invoke(
+        dataInitializer,
+        "createOrUpdateProduct",
+        new Class<?>[] {String.class, String.class, String.class, String.class, String.class, int.class},
+        "Лишний товар", "Категория", "Описание", "/images/products/extra.webp", "1.00", 1
+    );
+
+    verify(productRepository, never()).findByNameIgnoreCase(any());
+    verify(productRepository, never()).save(any(Product.class));
+    verify(productRepository, never()).delete(any(Product.class));
+  }
+
   private Object invoke(Object target, String name, Class<?>[] types, Object... args) throws Exception {
     Method method = target.getClass().getDeclaredMethod(name, types);
     method.setAccessible(true);
@@ -296,5 +348,11 @@ class DataInitializerTest {
       }
       throw new RuntimeException(cause);
     }
+  }
+
+  private static void setIntField(Object target, String name, int value) throws Exception {
+    Field field = target.getClass().getDeclaredField(name);
+    field.setAccessible(true);
+    field.setInt(target, value);
   }
 }
