@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import L from "leaflet";
+import * as L from "leaflet/dist/leaflet-src.esm.js";
 import "leaflet/dist/leaflet.css";
 
 const DEFAULT_CENTER = { lat: 53.8948, lng: 30.3312 };

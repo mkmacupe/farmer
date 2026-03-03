@@ -1,6 +1,6 @@
 import { memo, useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
-import L from 'leaflet';
+import * as L from 'leaflet/dist/leaflet-src.esm.js';
 import 'leaflet/dist/leaflet.css';
 
 const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];

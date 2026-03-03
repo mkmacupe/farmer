@@ -75,3 +75,16 @@ test('driver can mark assigned order as delivered', async ({ page }) => {
   await page.getByRole('button', { name: /отметить доставленным/i }).first().click();
   await expect(page.getByText(/отмечен как доставленный/i)).toBeVisible();
 });
+
+test('director can switch sidebar tabs without runtime crash', async ({ page }) => {
+  await installApiMock(page);
+  await loginAs(page, 'director');
+  await waitForWorkspaceReady(page);
+
+  const tabs = ['Профиль', 'Адреса', 'Каталог', 'История'];
+  for (const tab of tabs) {
+    await page.getByRole('button', { name: tab, exact: true }).click();
+    await page.waitForTimeout(300);
+    await expect(page.getByText(/что-то пошло не так/i)).toHaveCount(0);
+  }
+});
