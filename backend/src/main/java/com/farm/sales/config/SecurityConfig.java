@@ -48,6 +48,7 @@ public class SecurityConfig {
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
             .requestMatchers(HttpMethod.POST, "/api/auth/demo-login").permitAll()
+            .requestMatchers("/favicon.ico", "/error").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notifications/stream")
             .hasAnyRole("DIRECTOR", "MANAGER", "LOGISTICIAN", "DRIVER")
             .requestMatchers(HttpMethod.GET, "/v3/api-docs/**", "/swagger-ui.html", "/swagger-ui/**").authenticated()
