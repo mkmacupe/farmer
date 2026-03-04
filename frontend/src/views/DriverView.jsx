@@ -22,6 +22,7 @@ import Avatar from '@mui/material/Avatar';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import CheckIcon from '@mui/icons-material/Check';
+import DoneAllIcon from '@mui/icons-material/DoneAll';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import Skeleton from '@mui/material/Skeleton';
 import NavigationIcon from '@mui/icons-material/Navigation';
@@ -293,12 +294,12 @@ export default function DriverView({ token, activeSection }) {
                             <Button
                               variant="contained"
                               size="medium"
-                              startIcon={<CheckIcon />}
+                              startIcon={<DoneAllIcon />}
                               onClick={() => handleDelivered(step.orderId)}
                               disabled={actionLoading}
                               sx={{ borderRadius: 2, px: 3 }}
                             >
-                              Доставлено
+                              Отметить доставленным
                             </Button>
                             <Button
                               variant="outlined"
