@@ -61,7 +61,7 @@ public class DashboardService {
   public DashboardTrendResponse getTrends(Instant from, Instant to) {
     List<DashboardTrendPointResponse> points = orderRepository.findDailyTrends(from, to).stream()
         .map(row -> new DashboardTrendPointResponse(
-            row.getDay(),
+            toLocalDate(row.getDay()),
             intOrZero(row.getTotalOrders()),
             decimalOrZero(row.getTotalAmount()).setScale(2, RoundingMode.HALF_UP),
             intOrZero(row.getDeliveredCount())
@@ -78,6 +78,22 @@ public class DashboardService {
             longOrZero(row.getTotalUnits())
         ))
         .toList();
+  }
+
+  private LocalDate toLocalDate(Object value) {
+    if (value == null) {
+      return null;
+    }
+    if (value instanceof java.time.LocalDate ld) {
+      return ld;
+    }
+    if (value instanceof java.sql.Date sd) {
+      return sd.toLocalDate();
+    }
+    if (value instanceof java.util.Date d) {
+      return new java.sql.Date(d.getTime()).toLocalDate();
+    }
+    return LocalDate.parse(value.toString());
   }
 
   private long longOrZero(Long value) {

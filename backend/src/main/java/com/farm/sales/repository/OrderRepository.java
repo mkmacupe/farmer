@@ -59,7 +59,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
   }
 
   interface DailyTrendRow {
-    LocalDate getDay();
+    Object getDay();
 
     Long getTotalOrders();
 

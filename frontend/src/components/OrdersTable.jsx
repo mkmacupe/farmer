@@ -75,6 +75,201 @@ function formatDateTime(value) {
   });
 }
 
+const OrderMobileCard = memo(function OrderMobileCard({ order, showCustomer, actionRenderer, onShowDetails }) {
+  const statusMeta = STATUS_META[order.status] || {};
+  const hasLongAddress = String(order.deliveryAddressText || "").trim().length > 72;
+  const hasActions = typeof actionRenderer === "function";
+
+  return (
+    <Card variant="outlined" sx={{ borderRadius: 2.5 }}>
+      <CardContent sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <Stack direction="row" alignItems="center" justifyContent="space-between">
+          <Typography variant="subtitle2" fontWeight={600}>
+            Заказ #{order.id}
+          </Typography>
+          <Chip
+            label={statusMeta.label || order.status}
+            color={statusMeta.color || "default"}
+            size="small"
+            variant="filled"
+          />
+        </Stack>
+        {showCustomer && (
+          <Typography variant="body2" fontWeight={600}>
+            {order.customerName || "—"}
+          </Typography>
+        )}
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{
+            display: "-webkit-box",
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {order.deliveryAddressText || "—"}
+        </Typography>
+        {hasLongAddress && (
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => onShowDetails(order)}
+            sx={{ alignSelf: "flex-start", px: 0, minHeight: 32 }}
+          >
+            Показать адрес
+          </Button>
+        )}
+        <Stack direction="row" justifyContent="space-between">
+          <Typography variant="caption" color="text.secondary">
+            Водитель
+          </Typography>
+          <Typography variant="body2">
+            {order.assignedDriverName || "—"}
+          </Typography>
+        </Stack>
+        <Divider />
+        <Stack direction="row" justifyContent="space-between">
+          <Typography variant="caption" color="text.secondary">
+            Сумма
+          </Typography>
+          <Typography variant="subtitle2" fontWeight={600}>
+            {formatMoney(order.totalAmount)} BYN
+          </Typography>
+        </Stack>
+        <Stack direction="row" justifyContent="space-between">
+          <Typography variant="caption" color="text.secondary">
+            Позиций
+          </Typography>
+          <Chip
+            label={order.items?.length || 0}
+            size="small"
+            sx={{
+              minWidth: 32,
+              height: 22,
+              fontWeight: 600,
+              fontSize: "0.75rem",
+            }}
+          />
+        </Stack>
+        <Typography variant="caption" color="text.secondary">
+          {formatDateTime(order.createdAt)}
+        </Typography>
+        {hasActions && (
+          <Box sx={{ pt: 0.5 }}>{actionRenderer(order)}</Box>
+        )}
+      </CardContent>
+    </Card>
+  );
+});
+
+const OrderTableRow = memo(function OrderTableRow({ order, showCustomer, actionRenderer, onShowDetails }) {
+  const statusMeta = STATUS_META[order.status] || {};
+  const hasActions = typeof actionRenderer === "function";
+
+  return (
+    <TableRow
+      hover
+      sx={{
+        "&:last-child td, &:last-child th": { border: 0 },
+        transition: "background-color 0.15s ease",
+        contentVisibility: "auto",
+        containIntrinsicSize: "auto 73px"
+      }}
+    >
+      <TableCell>
+        <Typography variant="subtitle2" fontWeight={600} color="primary">
+          #{order.id}
+        </Typography>
+      </TableCell>
+      {showCustomer && (
+        <TableCell>
+          <Typography
+            variant="body2"
+            fontWeight={500}
+            title={order.customerName || "—"}
+            sx={{
+              maxWidth: 180,
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {order.customerName}
+          </Typography>
+        </TableCell>
+      )}
+      <TableCell>
+        <Stack spacing={0.25} sx={{ maxWidth: 260 }}>
+          <Typography
+            variant="body2"
+            title={order.deliveryAddressText || "—"}
+            sx={{
+              display: "-webkit-box",
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {order.deliveryAddressText || "—"}
+          </Typography>
+          {String(order.deliveryAddressText || "").trim().length > 72 && (
+            <Button
+              size="small"
+              variant="text"
+              onClick={() => onShowDetails(order)}
+              sx={{ alignSelf: "flex-start", p: 0, minHeight: 28 }}
+            >
+              Подробнее
+            </Button>
+          )}
+        </Stack>
+      </TableCell>
+      <TableCell>
+        <Typography
+          variant="body2"
+          color={order.assignedDriverName ? "text.primary" : "text.disabled"}
+        >
+          {order.assignedDriverName || "—"}
+        </Typography>
+      </TableCell>
+      <TableCell>
+        <Chip
+          label={statusMeta.label || order.status}
+          color={statusMeta.color || "default"}
+          size="small"
+          variant="filled"
+          sx={{ fontWeight: 600 }}
+        />
+      </TableCell>
+      <TableCell>
+        <Typography variant="caption" color="text.secondary">
+          {formatDateTime(order.createdAt)}
+        </Typography>
+      </TableCell>
+      <TableCell align="right">
+        <Typography variant="subtitle2" fontWeight={600}>
+          {formatMoney(order.totalAmount)}
+        </Typography>
+      </TableCell>
+      <TableCell align="center">
+        <Chip
+          label={order.items?.length || 0}
+          size="small"
+          sx={{ minWidth: 32, height: 24, fontWeight: 600, fontSize: "0.75rem" }}
+        />
+      </TableCell>
+      {hasActions && (
+        <TableCell sx={{ minWidth: 280, verticalAlign: "top" }}>
+          {actionRenderer(order)}
+        </TableCell>
+      )}
+    </TableRow>
+  );
+});
+
 export default memo(function OrdersTable({
   orders,
   actionRenderer,
@@ -373,103 +568,15 @@ export default memo(function OrdersTable({
           </Box>
         ) : (
           <Stack spacing={1.5}>
-            {visibleOrders.map((order) => {
-              const statusMeta = STATUS_META[order.status] || {};
-              const hasLongAddress =
-                String(order.deliveryAddressText || "").trim().length > 72;
-              return (
-                <Card
-                  key={order.id}
-                  variant="outlined"
-                  sx={{ borderRadius: 2.5 }}
-                >
-                  <CardContent
-                    sx={{ display: "flex", flexDirection: "column", gap: 1 }}
-                  >
-                    <Stack
-                      direction="row"
-                      alignItems="center"
-                      justifyContent="space-between"
-                    >
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        Заказ #{order.id}
-                      </Typography>
-                      <Chip
-                        label={statusMeta.label || order.status}
-                        color={statusMeta.color || "default"}
-                        size="small"
-                        variant="filled"
-                      />
-                    </Stack>
-                    {showCustomer && (
-                      <Typography variant="body2" fontWeight={600}>
-                        {order.customerName || "—"}
-                      </Typography>
-                    )}
-                    <Typography
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{
-                        display: "-webkit-box",
-                        WebkitLineClamp: 2,
-                        WebkitBoxOrient: "vertical",
-                        overflow: "hidden",
-                      }}
-                    >
-                      {order.deliveryAddressText || "—"}
-                    </Typography>
-                    {hasLongAddress && (
-                      <Button
-                        size="small"
-                        variant="text"
-                        onClick={() => setDetailsOrder(order)}
-                        sx={{ alignSelf: "flex-start", px: 0, minHeight: 32 }}
-                      >
-                        Показать адрес
-                      </Button>
-                    )}
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="caption" color="text.secondary">
-                        Водитель
-                      </Typography>
-                      <Typography variant="body2">
-                        {order.assignedDriverName || "—"}
-                      </Typography>
-                    </Stack>
-                    <Divider />
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="caption" color="text.secondary">
-                        Сумма
-                      </Typography>
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        {formatMoney(order.totalAmount)} BYN
-                      </Typography>
-                    </Stack>
-                    <Stack direction="row" justifyContent="space-between">
-                      <Typography variant="caption" color="text.secondary">
-                        Позиций
-                      </Typography>
-                      <Chip
-                        label={order.items?.length || 0}
-                        size="small"
-                        sx={{
-                          minWidth: 32,
-                          height: 22,
-                          fontWeight: 600,
-                          fontSize: "0.75rem",
-                        }}
-                      />
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDateTime(order.createdAt)}
-                    </Typography>
-                    {hasActions && (
-                      <Box sx={{ pt: 0.5 }}>{actionRenderer(order)}</Box>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {visibleOrders.map((order) => (
+              <OrderMobileCard
+                key={order.id}
+                order={order}
+                showCustomer={showCustomer}
+                actionRenderer={actionRenderer}
+                onShowDetails={setDetailsOrder}
+              />
+            ))}
           </Stack>
         )}
         </Stack>
@@ -542,129 +649,15 @@ export default memo(function OrdersTable({
             </TableRow>
           </TableHead>
           <TableBody>
-            {visibleOrders.map((order) => {
-              const statusMeta = STATUS_META[order.status] || {};
-
-              return (
-                <TableRow
-                  key={order.id}
-                  hover
-                  sx={{
-                    "&:last-child td, &:last-child th": { border: 0 },
-                    transition: "background-color 0.15s ease",
-                  }}
-                >
-                  <TableCell>
-                    <Typography
-                      variant="subtitle2"
-                      fontWeight={600}
-                      color="primary"
-                    >
-                      #{order.id}
-                    </Typography>
-                  </TableCell>
-                  {showCustomer && (
-                    <TableCell>
-                      <Typography
-                        variant="body2"
-                        fontWeight={500}
-                        title={order.customerName || "—"}
-                        sx={{
-                          maxWidth: 180,
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {order.customerName}
-                      </Typography>
-                    </TableCell>
-                  )}
-                  <TableCell>
-                    <Stack spacing={0.25} sx={{ maxWidth: 260 }}>
-                      <Typography
-                        variant="body2"
-                        title={order.deliveryAddressText || "—"}
-                        sx={{
-                          display: "-webkit-box",
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {order.deliveryAddressText || "—"}
-                      </Typography>
-                      {String(order.deliveryAddressText || "").trim().length >
-                        72 && (
-                        <Button
-                          size="small"
-                          variant="text"
-                          onClick={() => setDetailsOrder(order)}
-                          sx={{
-                            alignSelf: "flex-start",
-                            p: 0,
-                            minHeight: 28,
-                          }}
-                        >
-                          Подробнее
-                        </Button>
-                      )}
-                    </Stack>
-                  </TableCell>
-                  <TableCell>
-                    <Typography
-                      variant="body2"
-                      color={
-                        order.assignedDriverName
-                          ? "text.primary"
-                          : "text.disabled"
-                      }
-                    >
-                      {order.assignedDriverName || "—"}
-                    </Typography>
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      label={statusMeta.label || order.status}
-                      color={statusMeta.color || "default"}
-                      size="small"
-                      variant="filled"
-                      sx={{
-                        fontWeight: 600,
-                      }}
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Typography variant="caption" color="text.secondary">
-                      {formatDateTime(order.createdAt)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="right">
-                    <Typography variant="subtitle2" fontWeight={600}>
-                      {formatMoney(order.totalAmount)}
-                    </Typography>
-                  </TableCell>
-                  <TableCell align="center">
-                    <Chip
-                      label={order.items?.length || 0}
-                      size="small"
-                      sx={{
-                        minWidth: 32,
-                        height: 24,
-                        fontWeight: 600,
-                        fontSize: "0.75rem",
-                      }}
-                    />
-                  </TableCell>
-                  {hasActions && (
-                    <TableCell sx={{ minWidth: 280, verticalAlign: "top" }}>
-                      {actionRenderer(order)}
-                    </TableCell>
-                  )}
-                </TableRow>
-              );
-            })}
+            {visibleOrders.map((order) => (
+              <OrderTableRow
+                key={order.id}
+                order={order}
+                showCustomer={showCustomer}
+                actionRenderer={actionRenderer}
+                onShowDetails={setDetailsOrder}
+              />
+            ))}
           </TableBody>
         </Table>
       )}

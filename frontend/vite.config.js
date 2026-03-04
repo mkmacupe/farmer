@@ -94,12 +94,14 @@ export default defineConfig(({ mode }) => {
             if (!n.includes("/node_modules/")) {
               return undefined;
             }
-            // Keep map library in dedicated lazy-cacheable chunk
-            if (n.includes("/leaflet/")) {
-              return "leaflet";
+            if (n.includes("/react/") || n.includes("/react-dom/")) {
+              return "react-core";
+            }
+            if (n.includes("/leaflet/") || n.includes("/react-leaflet/")) {
+              return "leaflet-maps";
             }
             if (n.includes("/@mui/") || n.includes("/@emotion/")) {
-              return "mui-vendor";
+              return "mui-ui";
             }
             return "vendor";
           },
