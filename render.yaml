@@ -8,20 +8,20 @@ services:
     autoDeploy: true
     healthCheckPath: /actuator/health
     envVars:
-      - key: JWT_SECRET
-        generateValue: true
       - key: SPRING_PROFILES_ACTIVE
         value: prod
       - key: SPRING_DATASOURCE_URL
-        sync: false
+        value: "jdbc:postgresql://ep-crimson-tooth-abykm6ln-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
       - key: SPRING_DATASOURCE_USERNAME
-        sync: false
+        value: "neondb_owner"
       - key: SPRING_DATASOURCE_PASSWORD
-        sync: false
+        value: "npg_lk5sbDdMOt8X"
+      - key: JWT_SECRET
+        generateValue: true
       - key: APP_DEMO_ENABLED
         value: "true"
       - key: APP_DEMO_PASSWORD
-        sync: false
+        value: "admin123"
       - key: APP_CORS_ALLOWED_ORIGINS
         value: "https://farmer.indevs.in"
 
