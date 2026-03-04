@@ -1,3 +1,3 @@
 DELETE FROM products
-WHERE (name IS NOT NULL AND name REGEXP '[A-Za-z]')
-   OR (category IS NOT NULL AND category REGEXP '[A-Za-z]');
+WHERE (name IS NOT NULL AND name ~ '[A-Za-z]')
+   OR (category IS NOT NULL AND category ~ '[A-Za-z]');
