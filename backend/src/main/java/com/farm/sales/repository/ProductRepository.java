@@ -13,7 +13,7 @@ import org.springframework.data.repository.query.Param;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
   String LEGACY_DUPLICATE_DEMO_PRODUCTS_FILTER = """
-      and lower(p.name) not in (
+      and lower(cast(p.name as string)) not in (
         'мёд 0.5 кг',
         'йогурт натуральный 0.5 л',
         'кефир 1 л',
@@ -55,10 +55,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
   @Query("""
       select p from Product p
-      where (:category is null or lower(p.category) = lower(:category))
+      where (:category is null or lower(cast(p.category as string)) = lower(cast(:category as string)))
         and (:searchTerm is null
-             or lower(p.name) like lower(concat('%', :searchTerm, '%'))
-             or lower(coalesce(p.description, '')) like lower(concat('%', :searchTerm, '%')))
+             or lower(cast(p.name as string)) like lower(cast(concat('%', :searchTerm, '%') as string))
+             or lower(cast(coalesce(p.description, '') as string)) like lower(cast(concat('%', :searchTerm, '%') as string)))
       """ + LEGACY_DUPLICATE_DEMO_PRODUCTS_FILTER + """
       order by p.category asc, p.name asc
       """)
@@ -68,10 +68,10 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
   @Query("""
       select count(p) from Product p
-      where (:category is null or lower(p.category) = lower(:category))
+      where (:category is null or lower(cast(p.category as string)) = lower(cast(:category as string)))
         and (:searchTerm is null
-             or lower(p.name) like lower(concat('%', :searchTerm, '%'))
-             or lower(coalesce(p.description, '')) like lower(concat('%', :searchTerm, '%')))
+             or lower(cast(p.name as string)) like lower(cast(concat('%', :searchTerm, '%') as string))
+             or lower(cast(coalesce(p.description, '') as string)) like lower(cast(concat('%', :searchTerm, '%') as string)))
       """ + LEGACY_DUPLICATE_DEMO_PRODUCTS_FILTER + """
       """)
   long countSearch(@Param("category") String category,
@@ -79,7 +79,7 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
   @Query("""
       select distinct p.category from Product p
-      where lower(p.name) not in (
+      where lower(cast(p.name as string)) not in (
         'мёд 0.5 кг',
         'йогурт натуральный 0.5 л',
         'кефир 1 л',
