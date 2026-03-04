@@ -15,16 +15,16 @@ public class Product {
   @GeneratedValue(strategy = GenerationType.IDENTITY)
   private Long id;
 
-  @Column(nullable = false, columnDefinition = "text")
+  @Column(nullable = false)
   private String name;
 
-  @Column(nullable = false, columnDefinition = "text")
+  @Column(nullable = false)
   private String category;
 
-  @Column(columnDefinition = "text")
+  @Column
   private String description;
 
-  @Column(name = "photo_url", columnDefinition = "text")
+  @Column(name = "photo_url")
   private String photoUrl;
 
   @Column(nullable = false, precision = 10, scale = 2)
