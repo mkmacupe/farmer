@@ -1,6 +1,6 @@
 # 🌾 Farm Sales: Автоматизация отдела сбыта фермерского хозяйства
 
-![Java](https://img.shields.io/badge/Java-21-orange?logo=java)
+![Java](https://img.shields.io/badge/Java-25-orange?logo=java)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4.3-green?logo=spring)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-blue?logo=postgresql)
 ![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
