@@ -870,7 +870,7 @@ public class OrderService {
   }
 
   private List<DriverRoutePlan> buildDriverRoutes(List<TransportAssignment> assignments,
-                                                  int driverCount,
+                                                  List<DriverPlanNode> drivers,
                                                   List<Order> orders,
                                                   Coordinate fallbackCoordinate) {
     Map<Integer, List<Integer>> orderIndexesByDriver = new HashMap<>();
@@ -879,16 +879,19 @@ public class OrderService {
           .add(assignment.orderIndex());
     }
 
-    List<DriverRoutePlan> routes = new ArrayList<>(driverCount);
-    for (int driverIndex = 0; driverIndex < driverCount; driverIndex++) {
+    List<DriverRoutePlan> routes = new ArrayList<>(drivers.size());
+    for (int driverIndex = 0; driverIndex < drivers.size(); driverIndex++) {
       List<Integer> assignedOrderIndexes = orderIndexesByDriver.getOrDefault(driverIndex, List.of());
-      routes.add(buildRouteForDriver(driverIndex, assignedOrderIndexes, orders, fallbackCoordinate));
+      // Используем координаты из DriverPlanNode, которые уже учитывают "последний заказ" во вложенной логике
+      Coordinate startCoordinate = drivers.get(driverIndex).coordinate();
+      routes.add(buildRouteForDriver(driverIndex, assignedOrderIndexes, startCoordinate, orders, fallbackCoordinate));
     }
     return routes;
   }
 
   private DriverRoutePlan buildRouteForDriver(int driverIndex,
                                               List<Integer> assignedOrderIndexes,
+                                              Coordinate startCoordinate,
                                               List<Order> orders,
                                               Coordinate fallbackCoordinate) {
     if (assignedOrderIndexes.isEmpty()) {
@@ -897,13 +900,13 @@ public class OrderService {
 
     List<Integer> remaining = new ArrayList<>(assignedOrderIndexes);
     List<RouteStop> stops = new ArrayList<>(remaining.size());
-    Coordinate previousPoint = MOGILEV_SHARED_DEPOT;
+    Coordinate previousPoint = startCoordinate;
     int sequence = 1;
     double routeDistance = 0.0;
 
     while (!remaining.isEmpty()) {
       int bestPosition = 0;
-      int bestOrderIndex = remaining.getFirst();
+      int bestOrderIndex = remaining.get(0);
       Coordinate bestCoordinate = coordinateOrFallback(orders.get(bestOrderIndex), fallbackCoordinate);
       double bestDistance = haversineKm(previousPoint, bestCoordinate);
 
