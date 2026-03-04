@@ -757,8 +757,14 @@ public class OrderService {
     List<DriverPlanNode> planNodes = new ArrayList<>();
     for (int i = 0; i < sortedDrivers.size(); i++) {
       User driver = sortedDrivers.get(i);
-      Coordinate coordinate = resolveDriverClusterSeed(driver, fallbackCoordinate);
-      planNodes.add(new DriverPlanNode(driver, capacities[i], coordinate));
+      
+      // Логика: если у водителя есть активные заказы, начинаем от последнего из них.
+      // Если нет - от склада (или кластерного сида).
+      Coordinate startCoordinate = orderRepository.findLastActiveOrderByDriver(driver.getId())
+          .map(lastOrder -> coordinateOrFallback(lastOrder, fallbackCoordinate))
+          .orElseGet(() -> resolveDriverClusterSeed(driver, fallbackCoordinate));
+          
+      planNodes.add(new DriverPlanNode(driver, capacities[i], startCoordinate));
     }
     return planNodes;
   }

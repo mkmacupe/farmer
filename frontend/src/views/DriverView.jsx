@@ -61,25 +61,54 @@ function buildOrderedRoute(orders) {
     return [];
   }
 
-  // Нам нужны все назначенные и доставленные заказы, чтобы построить полную картину
-  const allRelevant = orders.map((order) => {
-    const lat = normalizeCoord(order.deliveryLatitude, -90, 90);
-    const lon = normalizeCoord(order.deliveryLongitude, -180, 180);
-    return {
-      orderId: order.id,
-      status: order.status,
-      latitude: lat ?? depotLat,
-      longitude: lon ?? depotLon,
-      deliveryAddress: order.deliveryAddressText || 'Адрес не указан',
-      customerName: order.customerName
-    };
-  });
+  // 1. Разделяем на доставленные и активные
+  const delivered = orders
+    .filter(o => o.status === 'DELIVERED')
+    .sort((a, b) => new Date(a.deliveredAt || 0) - new Date(b.deliveredAt || 0));
+    
+  const remaining = orders
+    .filter(o => o.status === 'ASSIGNED')
+    .map((order) => {
+      const lat = normalizeCoord(order.deliveryLatitude, -90, 90);
+      const lon = normalizeCoord(order.deliveryLongitude, -180, 180);
+      return {
+        orderId: order.id,
+        status: order.status,
+        latitude: lat ?? depotLat,
+        longitude: lon ?? depotLon,
+        deliveryAddress: order.deliveryAddressText || 'Адрес не указан',
+        customerName: order.customerName
+      };
+    });
 
-  const remaining = [...allRelevant];
   const ordered = [];
   let previousLat = depotLat;
   let previousLon = depotLon;
 
+  // 2. Сначала добавляем доставленные (они уже сформировали путь)
+  delivered.forEach(order => {
+    const lat = normalizeCoord(order.deliveryLatitude, -90, 90) ?? depotLat;
+    const lon = normalizeCoord(order.deliveryLongitude, -180, 180) ?? depotLon;
+    const distance = haversineKm(previousLat, previousLon, lat, lon);
+    
+    ordered.push({
+      orderId: order.id,
+      status: order.status,
+      latitude: lat,
+      longitude: lon,
+      deliveryAddress: order.deliveryAddressText || 'Адрес не указан',
+      customerName: order.customerName,
+      fromLat: previousLat,
+      fromLon: previousLon,
+      distanceKm: distance,
+      url: legRouteUrl(previousLat, previousLon, lat, lon)
+    });
+    
+    previousLat = lat;
+    previousLon = lon;
+  });
+
+  // 3. Затем жадно планируем оставшиеся активные от последней точки
   while (remaining.length) {
     let nearestIndex = 0;
     let nearestDistance = haversineKm(previousLat, previousLon, remaining[0].latitude, remaining[0].longitude);
