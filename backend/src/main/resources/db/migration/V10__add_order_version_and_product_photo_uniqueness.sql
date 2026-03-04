@@ -2,7 +2,7 @@ ALTER TABLE orders
   ADD COLUMN version BIGINT NOT NULL DEFAULT 0;
 
 UPDATE products p
-SET p.photo_url = NULL
+SET photo_url = NULL
 WHERE p.photo_url IS NOT NULL
   AND TRIM(p.photo_url) <> ''
   AND p.id <> (

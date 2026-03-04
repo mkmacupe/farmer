@@ -11,7 +11,7 @@ WHERE user_id IN (
   );
 
 UPDATE store_addresses s
-SET s.address_line = COALESCE(
+SET address_line = COALESCE(
         (
           SELECT o.delivery_address_text
           FROM orders o
@@ -21,7 +21,7 @@ SET s.address_line = COALESCE(
         ),
         s.address_line
     ),
-    s.latitude = COALESCE(
+    latitude = COALESCE(
         (
           SELECT o.delivery_latitude
           FROM orders o
@@ -31,7 +31,7 @@ SET s.address_line = COALESCE(
         ),
         s.latitude
     ),
-    s.longitude = COALESCE(
+    longitude = COALESCE(
         (
           SELECT o.delivery_longitude
           FROM orders o
@@ -41,7 +41,7 @@ SET s.address_line = COALESCE(
         ),
         s.longitude
     ),
-    s.updated_at = CURRENT_TIMESTAMP
+    updated_at = CURRENT_TIMESTAMP
 WHERE s.user_id IN (
   SELECT u.id
   FROM users u
@@ -49,7 +49,7 @@ WHERE s.user_id IN (
 );
 
 UPDATE store_addresses s
-SET s.label = (
+SET label = (
   SELECT CONCAT('МХВ Точка ', LPAD(CONCAT('', r.seq), 2, '0'))
   FROM (
     SELECT s2.id, ROW_NUMBER() OVER (ORDER BY s2.created_at, s2.id) AS seq
@@ -69,7 +69,7 @@ WHERE s.user_id = (
 );
 
 UPDATE store_addresses s
-SET s.label = (
+SET label = (
   SELECT CONCAT('МЛМ Точка ', LPAD(CONCAT('', r.seq), 2, '0'))
   FROM (
     SELECT s2.id, ROW_NUMBER() OVER (ORDER BY s2.created_at, s2.id) AS seq
@@ -89,7 +89,7 @@ WHERE s.user_id = (
 );
 
 UPDATE store_addresses s
-SET s.label = (
+SET label = (
   SELECT CONCAT('БК Точка ', LPAD(CONCAT('', r.seq), 2, '0'))
   FROM (
     SELECT s2.id, ROW_NUMBER() OVER (ORDER BY s2.created_at, s2.id) AS seq
