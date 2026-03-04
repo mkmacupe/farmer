@@ -207,15 +207,15 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
                                                   @Param("toInstant") Instant toInstant);
 
   @Query("""
-      select function('date', o.createdAt) as day,
+      select cast(o.createdAt as date) as day,
              count(o) as totalOrders,
              coalesce(sum(o.totalAmount), 0) as totalAmount,
              coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then 1 else 0 end), 0) as deliveredCount
       from Order o
       where (:fromInstant is null or o.createdAt >= :fromInstant)
         and (:toInstant is null or o.createdAt <= :toInstant)
-      group by function('date', o.createdAt)
-      order by function('date', o.createdAt) asc
+      group by cast(o.createdAt as date)
+      order by cast(o.createdAt as date) asc
       """)
   List<DailyTrendRow> findDailyTrends(@Param("fromInstant") Instant fromInstant,
                                       @Param("toInstant") Instant toInstant);

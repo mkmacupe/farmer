@@ -154,12 +154,19 @@ export default function LogisticianView({ token, activeSection }) {
   };
 
   const loadOrders = async () => {
-    const ordersPage = await getAllOrdersPage(token, { page: 0, size: ordersPageSize });
-    const items = Array.isArray(ordersPage?.items) ? ordersPage.items : [];
-    setOrders(items);
-    setOrdersPage(Number.isInteger(ordersPage?.page) ? ordersPage.page : 0);
-    setOrdersHasNext(Boolean(ordersPage?.hasNext));
-    setOrdersTotalItems(Number.isFinite(ordersPage?.totalItems) ? ordersPage.totalItems : items.length);
+    setLoading(true);
+    try {
+      const ordersPageData = await getAllOrdersPage(token, { page: 0, size: ordersPageSize });
+      const items = Array.isArray(ordersPageData?.items) ? ordersPageData.items : [];
+      setOrders(items);
+      setOrdersPage(Number.isInteger(ordersPageData?.page) ? ordersPageData.page : 0);
+      setOrdersHasNext(Boolean(ordersPageData?.hasNext));
+      setOrdersTotalItems(Number.isFinite(ordersPageData?.totalItems) ? ordersPageData.totalItems : items.length);
+    } catch (err) {
+      showMessage(err.message || 'Не удалось обновить список заказов', 'error');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const load = async ({ includeDrivers = false } = {}) => {

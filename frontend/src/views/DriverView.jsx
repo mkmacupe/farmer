@@ -12,17 +12,24 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
 import Slide from '@mui/material/Slide';
+import Divider from '@mui/material/Divider';
+import Stepper from '@mui/material/Stepper';
+import Step from '@mui/material/Step';
+import StepLabel from '@mui/material/StepLabel';
+import StepContent from '@mui/material/StepContent';
 
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import MapIcon from '@mui/icons-material/Map';
 import CheckIcon from '@mui/icons-material/Check';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import Skeleton from '@mui/material/Skeleton';
+import NavigationIcon from '@mui/icons-material/Navigation';
+import PlaceIcon from '@mui/icons-material/Place';
 
 const DEFAULT_DEPOT = {
   latitude: 53.8971270,
-  longitude: 30.3320410
+  longitude: 30.3320410,
+  address: 'Могилёв, ул. Первомайская 31 (База)'
 };
 
 function haversineKm(fromLat, fromLon, toLat, toLon) {
@@ -42,109 +49,62 @@ function normalizeCoord(value, min, max) {
   return numeric;
 }
 
-function routeUrlForPoints(points) {
-  if (!points.length) {
-    return '';
-  }
-
-  const firstPoint = points[0];
-  const depotLat = normalizeCoord(DEFAULT_DEPOT.latitude, -90, 90);
-  const depotLon = normalizeCoord(DEFAULT_DEPOT.longitude, -180, 180);
-  if (depotLat == null || depotLon == null || firstPoint == null) {
-    return '';
-  }
-
-  return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${depotLat}%2C${depotLon}%3B${firstPoint.latitude}%2C${firstPoint.longitude}`;
-}
-
 function legRouteUrl(fromLat, fromLon, toLat, toLon) {
   return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${fromLat}%2C${fromLon}%3B${toLat}%2C${toLon}`;
 }
 
-function buildRouteLegs(points) {
-  const depotLat = normalizeCoord(DEFAULT_DEPOT.latitude, -90, 90);
-  const depotLon = normalizeCoord(DEFAULT_DEPOT.longitude, -180, 180);
-  if (depotLat == null || depotLon == null || !points.length) {
-    return [];
-  }
-
-  const legs = [];
-  let fromLat = depotLat;
-  let fromLon = depotLon;
-  for (const point of points) {
-    legs.push({
-      toOrderId: point.orderId,
-      url: legRouteUrl(fromLat, fromLon, point.latitude, point.longitude)
-    });
-    fromLat = point.latitude;
-    fromLon = point.longitude;
-  }
-  return legs;
-}
-
-function buildNearestRoutePoints(orders) {
+function buildOrderedRoute(orders) {
   const depotLat = normalizeCoord(DEFAULT_DEPOT.latitude, -90, 90);
   const depotLon = normalizeCoord(DEFAULT_DEPOT.longitude, -180, 180);
   if (depotLat == null || depotLon == null) {
     return [];
   }
 
-  const remaining = orders
-    .filter((order) => order.status === 'ASSIGNED')
-    .map((order) => {
-      const lat = normalizeCoord(order.deliveryLatitude, -90, 90);
-      const lon = normalizeCoord(order.deliveryLongitude, -180, 180);
-      return {
-        orderId: order.id,
-        latitude: lat ?? depotLat,
-        longitude: lon ?? depotLon,
-        deliveryAddress: order.deliveryAddressText || 'Адрес не указан'
-      };
-    })
-    .filter(Boolean);
+  // Нам нужны все назначенные и доставленные заказы, чтобы построить полную картину
+  const allRelevant = orders.map((order) => {
+    const lat = normalizeCoord(order.deliveryLatitude, -90, 90);
+    const lon = normalizeCoord(order.deliveryLongitude, -180, 180);
+    return {
+      orderId: order.id,
+      status: order.status,
+      latitude: lat ?? depotLat,
+      longitude: lon ?? depotLon,
+      deliveryAddress: order.deliveryAddressText || 'Адрес не указан',
+      customerName: order.customerName
+    };
+  });
 
+  const remaining = [...allRelevant];
   const ordered = [];
   let previousLat = depotLat;
   let previousLon = depotLon;
 
   while (remaining.length) {
     let nearestIndex = 0;
-    let nearestOrderId = Number(remaining[0].orderId) || Number.MAX_SAFE_INTEGER;
-    let nearestDistance = haversineKm(
-      previousLat,
-      previousLon,
-      remaining[0].latitude,
-      remaining[0].longitude
-    );
+    let nearestDistance = haversineKm(previousLat, previousLon, remaining[0].latitude, remaining[0].longitude);
 
     for (let index = 1; index < remaining.length; index += 1) {
       const candidate = remaining[index];
       const candidateDistance = haversineKm(previousLat, previousLon, candidate.latitude, candidate.longitude);
-      const candidateOrderId = Number(candidate.orderId) || Number.MAX_SAFE_INTEGER;
       if (candidateDistance < nearestDistance) {
         nearestDistance = candidateDistance;
         nearestIndex = index;
-        nearestOrderId = candidateOrderId;
-      } else if (candidateDistance === nearestDistance && candidateOrderId < nearestOrderId) {
-        nearestIndex = index;
-        nearestOrderId = candidateOrderId;
       }
     }
 
     const nextPoint = remaining.splice(nearestIndex, 1)[0];
-    ordered.push(nextPoint);
+    ordered.push({
+      ...nextPoint,
+      fromLat: previousLat,
+      fromLon: previousLon,
+      distanceKm: nearestDistance,
+      url: legRouteUrl(previousLat, previousLon, nextPoint.latitude, nextPoint.longitude)
+    });
     previousLat = nextPoint.latitude;
     previousLon = nextPoint.longitude;
   }
 
   return ordered;
-}
-
-function statusMeta(status) {
-  if (status === 'DELIVERED') {
-    return { label: 'Доставлен', color: 'success' };
-  }
-  return { label: 'Назначен', color: 'warning' };
 }
 
 export default function DriverView({ token, activeSection }) {
@@ -163,13 +123,18 @@ export default function DriverView({ token, activeSection }) {
     () => orders.filter((order) => order.status === 'ASSIGNED').length,
     [orders]
   );
-  const deliveredOrders = useMemo(
+  const deliveredOrdersCount = useMemo(
     () => orders.filter((order) => order.status === 'DELIVERED').length,
     [orders]
   );
-  const driverRoutePoints = useMemo(() => buildNearestRoutePoints(orders), [orders]);
-  const routeLegs = useMemo(() => buildRouteLegs(driverRoutePoints), [driverRoutePoints]);
-  const commonRouteUrl = useMemo(() => routeUrlForPoints(driverRoutePoints), [driverRoutePoints]);
+
+  // Строим маршрут
+  const fullRoute = useMemo(() => buildOrderedRoute(orders), [orders]);
+  
+  // Разделяем маршрут на активную часть и завершенную
+  const activeRouteSteps = useMemo(() => fullRoute.filter(step => step.status === 'ASSIGNED'), [fullRoute]);
+  const deliveredRouteSteps = useMemo(() => fullRoute.filter(step => step.status === 'DELIVERED'), [fullRoute]);
+
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
   const statusChipLabel = loading
     ? 'Обновление...'
@@ -239,14 +204,6 @@ export default function DriverView({ token, activeSection }) {
     }
   };
 
-  const handleOpenRoute = () => {
-    if (!commonRouteUrl) {
-      showMessage('Координаты точки не указаны', 'warning');
-      return;
-    }
-    window.open(commonRouteUrl, '_blank', 'noopener');
-  };
-
   return (
     <Box sx={{ pb: 4 }}>
       <Snackbar
@@ -263,144 +220,149 @@ export default function DriverView({ token, activeSection }) {
       </Snackbar>
 
       {showSection('driver-orders') && (
-        <Stack spacing={2.5}>
-          <Paper sx={{ p: 2.5, borderRadius: 3 }}>
+        <Stack spacing={3}>
+          <Paper sx={{ p: 3, borderRadius: 4, border: '1px solid', borderColor: 'divider' }} elevation={0}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} justifyContent="space-between">
               <Box>
-                <Typography variant="h5" fontWeight={800} gutterBottom>Мои доставки</Typography>
+                <Typography variant="h5" fontWeight={800} gutterBottom>Маршрутный лист</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Активных: {activeDeliveries} · Завершено: {deliveredOrders}
+                  Всего точек: {fullRoute.length} · Активных: {activeDeliveries}
                 </Typography>
               </Box>
-              <Chip icon={<LocalShippingIcon />} label={statusChipLabel} color={statusChipColor} />
+              <Chip icon={<LocalShippingIcon />} label={statusChipLabel} color={statusChipColor} sx={{ fontWeight: 700 }} />
             </Stack>
-            <Stack direction="row" sx={{ mt: 1.5 }}>
-                <Button
-                  variant="outlined"
-                  startIcon={<MapIcon />}
-                  onClick={handleOpenRoute}
-                  disabled={!commonRouteUrl}
-                >
-                  Открыть маршрут в OpenStreetMap
-                </Button>
-            </Stack>
-            {!!routeLegs.length && (
-              <Stack
-                direction="row"
-                spacing={1}
-                useFlexGap
-                flexWrap="wrap"
-                sx={{ mt: 1 }}
-              >
-                {routeLegs.map((leg, index) => (
-                  <Button
-                    key={`${leg.toOrderId}-${index}`}
-                    size="small"
-                    variant="text"
-                    component="a"
-                    href={leg.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    Этап {index + 1} · #{leg.toOrderId}
-                  </Button>
-                ))}
+
+            {!!activeRouteSteps.length && (
+              <Box sx={{ mt: 4 }}>
+                <Typography variant="subtitle2" color="primary" fontWeight={700} sx={{ mb: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
+                  Текущие этапы
+                </Typography>
+                <Stepper orientation="vertical" nonLinear sx={{ ml: 1 }}>
+                  {activeRouteSteps.map((step, index) => (
+                    <Step key={step.orderId} active expanded>
+                      <StepLabel
+                        StepIconComponent={() => (
+                          <Avatar sx={{ bgcolor: 'primary.main', width: 28, height: 28, fontSize: 14, fontWeight: 700 }}>
+                            {index + 1}
+                          </Avatar>
+                        )}
+                      >
+                        <Typography variant="subtitle1" fontWeight={700}>
+                          Заказ #{step.orderId}
+                        </Typography>
+                      </StepLabel>
+                      <StepContent>
+                        <Box sx={{ mb: 2, mt: 1 }}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>
+                            {step.deliveryAddress}
+                          </Typography>
+                          <Typography variant="caption" display="block" sx={{ mb: 2 }}>
+                            Расстояние: ~{step.distanceKm.toFixed(2)} км
+                          </Typography>
+                          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
+                            <Button
+                              variant="contained"
+                              size="medium"
+                              startIcon={<CheckIcon />}
+                              onClick={() => handleDelivered(step.orderId)}
+                              disabled={actionLoading}
+                              sx={{ borderRadius: 2, px: 3 }}
+                            >
+                              Доставлено
+                            </Button>
+                            <Button
+                              variant="outlined"
+                              size="medium"
+                              startIcon={<NavigationIcon />}
+                              component="a"
+                              href={step.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              sx={{ borderRadius: 2 }}
+                            >
+                              Навигатор
+                            </Button>
+                          </Stack>
+                        </Box>
+                      </StepContent>
+                    </Step>
+                  ))}
+                </Stepper>
+              </Box>
+            )}
+
+            {!!deliveredRouteSteps.length && (
+              <Box sx={{ mt: 4 }}>
+                <Divider sx={{ mb: 3 }}>
+                  <Chip label="Завершено" size="small" variant="outlined" />
+                </Divider>
+                <Stack spacing={1.5}>
+                  {deliveredRouteSteps.map((step) => (
+                    <Paper 
+                      key={step.orderId} 
+                      variant="outlined" 
+                      sx={{ 
+                        p: 1.5, 
+                        borderRadius: 2, 
+                        bgcolor: 'action.hover',
+                        borderStyle: 'dashed',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                        <CheckCircleIcon color="success" fontSize="small" />
+                        <Box>
+                          <Typography variant="body2" fontWeight={600} color="text.secondary">
+                            Заказ #{step.orderId}
+                          </Typography>
+                          <Typography variant="caption" color="text.disabled">
+                            {step.deliveryAddress}
+                          </Typography>
+                        </Box>
+                      </Box>
+                      <PlaceIcon sx={{ color: 'text.disabled', opacity: 0.5 }} />
+                    </Paper>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+
+            {!fullRoute.length && !loading && (
+              <Stack alignItems="center" spacing={2} sx={{ py: 6 }}>
+                <InboxOutlinedIcon sx={{ fontSize: 64, color: 'text.disabled' }} />
+                <Typography color="text.secondary" fontWeight={600}>Назначений пока нет</Typography>
+                <Typography variant="caption" color="text.disabled">
+                  Маршрут появится, когда логист распределит заказы
+                </Typography>
               </Stack>
             )}
           </Paper>
 
-                    {!orders.length && !loading && (
-            <Stack alignItems="center" spacing={2} sx={{ py: 6 }}>
-              <InboxOutlinedIcon sx={{ fontSize: 64, color: 'text.disabled' }} />
-              <Typography color="text.secondary">У вас пока нет назначенных заказов</Typography>
-              <Typography variant="caption" color="text.disabled">
-                Заказы появятся после назначения логистом
-              </Typography>
-            </Stack>
-          )}
-
           {loading && !orders.length && (
             <Stack spacing={2}>
               {[1, 2].map((i) => (
-                <Card key={i} sx={{ borderRadius: 3 }}>
-                  <CardContent>
-                    <Stack spacing={1.5}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between">
-                        <Skeleton variant="rounded" width={80} height={24} />
-                        <Skeleton variant="text" width={40} />
-                      </Stack>
-                      <Skeleton variant="text" width="70%" height={32} />
-                      <Skeleton variant="text" width="50%" height={20} />
-                      <Stack direction="row" spacing={1.5}>
-                        <Skeleton variant="rounded" width={140} height={48} />
-                        <Skeleton variant="rounded" width={180} height={48} />
-                      </Stack>
+                <Card key={i} sx={{ borderRadius: 4 }}>
+                  <CardContent sx={{ p: 3 }}>
+                    <Stack spacing={2}>
+                      <Skeleton variant="rounded" width={120} height={28} />
+                      <Skeleton variant="text" width="80%" height={32} />
+                      <Skeleton variant="text" width="60%" height={24} />
                     </Stack>
                   </CardContent>
                 </Card>
               ))}
             </Stack>
           )}
-
-          <Stack spacing={2}>
-            {orders.map((order) => {
-              const meta = statusMeta(order.status);
-              return (
-                <Card key={order.id} sx={{ borderRadius: 3 }}>
-                  <CardContent>
-                    <Stack spacing={1.5}>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between">
-                        <Chip label={meta.label} color={meta.color} />
-                        <Typography variant="caption" color="text.secondary">#{order.id}</Typography>
-                      </Stack>
-                      <Typography variant="h6" fontWeight={600}>
-                        {order.deliveryAddressText || 'Адрес не указан'}
-                      </Typography>
-                      <Typography variant="body2" color="text.secondary">
-                        Клиент: {order.customerName || '—'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary">
-                        ID заказа: {order.id}
-                      </Typography>
-                      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                        {order.status === 'ASSIGNED' && (
-                          <Button
-                            variant="contained"
-                            size="large"
-                            color="primary"
-                            startIcon={<CheckIcon />}
-                            onClick={() => handleDelivered(order.id)}
-                            disabled={actionLoading}
-                            sx={{ minHeight: 48 }}
-                          >
-                            Отметить доставленным
-                          </Button>
-                        )}
-                        {order.status === 'DELIVERED' && (
-                          <Button
-                            variant="contained"
-                            size="large"
-                            color="success"
-                            startIcon={<CheckCircleIcon />}
-                            disabled
-                            sx={{ minHeight: 48 }}
-                          >
-                            Доставка завершена
-                          </Button>
-                        )}
-                      </Stack>
-                    </Stack>
-                  </CardContent>
-                </Card>
-              );
-            })}
-          </Stack>
+          
           {ordersHasNext && (
-            <Stack alignItems="center" spacing={1}>
+            <Stack alignItems="center" spacing={1} sx={{ mt: 2 }}>
               <Button
                 variant="outlined"
                 onClick={handleLoadMoreOrders}
                 disabled={ordersLoadingMore}
+                sx={{ borderRadius: 2 }}
               >
                 {ordersLoadingMore ? 'Загрузка...' : 'Показать ещё'}
               </Button>
