@@ -10,6 +10,12 @@ const ROLE_CASES = [
   { username: 'logistician', heading: /логистика и назначения/i },
   { username: 'driver1', heading: /мои доставки/i }
 ];
+const HOME_TAB_BY_USER = {
+  director: /профиль/i,
+  manager: /сводка/i,
+  logistician: /назначения/i,
+  driver1: /доставки/i
+};
 
 async function waitForWorkspaceReady(page) {
   const loadingPlaceholder = page.getByText(/загружаем рабочее пространство/i);
@@ -18,17 +24,30 @@ async function waitForWorkspaceReady(page) {
   }
 }
 
+async function openRoleHomeSection(page, username) {
+  const homePattern = HOME_TAB_BY_USER[username];
+  if (!homePattern) {
+    return;
+  }
+  const tabButton = page.getByRole('button', { name: homePattern }).first();
+  if (await tabButton.count()) {
+    await tabButton.click();
+  }
+}
+
 for (const roleCase of ROLE_CASES) {
-  test(`${roleCase.username} page has no critical accessibility violations`, async ({ page }) => {
+  test(`${roleCase.username} page has no blocking accessibility violations`, async ({ page }) => {
     await installApiMock(page, { fixedNow: FIXED_NOW });
     await loginAs(page, roleCase.username);
     await waitForWorkspaceReady(page);
-    await expect(page.getByRole('heading', { name: roleCase.heading, level: 5 })).toBeVisible();
+    await openRoleHomeSection(page, roleCase.username);
+    await expect(page.getByRole('heading', { name: roleCase.heading }).first()).toBeVisible();
 
     const results = await new AxeBuilder({ page }).analyze();
-    const criticalViolations = results.violations.filter((item) => item.impact === 'critical');
-    const details = criticalViolations.map((item) => `${item.id}: ${item.help}`).join('\n');
+    const blockingImpacts = new Set(['critical', 'serious', 'moderate']);
+    const blockingViolations = results.violations.filter((item) => blockingImpacts.has(item.impact));
+    const details = blockingViolations.map((item) => `${item.id}: ${item.help}`).join('\n');
 
-    expect(criticalViolations, details || 'No critical accessibility violations').toEqual([]);
+    expect(blockingViolations, details || 'No blocking accessibility violations').toEqual([]);
   });
 }

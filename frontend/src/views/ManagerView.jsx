@@ -5,8 +5,10 @@ import {
   createProduct,
   deleteProduct,
   downloadOrdersReport,
-  getAllOrders,
+  getAllOrdersPage,
+  getDashboardCategories,
   getDashboardSummary,
+  getDashboardTrends,
   getDirectors,
   getDrivers,
   getOrderTimeline,
@@ -39,6 +41,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import Tooltip from "@mui/material/Tooltip";
 import Alert from "@mui/material/Alert";
 import Snackbar from "@mui/material/Snackbar";
 import Avatar from "@mui/material/Avatar";
@@ -277,13 +280,20 @@ export default function ManagerView({ token, activeSection }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
   const [orders, setOrders] = useState([]);
+  const [ordersPage, setOrdersPage] = useState(0);
+  const [ordersHasNext, setOrdersHasNext] = useState(false);
+  const [ordersTotalItems, setOrdersTotalItems] = useState(0);
+  const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
   const [directors, setDirectors] = useState([]);
   const [drivers, setDrivers] = useState([]);
   const [dashboard, setDashboard] = useState(null);
+  const [trendPoints, setTrendPoints] = useState([]);
+  const [categoryTotals, setCategoryTotals] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const productPageSize = 20;
+  const ordersPageSize = 50;
   const [productPage, setProductPage] = useState(0);
   const [productHasNext, setProductHasNext] = useState(false);
   const [productTotalItems, setProductTotalItems] = useState(0);
@@ -339,13 +349,23 @@ export default function ManagerView({ token, activeSection }) {
       ASSIGNED: 0,
       DELIVERED: 0,
     };
+
+    if (Array.isArray(dashboard?.ordersByStatus) && dashboard.ordersByStatus.length) {
+      dashboard.ordersByStatus.forEach((row) => {
+        if (row?.status && Object.prototype.hasOwnProperty.call(stats, row.status)) {
+          stats[row.status] = Number(row.count || 0);
+        }
+      });
+      return stats;
+    }
+
     for (const order of orders) {
       if (Object.prototype.hasOwnProperty.call(stats, order.status)) {
         stats[order.status] += 1;
       }
     }
     return stats;
-  }, [orders]);
+  }, [dashboard?.ordersByStatus, orders]);
 
   const latestNotifications = useMemo(
     () => notifications.slice(0, 4),
@@ -391,24 +411,17 @@ export default function ManagerView({ token, activeSection }) {
 
   const trendSeries = useMemo(() => {
     const buckets = new Map();
-    orders.forEach((order) => {
-      const timestamp = orderTimestamp(order);
-      if (timestamp == null) return;
-      const day = startOfDay(timestamp);
-      if (day < dashboardRange.from || day > dashboardRange.to) return;
-      const key = dayKey(day);
-      const current = buckets.get(key) || {
-        orders: 0,
-        revenue: 0,
-        delivered: 0,
-      };
-      const amount = Number(order.totalAmount || 0);
-      current.orders += 1;
-      current.revenue += Number.isFinite(amount) ? amount : 0;
-      if (order.status === "DELIVERED") {
-        current.delivered += 1;
-      }
-      buckets.set(key, current);
+    trendPoints.forEach((point) => {
+      if (!point?.date) return;
+      const key =
+        typeof point.date === "string"
+          ? point.date
+          : new Date(point.date).toISOString().slice(0, 10);
+      buckets.set(key, {
+        orders: Number(point.orders || 0),
+        revenue: Number(point.revenue || 0),
+        delivered: Number(point.delivered || 0),
+      });
     });
 
     const series = [];
@@ -428,7 +441,7 @@ export default function ManagerView({ token, activeSection }) {
       });
     }
     return series;
-  }, [orders, dashboardRange]);
+  }, [trendPoints, dashboardRange]);
 
   const trendMeta = useMemo(() => {
     const totalOrders = trendSeries.reduce(
@@ -510,27 +523,14 @@ export default function ManagerView({ token, activeSection }) {
     };
   }, [trendSeries]);
 
-  const productCategoryById = useMemo(() => {
-    const mapping = new Map();
-    products.forEach((product) => {
-      mapping.set(Number(product.id), product.category || "Без категории");
-    });
-    return mapping;
-  }, [products]);
-
   const categoryInsights = useMemo(() => {
     const totals = new Map();
-    orders.forEach((order) => {
-      (order.items || []).forEach((item) => {
-        const quantity = Number(item.quantity || 0);
-        if (!Number.isFinite(quantity) || quantity <= 0) return;
-        const category =
-          item.category ||
-          item.productCategory ||
-          productCategoryById.get(Number(item.productId)) ||
-          "Без категории";
-        totals.set(category, (totals.get(category) || 0) + quantity);
-      });
+    categoryTotals.forEach((item) => {
+      if (!item) return;
+      const category = item.category || "Без категории";
+      const units = Number(item.units || 0);
+      if (!Number.isFinite(units) || units <= 0) return;
+      totals.set(category, (totals.get(category) || 0) + units);
     });
 
     const sorted = [...totals.entries()].sort((a, b) => b[1] - a[1]);
@@ -566,7 +566,7 @@ export default function ManagerView({ token, activeSection }) {
       segments,
       gradient,
     };
-  }, [orders, productCategoryById]);
+  }, [categoryTotals]);
 
   const attentionItems = useMemo(() => {
     const items = [];
@@ -619,12 +619,22 @@ export default function ManagerView({ token, activeSection }) {
     setSnackbar({ open: true, message, severity });
   };
 
+  const handleRefresh = useCallback(() => {
+    const controller = new AbortController();
+    const sectionId = activeSection || "manager-dashboard";
+    loadForSection(sectionId, controller.signal);
+  }, [activeSection, token, dashboardFrom, dashboardTo]);
+
   const loadOrders = async (signal) => {
-    const ordersData = await getAllOrders(token);
+    const ordersPage = await getAllOrdersPage(token, { page: 0, size: ordersPageSize });
     if (signal?.aborted) {
       return;
     }
-    setOrders(ordersData);
+    const items = Array.isArray(ordersPage?.items) ? ordersPage.items : [];
+    setOrders(items);
+    setOrdersPage(Number.isInteger(ordersPage?.page) ? ordersPage.page : 0);
+    setOrdersHasNext(Boolean(ordersPage?.hasNext));
+    setOrdersTotalItems(Number.isFinite(ordersPage?.totalItems) ? ordersPage.totalItems : items.length);
   };
 
   const loadProductsAndCategories = async (signal) => {
@@ -657,7 +667,10 @@ export default function ManagerView({ token, activeSection }) {
     } else if (isMethodNotAllowedError(directorsResult.reason)) {
       setDirectors([]);
     } else {
-      console.error("Failed to load directors", directorsResult.reason);
+      showMessage(
+        directorsResult.reason?.message || "Не удалось загрузить список директоров",
+        "error",
+      );
     }
 
     if (driversResult.status === "fulfilled") {
@@ -665,7 +678,10 @@ export default function ManagerView({ token, activeSection }) {
     } else if (isMethodNotAllowedError(driversResult.reason)) {
       setDrivers([]);
     } else {
-      console.error("Failed to load drivers", driversResult.reason);
+      showMessage(
+        driversResult.reason?.message || "Не удалось загрузить список водителей",
+        "error",
+      );
     }
   };
 
@@ -683,14 +699,58 @@ export default function ManagerView({ token, activeSection }) {
       if (signal?.aborted) {
         return;
       }
-      console.error("Failed to load dashboard", err);
+      showMessage(err?.message || "Не удалось загрузить сводку", "error");
+    }
+  };
+
+  const loadDashboardTrends = async (signal) => {
+    try {
+      const data = await getDashboardTrends(token, {
+        from: dashboardFrom || null,
+        to: dashboardTo || null,
+      });
+      if (signal?.aborted) {
+        return;
+      }
+      setTrendPoints(Array.isArray(data?.points) ? data.points : []);
+    } catch (err) {
+      if (signal?.aborted) {
+        return;
+      }
+      // Trends are optional; keep dashboard usable even on partial backend support.
+      setTrendPoints([]);
+    }
+  };
+
+  const loadDashboardCategories = async (signal) => {
+    try {
+      const data = await getDashboardCategories(token, {
+        from: dashboardFrom || null,
+        to: dashboardTo || null,
+      });
+      if (signal?.aborted) {
+        return;
+      }
+      setCategoryTotals(Array.isArray(data) ? data : []);
+    } catch (err) {
+      if (signal?.aborted) {
+        return;
+      }
+      // Category insights are optional; keep dashboard usable even on partial backend support.
+      setCategoryTotals([]);
     }
   };
 
   const loadForSection = async (sectionId, signal) => {
     const tasks = [];
     if (sectionId === "manager-dashboard") {
-      tasks.push(loadOrders, loadProductsAndCategories, loadDashboard);
+      tasks.push(
+        loadOrders,
+        loadProductsAndCategories,
+        loadDashboard,
+        loadDashboardTrends,
+        loadDashboardCategories,
+      );
     } else if (sectionId === "manager-orders") {
       tasks.push(loadOrders);
     } else if (sectionId === "manager-products") {
@@ -998,6 +1058,35 @@ export default function ManagerView({ token, activeSection }) {
     },
   ];
 
+  const handleLoadMoreOrders = async () => {
+    if (!ordersHasNext || ordersLoadingMore) {
+      return;
+    }
+    setOrdersLoadingMore(true);
+    try {
+      const nextPage = ordersPage + 1;
+      const nextPageData = await getAllOrdersPage(token, {
+        page: nextPage,
+        size: ordersPageSize,
+      });
+      setOrders((prev) => [
+        ...prev,
+        ...(Array.isArray(nextPageData?.items) ? nextPageData.items : []),
+      ]);
+      setOrdersPage(Number.isInteger(nextPageData?.page) ? nextPageData.page : nextPage);
+      setOrdersHasNext(Boolean(nextPageData?.hasNext));
+      setOrdersTotalItems(
+        Number.isFinite(nextPageData?.totalItems)
+          ? nextPageData.totalItems
+          : ordersTotalItems,
+      );
+    } catch (err) {
+      showMessage(err.message || "Не удалось загрузить ещё заявки", "error");
+    } finally {
+      setOrdersLoadingMore(false);
+    }
+  };
+
   const handleLoadMoreProducts = async () => {
     if (!productHasNext || productsLoadingMore) {
       return;
@@ -1075,9 +1164,7 @@ export default function ManagerView({ token, activeSection }) {
                 <Button
                   variant="outlined"
                   startIcon={<RefreshIcon />}
-                  onClick={() => {
-                    load();
-                  }}
+                  onClick={handleRefresh}
                   disabled={loading}
                 >
                   Обновить
@@ -1487,9 +1574,9 @@ export default function ManagerView({ token, activeSection }) {
                   <NotificationsIcon color="action" /> Последние события
                 </Typography>
                 <Stack spacing={1}>
-                  {latestNotifications.map((notif, idx) => (
+                  {latestNotifications.map((notif) => (
                     <Alert
-                      key={idx}
+                      key={`${notif.createdAt || "event"}-${notif.title || "Событие"}-${notif.orderId || "na"}`}
                       severity="info"
                       icon={false}
                       sx={{ py: 0 }}
@@ -1584,6 +1671,20 @@ export default function ManagerView({ token, activeSection }) {
               </Grid>
             ))}
           </Grid>
+          {ordersHasNext && (
+            <Stack alignItems="center" spacing={1} sx={{ mt: 3 }}>
+              <Button
+                variant="outlined"
+                onClick={handleLoadMoreOrders}
+                disabled={ordersLoadingMore}
+              >
+                {ordersLoadingMore ? "Загрузка..." : "Показать ещё"}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Показано {orders.length} из {ordersTotalItems}
+              </Typography>
+            </Stack>
+          )}
         </Box>
       )}
       {showSection("manager-products") && (
@@ -1681,21 +1782,31 @@ export default function ManagerView({ token, activeSection }) {
                   spacing={1}
                   sx={{ alignSelf: { xs: "flex-end", sm: "center" } }}
                 >
-                  <IconButton
-                    size="small"
-                    onClick={() => handleOpenProductDrawer(product)}
-                    disabled={actionLoading}
-                  >
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                  <IconButton
-                    size="small"
-                    color="error"
-                    onClick={() => handleProductDelete(product.id)}
-                    disabled={actionLoading}
-                  >
-                    <DeleteIcon fontSize="small" />
-                  </IconButton>
+                  <Tooltip title="Редактировать товар">
+                    <span>
+                      <IconButton
+                        size="small"
+                        aria-label={`Редактировать товар ${product.name}`}
+                        onClick={() => handleOpenProductDrawer(product)}
+                        disabled={actionLoading}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Удалить товар">
+                    <span>
+                      <IconButton
+                        size="small"
+                        color="error"
+                        aria-label={`Удалить товар ${product.name}`}
+                        onClick={() => handleProductDelete(product.id)}
+                        disabled={actionLoading}
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 </Stack>
               </Box>
             ))}

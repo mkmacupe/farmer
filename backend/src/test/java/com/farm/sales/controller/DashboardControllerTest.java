@@ -6,7 +6,10 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.farm.sales.dto.DashboardCategoryInsightResponse;
 import com.farm.sales.dto.DashboardSummaryResponse;
+import com.farm.sales.dto.DashboardTrendPointResponse;
+import com.farm.sales.dto.DashboardTrendResponse;
 import com.farm.sales.service.DashboardService;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -49,6 +52,48 @@ class DashboardControllerTest {
     ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
     ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
     verify(dashboardService).getSummary(fromCaptor.capture(), toCaptor.capture());
+    assertThat(fromCaptor.getValue()).isEqualTo(from);
+    assertThat(toCaptor.getValue()).isEqualTo(to);
+  }
+
+  @Test
+  void trendsDelegatesToService() {
+    Instant from = Instant.parse("2026-01-01T00:00:00Z");
+    Instant to = Instant.parse("2026-01-31T23:59:59.999Z");
+    DashboardTrendResponse response = new DashboardTrendResponse(
+        from,
+        to,
+        List.of(new DashboardTrendPointResponse(LocalDate.of(2026, 1, 1), 2, new BigDecimal("120.00"), 1))
+    );
+    when(dashboardService.getTrends(any(), any())).thenReturn(response);
+
+    var http = controller.trends(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31));
+
+    assertThat(http.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(http.getBody()).isEqualTo(response);
+    ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
+    ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
+    verify(dashboardService).getTrends(fromCaptor.capture(), toCaptor.capture());
+    assertThat(fromCaptor.getValue()).isEqualTo(from);
+    assertThat(toCaptor.getValue()).isEqualTo(to);
+  }
+
+  @Test
+  void categoriesDelegatesToService() {
+    Instant from = Instant.parse("2026-01-01T00:00:00Z");
+    Instant to = Instant.parse("2026-01-31T23:59:59.999Z");
+    List<DashboardCategoryInsightResponse> response = List.of(
+        new DashboardCategoryInsightResponse("Овощи", 12L)
+    );
+    when(dashboardService.getCategoryInsights(any(), any())).thenReturn(response);
+
+    var http = controller.categories(LocalDate.of(2026, 1, 1), LocalDate.of(2026, 1, 31));
+
+    assertThat(http.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(http.getBody()).isEqualTo(response);
+    ArgumentCaptor<Instant> fromCaptor = ArgumentCaptor.forClass(Instant.class);
+    ArgumentCaptor<Instant> toCaptor = ArgumentCaptor.forClass(Instant.class);
+    verify(dashboardService).getCategoryInsights(fromCaptor.capture(), toCaptor.capture());
     assertThat(fromCaptor.getValue()).isEqualTo(from);
     assertThat(toCaptor.getValue()).isEqualTo(to);
   }

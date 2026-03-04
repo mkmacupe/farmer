@@ -9,6 +9,8 @@ import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.Locale;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +28,16 @@ import org.springframework.transaction.annotation.Transactional;
 public class DataInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
   private static final String PRODUCT_IMAGE_BASE = "/images/products/";
-  private static final int DEMO_PRODUCTS_LIMIT = 20;
+  private static final Map<String, String> SEEDED_USER_PASSWORDS = Map.of(
+      "mogilevkhim", "MhvK8r2pQ1",
+      "mogilevlift", "MlvT4n7xR2",
+      "babushkina", "BbkP6m9sL3",
+      "manager", "MgrD5v8cN4",
+      "logistician", "LogS7q1wE5",
+      "driver1", "Drv1A9k2Z6",
+      "driver2", "Drv2B8m3Y7",
+      "driver3", "Drv3C7n4X8"
+  );
 
   private static String image(String filename) {
     return PRODUCT_IMAGE_BASE + filename;
@@ -37,7 +48,8 @@ public class DataInitializer implements CommandLineRunner {
   private final StoreAddressRepository storeAddressRepository;
   private final PasswordEncoder passwordEncoder;
   private final String demoPassword;
-  private int seededProductsCount;
+  private final Object seedLock = new Object();
+  private volatile boolean demoSeeded;
 
   public DataInitializer(UserRepository userRepository,
                          ProductRepository productRepository,
@@ -54,7 +66,14 @@ public class DataInitializer implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
-    String normalizedDemoPassword = validateDemoPassword();
+    if (demoSeeded) {
+      return;
+    }
+    synchronized (seedLock) {
+      if (demoSeeded) {
+        return;
+      }
+    validateDemoPassword();
     archiveLegacyDirectorUser();
 
     User mogilevkhimDirector = createUserIfMissing(
@@ -63,7 +82,7 @@ public class DataInitializer implements CommandLineRunner {
         "+375291948265",
         "ОАО \"Могилевхимволокно\"",
         Role.DIRECTOR,
-        normalizedDemoPassword
+        seededPassword("mogilevkhim")
     );
     User mogilevliftDirector = createUserIfMissing(
         "mogilevlift",
@@ -71,7 +90,7 @@ public class DataInitializer implements CommandLineRunner {
         "+375336521874",
         "ОАО \"Могилевлифтмаш\"",
         Role.DIRECTOR,
-        normalizedDemoPassword
+        seededPassword("mogilevlift")
     );
     User babushkinaDirector = createUserIfMissing(
         "babushkina",
@@ -79,18 +98,52 @@ public class DataInitializer implements CommandLineRunner {
         "+375447318502",
         "ОАО \"Бабушкина крынка\"",
         Role.DIRECTOR,
-        normalizedDemoPassword
+        seededPassword("babushkina")
     );
-    createUserIfMissing("manager", "Менеджер отдела сбыта", "+375290000002", null, Role.MANAGER, normalizedDemoPassword);
-    createUserIfMissing("logistician", "Логист", "+375290000003", null, Role.LOGISTICIAN, normalizedDemoPassword);
-    createUserIfMissing("driver1", "Водитель 1", "+375290000005", null, Role.DRIVER, normalizedDemoPassword);
-    createUserIfMissing("driver2", "Водитель 2", "+375290000006", null, Role.DRIVER, normalizedDemoPassword);
-    createUserIfMissing("driver3", "Водитель 3", "+375290000007", null, Role.DRIVER, normalizedDemoPassword);
+    createUserIfMissing(
+        "manager",
+        "Менеджер отдела сбыта",
+        "+375290000002",
+        null,
+        Role.MANAGER,
+        seededPassword("manager")
+    );
+    createUserIfMissing(
+        "logistician",
+        "Логист",
+        "+375290000003",
+        null,
+        Role.LOGISTICIAN,
+        seededPassword("logistician")
+    );
+    createUserIfMissing(
+        "driver1",
+        "Водитель 1",
+        "+375290000005",
+        null,
+        Role.DRIVER,
+        seededPassword("driver1")
+    );
+    createUserIfMissing(
+        "driver2",
+        "Водитель 2",
+        "+375290000006",
+        null,
+        Role.DRIVER,
+        seededPassword("driver2")
+    );
+    createUserIfMissing(
+        "driver3",
+        "Водитель 3",
+        "+375290000007",
+        null,
+        Role.DRIVER,
+        seededPassword("driver3")
+    );
 
-    resetDemoAddress(mogilevkhimDirector, "Основной склад", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
-    resetDemoAddress(mogilevliftDirector, "Точка отгрузки", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
-    resetDemoAddress(babushkinaDirector, "Центральный магазин", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
-    seededProductsCount = 0;
+    createAddressIfMissing(mogilevkhimDirector, "МХВ Точка 01", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
+    createAddressIfMissing(mogilevliftDirector, "МЛМ Точка 01", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
+    createAddressIfMissing(babushkinaDirector, "БК Точка 01", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
 
     createOrUpdateProduct(
         "Молоко фермерское 1 л",
@@ -612,6 +665,1092 @@ public class DataInitializer implements CommandLineRunner {
         "6.50",
         58
     );
+    createOrUpdateProduct(
+        "Молоко цельное 2 л",
+        "Молочная продукция",
+        "Цельное молоко от утренней дойки",
+        image("milk-whole-2l.webp"),
+        "5.90",
+        90
+    );
+    createOrUpdateProduct(
+        "Молоко топлёное 1 л",
+        "Молочная продукция",
+        "Томлёное молоко с карамельным вкусом",
+        image("baked-milk.webp"),
+        "4.10",
+        76
+    );
+    createOrUpdateProduct(
+        "Простокваша домашняя 1 л",
+        "Молочная продукция",
+        "Натуральная простокваша на фермерской закваске",
+        image("prostokvasha.webp"),
+        "3.20",
+        82
+    );
+    createOrUpdateProduct(
+        "Сливки 20% 500 мл",
+        "Молочная продукция",
+        "Питьевые сливки из цельного молока",
+        image("cream-20.webp"),
+        "5.60",
+        54
+    );
+    createOrUpdateProduct(
+        "Сыр адыгейский 400 г",
+        "Молочная продукция",
+        "Свежий мягкий сыр без длительной выдержки",
+        image("adyghe-cheese.webp"),
+        "8.30",
+        48
+    );
+    createOrUpdateProduct(
+        "Сыр рассольный 400 г",
+        "Молочная продукция",
+        "Умеренно солёный рассольный сыр",
+        image("brined-cheese.webp"),
+        "8.90",
+        42
+    );
+    createOrUpdateProduct(
+        "Творожный сыр 200 г",
+        "Молочная продукция",
+        "Нежный творожный сыр для бутербродов и соусов",
+        image("curd-cheese.webp"),
+        "4.90",
+        64
+    );
+    createOrUpdateProduct(
+        "Творожная масса с изюмом 250 г",
+        "Молочная продукция",
+        "Сладкая творожная масса с натуральным изюмом",
+        image("curd-raisin.webp"),
+        "4.40",
+        58
+    );
+    createOrUpdateProduct(
+        "Филе куриное охлаждённое 1 кг",
+        "Мясо и птица",
+        "Нежное куриное филе без кожи",
+        image("chicken-fillet.webp"),
+        "10.20",
+        46
+    );
+    createOrUpdateProduct(
+        "Бедро куриное 1 кг",
+        "Мясо и птица",
+        "Куриное бедро для запекания и тушения",
+        image("chicken-thigh.webp"),
+        "8.70",
+        52
+    );
+    createOrUpdateProduct(
+        "Свиные рёбра 1 кг",
+        "Мясо и птица",
+        "Мясные свиные рёбра фермерского откорма",
+        image("pork-ribs.webp"),
+        "11.90",
+        34
+    );
+    createOrUpdateProduct(
+        "Фарш домашний свино-говяжий 1 кг",
+        "Мясо и птица",
+        "Свежий фарш из свинины и говядины",
+        image("mixed-mince.webp"),
+        "13.30",
+        40
+    );
+    createOrUpdateProduct(
+        "Печень говяжья 1 кг",
+        "Мясо и птица",
+        "Охлаждённая говяжья печень",
+        image("beef-liver.webp"),
+        "9.40",
+        30
+    );
+    createOrUpdateProduct(
+        "Грудка индейки 1 кг",
+        "Мясо и птица",
+        "Диетическая грудка индейки без кожи",
+        image("turkey-breast.webp"),
+        "13.70",
+        32
+    );
+    createOrUpdateProduct(
+        "Яйца куриные С0 10 шт",
+        "Птица и яйца",
+        "Крупные яйца категории С0",
+        image("egg-c0.webp"),
+        "4.20",
+        140
+    );
+    createOrUpdateProduct(
+        "Яйца перепелиные 30 шт",
+        "Птица и яйца",
+        "Упаковка свежих перепелиных яиц",
+        image("quail-eggs-30.webp"),
+        "6.20",
+        68
+    );
+    createOrUpdateProduct(
+        "Картофель для запекания 2 кг",
+        "Овощи",
+        "Крупный картофель с плотной мякотью",
+        image("potato-bake.webp"),
+        "5.70",
+        118
+    );
+    createOrUpdateProduct(
+        "Картофель для пюре 2 кг",
+        "Овощи",
+        "Рассыпчатый картофель для домашнего пюре",
+        image("potato-mash.webp"),
+        "5.60",
+        122
+    );
+    createOrUpdateProduct(
+        "Лук красный 1 кг",
+        "Овощи",
+        "Сладковатый красный лук для салатов",
+        image("red-onion.webp"),
+        "2.80",
+        86
+    );
+    createOrUpdateProduct(
+        "Капуста пекинская 1 шт",
+        "Овощи",
+        "Сочная пекинская капуста тепличного выращивания",
+        image("chinese-cabbage.webp"),
+        "3.40",
+        60
+    );
+    createOrUpdateProduct(
+        "Огурцы короткоплодные 1 кг",
+        "Овощи",
+        "Плотные огурцы для салатов и засолки",
+        image("short-cucumber.webp"),
+        "5.20",
+        84
+    );
+    createOrUpdateProduct(
+        "Томаты сливка 1 кг",
+        "Овощи",
+        "Плотные томаты сливовидной формы",
+        image("plum-tomato.webp"),
+        "5.40",
+        78
+    );
+    createOrUpdateProduct(
+        "Свекла молодая пучковая 1 кг",
+        "Овощи",
+        "Нежная молодая свекла нового урожая",
+        image("young-beet.webp"),
+        "2.30",
+        88
+    );
+    createOrUpdateProduct(
+        "Морковь мытая 1 кг",
+        "Овощи",
+        "Отборная мытая морковь для готовки",
+        image("washed-carrot.webp"),
+        "2.60",
+        92
+    );
+    createOrUpdateProduct(
+        "Петрушка корневая 500 г",
+        "Овощи",
+        "Корневая петрушка для бульонов и запекания",
+        image("parsley-root.webp"),
+        "2.90",
+        56
+    );
+    createOrUpdateProduct(
+        "Укроп сушёный 50 г",
+        "Зелень",
+        "Сушёный укроп для супов и маринадов",
+        image("dill-dry.webp"),
+        "1.80",
+        74
+    );
+    createOrUpdateProduct(
+        "Яблоки антоновка 1 кг",
+        "Фрукты",
+        "Кисло-сладкая антоновка местных садов",
+        image("apple-antonovka.webp"),
+        "3.50",
+        96
+    );
+    createOrUpdateProduct(
+        "Яблоки белый налив 1 кг",
+        "Фрукты",
+        "Летний сорт белый налив",
+        image("apple-white.webp"),
+        "3.40",
+        90
+    );
+    createOrUpdateProduct(
+        "Груши конференция 1 кг",
+        "Фрукты",
+        "Сочные груши осеннего сбора",
+        image("pear-conference.webp"),
+        "4.50",
+        74
+    );
+    createOrUpdateProduct(
+        "Клюква 300 г",
+        "Ягоды",
+        "Свежая клюква для морсов и соусов",
+        image("cranberry.webp"),
+        "5.70",
+        52
+    );
+    createOrUpdateProduct(
+        "Брусника 300 г",
+        "Ягоды",
+        "Брусника с лёгкой терпкостью",
+        image("lingonberry.webp"),
+        "6.10",
+        48
+    );
+    createOrUpdateProduct(
+        "Смородина красная 300 г",
+        "Ягоды",
+        "Красная смородина с яркой кислинкой",
+        image("redcurrant.webp"),
+        "5.30",
+        54
+    );
+    createOrUpdateProduct(
+        "Мёд липовый 500 г",
+        "Пчеловодство",
+        "Липовый мёд со светлым ароматом",
+        image("linden-honey.webp"),
+        "12.40",
+        36
+    );
+    createOrUpdateProduct(
+        "Мука пшеничная цельнозерновая 1 кг",
+        "Крупы",
+        "Мука грубого помола из местной пшеницы",
+        image("wholewheat-flour.webp"),
+        "2.70",
+        88
+    );
+    createOrUpdateProduct(
+        "Хлеб пшенично-ржаной 700 г",
+        "Хлеб и выпечка",
+        "Фермерский подовый хлеб на закваске",
+        image("wheat-rye-bread.webp"),
+        "3.10",
+        92
+    );
+    createOrUpdateProduct(
+        "Молоко пастеризованное 3.2% 1 л",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-101.webp"),
+        "3.73",
+        76
+    );
+    createOrUpdateProduct(
+        "Молоко обезжиренное 1 л",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-102.webp"),
+        "4.10",
+        83
+    );
+    createOrUpdateProduct(
+        "Кефир 3.2% 1 л",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-103.webp"),
+        "4.47",
+        71
+    );
+    createOrUpdateProduct(
+        "Кефир термостатный 500 мл",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-104.webp"),
+        "4.84",
+        78
+    );
+    createOrUpdateProduct(
+        "Йогурт питьевой черника 330 мл",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-105.webp"),
+        "3.36",
+        85
+    );
+    createOrUpdateProduct(
+        "Йогурт питьевой малина 330 мл",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-106.webp"),
+        "3.73",
+        73
+    );
+    createOrUpdateProduct(
+        "Творог 9% 300 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-107.webp"),
+        "4.10",
+        80
+    );
+    createOrUpdateProduct(
+        "Творог 5% 300 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-108.webp"),
+        "4.47",
+        87
+    );
+    createOrUpdateProduct(
+        "Сметана 15% 400 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-109.webp"),
+        "4.84",
+        75
+    );
+    createOrUpdateProduct(
+        "Сливки 33% 300 мл",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-110.webp"),
+        "3.36",
+        82
+    );
+    createOrUpdateProduct(
+        "Масло сливочное 72.5% 200 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-111.webp"),
+        "3.73",
+        70
+    );
+    createOrUpdateProduct(
+        "Сыр фермерский молодой 400 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-112.webp"),
+        "4.10",
+        77
+    );
+    createOrUpdateProduct(
+        "Сыр козий мягкий 200 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-113.webp"),
+        "4.47",
+        84
+    );
+    createOrUpdateProduct(
+        "Брынза коровья 350 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-114.webp"),
+        "4.84",
+        72
+    );
+    createOrUpdateProduct(
+        "Рикотта фермерская 250 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-115.webp"),
+        "3.36",
+        79
+    );
+    createOrUpdateProduct(
+        "Простокваша 500 мл",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-116.webp"),
+        "3.73",
+        86
+    );
+    createOrUpdateProduct(
+        "Пахта 500 мл",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-117.webp"),
+        "4.10",
+        74
+    );
+    createOrUpdateProduct(
+        "Сыворотка молочная 1 л",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-118.webp"),
+        "4.47",
+        81
+    );
+    createOrUpdateProduct(
+        "Топлёное молоко 500 мл",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-119.webp"),
+        "4.84",
+        69
+    );
+    createOrUpdateProduct(
+        "Десерт творожный ваниль 180 г",
+        "Молочная продукция",
+        "Свежий молочный продукт из сырья местных хозяйств.",
+        image("mogilev-product-120.webp"),
+        "3.36",
+        76
+    );
+    createOrUpdateProduct(
+        "Куриные крылья 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-121.webp"),
+        "11.53",
+        49
+    );
+    createOrUpdateProduct(
+        "Куриная голень 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-122.webp"),
+        "11.90",
+        37
+    );
+    createOrUpdateProduct(
+        "Куриные сердечки 500 г",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-123.webp"),
+        "12.27",
+        44
+    );
+    createOrUpdateProduct(
+        "Куриная печень 500 г",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-124.webp"),
+        "12.64",
+        51
+    );
+    createOrUpdateProduct(
+        "Фарш куриный 700 г",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-125.webp"),
+        "11.16",
+        39
+    );
+    createOrUpdateProduct(
+        "Индейка бедро 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-126.webp"),
+        "11.53",
+        46
+    );
+    createOrUpdateProduct(
+        "Индейка голень 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-127.webp"),
+        "11.90",
+        53
+    );
+    createOrUpdateProduct(
+        "Фарш индейки 700 г",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-128.webp"),
+        "12.27",
+        41
+    );
+    createOrUpdateProduct(
+        "Свиной карбонад 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-129.webp"),
+        "12.64",
+        48
+    );
+    createOrUpdateProduct(
+        "Свиная шея 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-130.webp"),
+        "11.16",
+        36
+    );
+    createOrUpdateProduct(
+        "Свиная лопатка 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-131.webp"),
+        "11.53",
+        43
+    );
+    createOrUpdateProduct(
+        "Свиная грудинка 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-132.webp"),
+        "11.90",
+        50
+    );
+    createOrUpdateProduct(
+        "Говядина тазобедренная часть 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-133.webp"),
+        "12.27",
+        38
+    );
+    createOrUpdateProduct(
+        "Говядина ребро 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-134.webp"),
+        "12.64",
+        45
+    );
+    createOrUpdateProduct(
+        "Говяжий фарш 700 г",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-135.webp"),
+        "11.16",
+        52
+    );
+    createOrUpdateProduct(
+        "Телятина вырезка 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-136.webp"),
+        "11.53",
+        40
+    );
+    createOrUpdateProduct(
+        "Баранина лопатка 1 кг",
+        "Мясо и птица",
+        "Охлаждённый продукт фермерского производства Могилёвской области.",
+        image("mogilev-product-137.webp"),
+        "11.90",
+        47
+    );
+    createOrUpdateProduct(
+        "Колбаски домашние свиные 600 г",
+        "Полуфабрикаты",
+        "Полуфабрикат из фермерского сырья для быстрого приготовления.",
+        image("mogilev-product-138.webp"),
+        "8.97",
+        43
+    );
+    createOrUpdateProduct(
+        "Купаты куриные 600 г",
+        "Полуфабрикаты",
+        "Полуфабрикат из фермерского сырья для быстрого приготовления.",
+        image("mogilev-product-139.webp"),
+        "9.34",
+        50
+    );
+    createOrUpdateProduct(
+        "Пельмени фермерские 800 г",
+        "Полуфабрикаты",
+        "Полуфабрикат из фермерского сырья для быстрого приготовления.",
+        image("mogilev-product-140.webp"),
+        "7.86",
+        57
+    );
+    createOrUpdateProduct(
+        "Яйца куриные С2 10 шт",
+        "Птица и яйца",
+        "Свежая продукция от птицеводческих хозяйств региона.",
+        image("mogilev-product-141.webp"),
+        "3.83",
+        121
+    );
+    createOrUpdateProduct(
+        "Яйца куриные отборные 15 шт",
+        "Птица и яйца",
+        "Свежая продукция от птицеводческих хозяйств региона.",
+        image("mogilev-product-142.webp"),
+        "4.20",
+        128
+    );
+    createOrUpdateProduct(
+        "Яйца домашние 20 шт",
+        "Птица и яйца",
+        "Свежая продукция от птицеводческих хозяйств региона.",
+        image("mogilev-product-143.webp"),
+        "4.57",
+        135
+    );
+    createOrUpdateProduct(
+        "Хлеб зерновой 600 г",
+        "Хлеб и выпечка",
+        "Свежая выпечка из муки местного помола.",
+        image("mogilev-product-144.webp"),
+        "3.14",
+        93
+    );
+    createOrUpdateProduct(
+        "Булка с отрубями 350 г",
+        "Хлеб и выпечка",
+        "Свежая выпечка из муки местного помола.",
+        image("mogilev-product-145.webp"),
+        "1.66",
+        100
+    );
+    createOrUpdateProduct(
+        "Багет цельнозерновой 300 г",
+        "Хлеб и выпечка",
+        "Свежая выпечка из муки местного помола.",
+        image("mogilev-product-146.webp"),
+        "2.03",
+        107
+    );
+    createOrUpdateProduct(
+        "Лепёшка ржаная 250 г",
+        "Хлеб и выпечка",
+        "Свежая выпечка из муки местного помола.",
+        image("mogilev-product-147.webp"),
+        "2.40",
+        95
+    );
+    createOrUpdateProduct(
+        "Сухари пшеничные 200 г",
+        "Хлеб и выпечка",
+        "Свежая выпечка из муки местного помола.",
+        image("mogilev-product-148.webp"),
+        "2.77",
+        102
+    );
+    createOrUpdateProduct(
+        "Мука ржаная 1 кг",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-149.webp"),
+        "3.74",
+        76
+    );
+    createOrUpdateProduct(
+        "Мука пшеничная высший сорт 1 кг",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-150.webp"),
+        "2.26",
+        83
+    );
+    createOrUpdateProduct(
+        "Мука овсяная 800 г",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-151.webp"),
+        "2.63",
+        90
+    );
+    createOrUpdateProduct(
+        "Крупа перловая 1 кг",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-152.webp"),
+        "3.00",
+        78
+    );
+    createOrUpdateProduct(
+        "Крупа ячневая 1 кг",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-153.webp"),
+        "3.37",
+        85
+    );
+    createOrUpdateProduct(
+        "Овсяные хлопья 800 г",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-154.webp"),
+        "3.74",
+        92
+    );
+    createOrUpdateProduct(
+        "Манная крупа 800 г",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-155.webp"),
+        "2.26",
+        80
+    );
+    createOrUpdateProduct(
+        "Горох колотый 800 г",
+        "Бобовые",
+        "Отборные бобовые фермерского урожая.",
+        image("mogilev-product-156.webp"),
+        "3.53",
+        79
+    );
+    createOrUpdateProduct(
+        "Нут сушёный 800 г",
+        "Бобовые",
+        "Отборные бобовые фермерского урожая.",
+        image("mogilev-product-157.webp"),
+        "3.90",
+        67
+    );
+    createOrUpdateProduct(
+        "Фасоль белая 800 г",
+        "Бобовые",
+        "Отборные бобовые фермерского урожая.",
+        image("mogilev-product-158.webp"),
+        "4.27",
+        74
+    );
+    createOrUpdateProduct(
+        "Семена льна 300 г",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-159.webp"),
+        "3.74",
+        89
+    );
+    createOrUpdateProduct(
+        "Семечки подсолнечника очищенные 400 г",
+        "Крупы",
+        "Сухой продукт из зерна урожая местных хозяйств.",
+        image("mogilev-product-160.webp"),
+        "2.26",
+        77
+    );
+    createOrUpdateProduct(
+        "Картофель красный 2 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-161.webp"),
+        "2.43",
+        94
+    );
+    createOrUpdateProduct(
+        "Картофель белый 2 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-162.webp"),
+        "2.80",
+        101
+    );
+    createOrUpdateProduct(
+        "Морковь молодая 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-163.webp"),
+        "3.17",
+        89
+    );
+    createOrUpdateProduct(
+        "Лук шалот 500 г",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-164.webp"),
+        "3.54",
+        96
+    );
+    createOrUpdateProduct(
+        "Лук зелёный 150 г",
+        "Зелень",
+        "Ароматная свежая зелень локального выращивания.",
+        image("mogilev-product-165.webp"),
+        "0.86",
+        101
+    );
+    createOrUpdateProduct(
+        "Капуста краснокочанная 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-166.webp"),
+        "2.43",
+        91
+    );
+    createOrUpdateProduct(
+        "Капуста савойская 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-167.webp"),
+        "2.80",
+        98
+    );
+    createOrUpdateProduct(
+        "Огурцы корнишоны 500 г",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-168.webp"),
+        "3.17",
+        86
+    );
+    createOrUpdateProduct(
+        "Огурцы тепличные 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-169.webp"),
+        "3.54",
+        93
+    );
+    createOrUpdateProduct(
+        "Томаты сливовидные 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-170.webp"),
+        "2.06",
+        100
+    );
+    createOrUpdateProduct(
+        "Томаты жёлтые 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-171.webp"),
+        "2.43",
+        88
+    );
+    createOrUpdateProduct(
+        "Перец острый 200 г",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-172.webp"),
+        "2.80",
+        95
+    );
+    createOrUpdateProduct(
+        "Перец сладкий красный 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-173.webp"),
+        "3.17",
+        102
+    );
+    createOrUpdateProduct(
+        "Кабачки цуккини 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-174.webp"),
+        "3.54",
+        90
+    );
+    createOrUpdateProduct(
+        "Патиссоны 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-175.webp"),
+        "2.06",
+        97
+    );
+    createOrUpdateProduct(
+        "Свекла запечная 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-176.webp"),
+        "2.43",
+        85
+    );
+    createOrUpdateProduct(
+        "Сельдерей корневой 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-177.webp"),
+        "2.80",
+        92
+    );
+    createOrUpdateProduct(
+        "Сельдерей стеблевой 300 г",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-178.webp"),
+        "3.17",
+        99
+    );
+    createOrUpdateProduct(
+        "Пастернак 700 г",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-179.webp"),
+        "3.54",
+        87
+    );
+    createOrUpdateProduct(
+        "Редька чёрная 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-180.webp"),
+        "2.06",
+        94
+    );
+    createOrUpdateProduct(
+        "Репа столовая 1 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-181.webp"),
+        "2.43",
+        101
+    );
+    createOrUpdateProduct(
+        "Тыква столовая 2 кг",
+        "Овощи",
+        "Свежие овощи сезонного сбора с фермерских полей.",
+        image("mogilev-product-182.webp"),
+        "2.80",
+        89
+    );
+    createOrUpdateProduct(
+        "Яблоки сладкие 1 кг",
+        "Фрукты",
+        "Фрукты из садов Могилёвского региона.",
+        image("mogilev-product-183.webp"),
+        "4.77",
+        84
+    );
+    createOrUpdateProduct(
+        "Яблоки кисло-сладкие 1 кг",
+        "Фрукты",
+        "Фрукты из садов Могилёвского региона.",
+        image("mogilev-product-184.webp"),
+        "5.14",
+        91
+    );
+    createOrUpdateProduct(
+        "Груши поздние 1 кг",
+        "Фрукты",
+        "Фрукты из садов Могилёвского региона.",
+        image("mogilev-product-185.webp"),
+        "3.66",
+        79
+    );
+    createOrUpdateProduct(
+        "Слива жёлтая 1 кг",
+        "Фрукты",
+        "Фрукты из садов Могилёвского региона.",
+        image("mogilev-product-186.webp"),
+        "4.03",
+        86
+    );
+    createOrUpdateProduct(
+        "Виноград тепличный 500 г",
+        "Фрукты",
+        "Фрукты из садов Могилёвского региона.",
+        image("mogilev-product-187.webp"),
+        "4.40",
+        74
+    );
+    createOrUpdateProduct(
+        "Крыжовник 300 г",
+        "Ягоды",
+        "Ягоды свежего сбора без искусственных добавок.",
+        image("mogilev-product-188.webp"),
+        "6.17",
+        55
+    );
+    createOrUpdateProduct(
+        "Смесь салатная 150 г",
+        "Зелень",
+        "Ароматная свежая зелень локального выращивания.",
+        image("mogilev-product-189.webp"),
+        "2.34",
+        98
+    );
+    createOrUpdateProduct(
+        "Базилик свежий 100 г",
+        "Зелень",
+        "Ароматная свежая зелень локального выращивания.",
+        image("mogilev-product-190.webp"),
+        "0.86",
+        86
+    );
+    createOrUpdateProduct(
+        "Мёд разнотравье 1 кг",
+        "Пчеловодство",
+        "Натуральный продукт с пасек Могилёвской области.",
+        image("mogilev-product-191.webp"),
+        "12.83",
+        44
+    );
+    createOrUpdateProduct(
+        "Мёд гречишный 1 кг",
+        "Пчеловодство",
+        "Натуральный продукт с пасек Могилёвской области.",
+        image("mogilev-product-192.webp"),
+        "13.20",
+        51
+    );
+    createOrUpdateProduct(
+        "Варенье клубничное 300 г",
+        "Консервация",
+        "Домашняя фермерская заготовка по традиционному рецепту.",
+        image("mogilev-product-193.webp"),
+        "5.27",
+        68
+    );
+    createOrUpdateProduct(
+        "Варенье малиновое 300 г",
+        "Консервация",
+        "Домашняя фермерская заготовка по традиционному рецепту.",
+        image("mogilev-product-194.webp"),
+        "5.64",
+        75
+    );
+    createOrUpdateProduct(
+        "Джем яблочный 300 г",
+        "Консервация",
+        "Домашняя фермерская заготовка по традиционному рецепту.",
+        image("mogilev-product-195.webp"),
+        "4.16",
+        63
+    );
+    createOrUpdateProduct(
+        "Компот яблочно-грушевый 1 л",
+        "Напитки",
+        "Натуральный напиток без искусственных ароматизаторов.",
+        image("mogilev-product-196.webp"),
+        "3.33",
+        84
+    );
+    createOrUpdateProduct(
+        "Морс клюквенный 1 л",
+        "Напитки",
+        "Натуральный напиток без искусственных ароматизаторов.",
+        image("mogilev-product-197.webp"),
+        "3.70",
+        91
+    );
+    createOrUpdateProduct(
+        "Масло льняное 500 мл",
+        "Масла",
+        "Нерафинированное масло из локального сырья.",
+        image("mogilev-product-198.webp"),
+        "7.57",
+        51
+    );
+    createOrUpdateProduct(
+        "Масло рапсовое 750 мл",
+        "Масла",
+        "Нерафинированное масло из локального сырья.",
+        image("mogilev-product-199.webp"),
+        "7.94",
+        58
+    );
+    createOrUpdateProduct(
+        "Квашеная капуста 900 г",
+        "Консервация",
+        "Домашняя фермерская заготовка по традиционному рецепту.",
+        image("mogilev-product-200.webp"),
+        "4.16",
+        79
+    );
+    demoSeeded = true;
+    }
+  }
+
+  public void seedDemoData() {
+    run();
   }
 
   private User createUserIfMissing(String username,
@@ -663,13 +1802,6 @@ public class DataInitializer implements CommandLineRunner {
                                      String photoUrl,
                                      String price,
                                      int stockQuantity) {
-    if (seededProductsCount >= DEMO_PRODUCTS_LIMIT) {
-      // Do not delete existing products when demo seed exceeds the limit.
-      // Legacy rows can already be referenced by stock movements/orders.
-      return;
-    }
-    seededProductsCount++;
-
     Product existing = productRepository.findByNameIgnoreCase(name).orElse(null);
     String resolvedPhotoUrl = resolveDemoPhotoUrl(name, photoUrl, existing == null ? null : existing.getId());
     if (existing == null) {
@@ -769,6 +1901,17 @@ public class DataInitializer implements CommandLineRunner {
       return photoUrl;
     }
 
+    String generated = buildUniqueDemoPhotoUrl(productName, photoUrl, currentProductId);
+    if (generated != null) {
+      log.warn(
+          "Product photo URL '{}' is already used by another product; demo seed for '{}' switched to generated URL '{}'.",
+          photoUrl,
+          productName,
+          generated
+      );
+      return generated;
+    }
+
     log.warn(
         "Product photo URL '{}' is already used by another product; demo seed for '{}' will continue without photo.",
         photoUrl,
@@ -777,42 +1920,69 @@ public class DataInitializer implements CommandLineRunner {
     return null;
   }
 
-  private void createAddressIfMissing(User user, String label, String addressLine, String latitude, String longitude) {
-    StoreAddress address = storeAddressRepository.findByUserIdAndLabelIgnoreCase(user.getId(), label)
-        .orElseGet(() -> {
-          StoreAddress created = new StoreAddress();
-          created.setUser(user);
-          created.setLabel(label);
-          created.setCreatedAt(Instant.now());
-          return created;
-        });
+  private String buildUniqueDemoPhotoUrl(String productName, String photoUrl, Long currentProductId) {
+    String normalizedProduct = productName == null ? "" : productName;
+    String slug = buildAsciiSlug(normalizedProduct);
+    if (slug.isBlank()) {
+      slug = "product";
+    }
+    String hashPart = Integer.toUnsignedString((normalizedProduct + "|" + photoUrl).hashCode(), 36);
 
-    address.setAddressLine(addressLine);
-    address.setLatitude(new BigDecimal(latitude));
-    address.setLongitude(new BigDecimal(longitude));
-    address.setUpdatedAt(Instant.now());
-    storeAddressRepository.save(address);
+    for (int index = 0; index < 100; index++) {
+      String suffix = index == 0 ? "" : "-" + index;
+      String candidate = PRODUCT_IMAGE_BASE + slug + "-" + hashPart + suffix + ".webp";
+      boolean exists = currentProductId == null
+          ? productRepository.existsByPhotoUrlIgnoreCase(candidate)
+          : productRepository.existsByPhotoUrlIgnoreCaseAndIdNot(candidate, currentProductId);
+      if (!exists) {
+        return candidate;
+      }
+    }
+
+    return null;
   }
 
-  private void resetDemoAddress(User user, String label, String addressLine, String latitude, String longitude) {
-    var addresses = storeAddressRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
-    if (addresses.isEmpty()) {
-      createAddressIfMissing(user, label, addressLine, latitude, longitude);
+  private String buildAsciiSlug(String value) {
+    String lower = value.toLowerCase(Locale.ROOT);
+    StringBuilder builder = new StringBuilder();
+    boolean previousDash = false;
+    for (int i = 0; i < lower.length(); i++) {
+      char symbol = lower.charAt(i);
+      boolean isAsciiLetterOrDigit = (symbol >= 'a' && symbol <= 'z') || (symbol >= '0' && symbol <= '9');
+      if (isAsciiLetterOrDigit) {
+        builder.append(symbol);
+        previousDash = false;
+        continue;
+      }
+
+      if (!previousDash && builder.length() > 0) {
+        builder.append('-');
+        previousDash = true;
+      }
+    }
+
+    int length = builder.length();
+    if (length > 0 && builder.charAt(length - 1) == '-') {
+      builder.deleteCharAt(length - 1);
+    }
+    return builder.toString();
+  }
+
+  private void createAddressIfMissing(User user, String label, String addressLine, String latitude, String longitude) {
+    if (storeAddressRepository.existsByUserIdAndLabelIgnoreCase(user.getId(), label)) {
       return;
     }
 
-    BigDecimal targetLatitude = new BigDecimal(latitude);
-    BigDecimal targetLongitude = new BigDecimal(longitude);
+    StoreAddress created = new StoreAddress();
     Instant now = Instant.now();
-
-    for (StoreAddress address : addresses) {
-      address.setLabel(label);
-      address.setAddressLine(addressLine);
-      address.setLatitude(targetLatitude);
-      address.setLongitude(targetLongitude);
-      address.setUpdatedAt(now);
-      storeAddressRepository.save(address);
-    }
+    created.setUser(user);
+    created.setLabel(label);
+    created.setAddressLine(addressLine);
+    created.setLatitude(new BigDecimal(latitude));
+    created.setLongitude(new BigDecimal(longitude));
+    created.setCreatedAt(now);
+    created.setUpdatedAt(now);
+    storeAddressRepository.save(created);
   }
 
   private String validateDemoPassword() {
@@ -821,6 +1991,14 @@ public class DataInitializer implements CommandLineRunner {
       throw new IllegalStateException("Необходимо задать app.demo.password");
     }
     return normalized;
+  }
+
+  private String seededPassword(String username) {
+    String password = SEEDED_USER_PASSWORDS.get(username);
+    if (password == null) {
+      throw new IllegalStateException("Не задан пароль для пользователя: " + username);
+    }
+    return password;
   }
 
   private boolean equalsNullable(String left, String right) {

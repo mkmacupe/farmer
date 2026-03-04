@@ -1,11 +1,16 @@
 package com.farm.sales.service;
 
 import com.farm.sales.dto.GeoLookupResponse;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -13,11 +18,16 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
-import tools.jackson.databind.JsonNode;
 
 @Service
 public class GeocodingService {
+  private static final int RETRY_ATTEMPTS = 3;
+  private static final long RETRY_BASE_DELAY_MS = 180L;
+  private static final long CACHE_TTL_MS = 10 * 60 * 1000;
+  private static final int CACHE_MAX_ENTRIES = 500;
   private final RestClient restClient;
+  private final Map<String, CacheEntry<List<GeoLookupResponse>>> searchCache = new ConcurrentHashMap<>();
+  private final Map<String, CacheEntry<GeoLookupResponse>> reverseCache = new ConcurrentHashMap<>();
 
   public GeocodingService(@Value("${app.geo.nominatim-base-url:https://nominatim.openstreetmap.org}")
                           String nominatimBaseUrl,
@@ -45,9 +55,14 @@ public class GeocodingService {
     }
 
     int safeLimit = Math.max(1, Math.min(limit, 10));
-    JsonNode payload;
-    try {
-      payload = restClient.get()
+    String cacheKey = normalized.toLowerCase(Locale.ROOT) + "|" + safeLimit;
+    List<GeoLookupResponse> cached = readCache(searchCache, cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+
+    JsonNode payload = requestWithRetry(
+        () -> restClient.get()
           .uri(uriBuilder -> uriBuilder
               .path("/search")
               .queryParam("q", normalized)
@@ -55,12 +70,12 @@ public class GeocodingService {
               .queryParam("limit", safeLimit)
               .build())
           .retrieve()
-          .body(JsonNode.class);
-    } catch (RestClientException ex) {
-      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось определить координаты адреса");
-    }
+          .body(JsonNode.class),
+        "Не удалось определить координаты адреса"
+    );
 
     if (payload == null || !payload.isArray()) {
+      writeCache(searchCache, cacheKey, List.of());
       return List.of();
     }
 
@@ -75,13 +90,20 @@ public class GeocodingService {
           longitude
       ));
     }
-    return results;
+    List<GeoLookupResponse> immutableResults = List.copyOf(results);
+    writeCache(searchCache, cacheKey, immutableResults);
+    return immutableResults;
   }
 
   public GeoLookupResponse reverse(BigDecimal latitude, BigDecimal longitude) {
-    JsonNode payload;
-    try {
-      payload = restClient.get()
+    String cacheKey = buildReverseCacheKey(latitude, longitude);
+    GeoLookupResponse cached = readCache(reverseCache, cacheKey);
+    if (cached != null) {
+      return cached;
+    }
+
+    JsonNode payload = requestWithRetry(
+        () -> restClient.get()
           .uri(uriBuilder -> uriBuilder
               .path("/reverse")
               .queryParam("lat", latitude)
@@ -89,10 +111,9 @@ public class GeocodingService {
               .queryParam("format", "jsonv2")
               .build())
           .retrieve()
-          .body(JsonNode.class);
-    } catch (RestClientException ex) {
-      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось определить адрес по координатам");
-    }
+          .body(JsonNode.class),
+        "Не удалось определить адрес по координатам"
+    );
 
     if (payload == null || payload.isMissingNode()) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Адрес по координатам не найден");
@@ -106,12 +127,14 @@ public class GeocodingService {
     BigDecimal resolvedLatitude = parseCoordinate(payload.path("lat").asText(null), 7);
     BigDecimal resolvedLongitude = parseCoordinate(payload.path("lon").asText(null), 7);
 
-    return new GeoLookupResponse(
+    GeoLookupResponse resolved = new GeoLookupResponse(
         payload.path("place_id").asText(""),
         displayName,
         resolvedLatitude != null ? resolvedLatitude : latitude,
         resolvedLongitude != null ? resolvedLongitude : longitude
     );
+    writeCache(reverseCache, cacheKey, resolved);
+    return resolved;
   }
 
   public Optional<GeoLookupResponse> geocodeFirst(String addressLine) {
@@ -131,5 +154,69 @@ public class GeocodingService {
     } catch (NumberFormatException ex) {
       return null;
     }
+  }
+
+  private String buildReverseCacheKey(BigDecimal latitude, BigDecimal longitude) {
+    return latitude.setScale(5, RoundingMode.HALF_UP).toPlainString()
+        + "|"
+        + longitude.setScale(5, RoundingMode.HALF_UP).toPlainString();
+  }
+
+  private <T> T requestWithRetry(Supplier<T> supplier, String errorMessage) {
+    RestClientException lastError = null;
+    for (int attempt = 1; attempt <= RETRY_ATTEMPTS; attempt++) {
+      try {
+        return supplier.get();
+      } catch (RestClientException ex) {
+        lastError = ex;
+        if (attempt >= RETRY_ATTEMPTS) {
+          break;
+        }
+        sleepBackoff(attempt);
+      }
+    }
+    throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, errorMessage, lastError);
+  }
+
+  private void sleepBackoff(int attempt) {
+    long delayMs = RETRY_BASE_DELAY_MS * attempt;
+    try {
+      Thread.sleep(delayMs);
+    } catch (InterruptedException interruptedException) {
+      Thread.currentThread().interrupt();
+    }
+  }
+
+  private <T> T readCache(Map<String, CacheEntry<T>> cache, String key) {
+    CacheEntry<T> entry = cache.get(key);
+    if (entry == null) {
+      return null;
+    }
+    if (entry.expiresAt() <= System.currentTimeMillis()) {
+      cache.remove(key, entry);
+      return null;
+    }
+    return entry.value();
+  }
+
+  private <T> void writeCache(Map<String, CacheEntry<T>> cache, String key, T value) {
+    pruneExpiredEntries(cache);
+    cache.put(key, new CacheEntry<>(value, System.currentTimeMillis() + CACHE_TTL_MS));
+
+    while (cache.size() > CACHE_MAX_ENTRIES) {
+      String keyToEvict = cache.keySet().stream().findFirst().orElse(null);
+      if (keyToEvict == null) {
+        return;
+      }
+      cache.remove(keyToEvict);
+    }
+  }
+
+  private <T> void pruneExpiredEntries(Map<String, CacheEntry<T>> cache) {
+    long now = System.currentTimeMillis();
+    cache.entrySet().removeIf(entry -> entry.getValue().expiresAt() <= now);
+  }
+
+  private record CacheEntry<T>(T value, long expiresAt) {
   }
 }

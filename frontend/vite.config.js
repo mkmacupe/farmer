@@ -98,8 +98,10 @@ export default defineConfig(({ mode }) => {
             if (n.includes("/leaflet/")) {
               return "leaflet";
             }
-            // Let Rollup decide the rest to avoid forcing eager vendor payloads
-            return undefined;
+            if (n.includes("/@mui/") || n.includes("/@emotion/")) {
+              return "mui-vendor";
+            }
+            return "vendor";
           },
         },
       },

@@ -14,7 +14,10 @@ import MenuItem from "@mui/material/MenuItem";
 import InputAdornment from "@mui/material/InputAdornment";
 import Button from "@mui/material/Button";
 import IconButton from "@mui/material/IconButton";
-import Tooltip from "@mui/material/Tooltip";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Divider from "@mui/material/Divider";
@@ -49,6 +52,7 @@ const STATUS_META = {
     label: "Отменён",
   },
 };
+const DEFAULT_MAX_RENDERED_ORDERS = 200;
 
 function statusLabel(status) {
   return STATUS_META[status]?.label || status;
@@ -78,13 +82,16 @@ export default memo(function OrdersTable({
   emptyText = "Заказов пока нет.",
   searchEnabled = true,
   loading = false,
+  maxRendered = DEFAULT_MAX_RENDERED_ORDERS,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [detailsOrder, setDetailsOrder] = useState(null);
   const hasActions = typeof actionRenderer === "function";
   const hasFilters = searchEnabled && orders.length > 1;
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+  const closeOrderDetails = () => setDetailsOrder(null);
 
   const filteredOrders = useMemo(() => {
     const normalizedSearch = searchTerm.trim().toLowerCase();
@@ -110,6 +117,16 @@ export default memo(function OrdersTable({
       return searchable.includes(normalizedSearch);
     });
   }, [orders, searchTerm, statusFilter]);
+  const renderLimit = Number.isFinite(maxRendered)
+    ? Math.max(1, Math.floor(maxRendered))
+    : null;
+  const visibleOrders = useMemo(
+    () => (renderLimit ? filteredOrders.slice(0, renderLimit) : filteredOrders),
+    [filteredOrders, renderLimit],
+  );
+  const hasRenderLimit = renderLimit
+    ? filteredOrders.length > visibleOrders.length
+    : false;
 
   const clearFilters = () => {
     setSearchTerm("");
@@ -117,6 +134,57 @@ export default memo(function OrdersTable({
   };
 
   const hasActiveFilters = searchTerm || statusFilter;
+  const detailsDialog = (
+    <Dialog
+      open={Boolean(detailsOrder)}
+      onClose={closeOrderDetails}
+      maxWidth="sm"
+      fullWidth
+    >
+      <DialogTitle>Детали заказа #{detailsOrder?.id ?? "—"}</DialogTitle>
+      <DialogContent dividers>
+        <Stack spacing={1.25}>
+          {showCustomer && (
+            <Box>
+              <Typography variant="caption" color="text.secondary">
+                Директор
+              </Typography>
+              <Typography variant="body2" fontWeight={600}>
+                {detailsOrder?.customerName || "—"}
+              </Typography>
+            </Box>
+          )}
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Адрес доставки
+            </Typography>
+            <Typography variant="body2">
+              {detailsOrder?.deliveryAddressText || "—"}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Водитель
+            </Typography>
+            <Typography variant="body2">
+              {detailsOrder?.assignedDriverName || "—"}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Дата создания
+            </Typography>
+            <Typography variant="body2">
+              {formatDateTime(detailsOrder?.createdAt)}
+            </Typography>
+          </Box>
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={closeOrderDetails}>Закрыть</Button>
+      </DialogActions>
+    </Dialog>
+  );
   const filterContainerSx = {
     p: 2,
     borderBottom: isMobile ? "none" : "1px solid",
@@ -252,6 +320,11 @@ export default memo(function OrdersTable({
           >
             {filteredOrders.length} из {orders.length}
           </Typography>
+          {hasRenderLimit && (
+            <Typography variant="caption" color="warning.main" whiteSpace="nowrap">
+              Показаны первые {renderLimit}
+            </Typography>
+          )}
           {hasActiveFilters && (
             <Button
               size="small"
@@ -270,7 +343,8 @@ export default memo(function OrdersTable({
 
   if (isMobile) {
     return (
-      <Stack spacing={2}>
+      <>
+        <Stack spacing={2}>
         {filtersNode}
         {!filteredOrders.length ? (
           <Box
@@ -299,8 +373,10 @@ export default memo(function OrdersTable({
           </Box>
         ) : (
           <Stack spacing={1.5}>
-            {filteredOrders.map((order) => {
+            {visibleOrders.map((order) => {
               const statusMeta = STATUS_META[order.status] || {};
+              const hasLongAddress =
+                String(order.deliveryAddressText || "").trim().length > 72;
               return (
                 <Card
                   key={order.id}
@@ -330,9 +406,28 @@ export default memo(function OrdersTable({
                         {order.customerName || "—"}
                       </Typography>
                     )}
-                    <Typography variant="body2" color="text.secondary" noWrap>
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                        overflow: "hidden",
+                      }}
+                    >
                       {order.deliveryAddressText || "—"}
                     </Typography>
+                    {hasLongAddress && (
+                      <Button
+                        size="small"
+                        variant="text"
+                        onClick={() => setDetailsOrder(order)}
+                        sx={{ alignSelf: "flex-start", px: 0, minHeight: 32 }}
+                      >
+                        Показать адрес
+                      </Button>
+                    )}
                     <Stack direction="row" justifyContent="space-between">
                       <Typography variant="caption" color="text.secondary">
                         Водитель
@@ -377,23 +472,26 @@ export default memo(function OrdersTable({
             })}
           </Stack>
         )}
-      </Stack>
+        </Stack>
+        {detailsDialog}
+      </>
     );
   }
 
   return (
-    <Paper
-      elevation={0}
-      sx={{
-        borderRadius: 2.5,
-        overflow: "hidden",
-        border: "1px solid",
-        borderColor: "divider",
-        overflowX: "auto",
-        overflowY: "auto",
-        maxHeight: 560,
-      }}
-    >
+    <>
+      <Paper
+        elevation={0}
+        sx={{
+          borderRadius: 2.5,
+          overflow: "hidden",
+          border: "1px solid",
+          borderColor: "divider",
+          overflowX: "auto",
+          overflowY: "auto",
+          maxHeight: 560,
+        }}
+      >
       {filtersNode}
 
       {!filteredOrders.length ? (
@@ -437,14 +535,14 @@ export default memo(function OrdersTable({
                 Поз.
               </TableCell>
               {hasActions && (
-                <TableCell sx={{ fontWeight: 600, width: 140 }}>
+                <TableCell sx={{ fontWeight: 600, width: 280, minWidth: 280 }}>
                   Действия
                 </TableCell>
               )}
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredOrders.map((order) => {
+            {visibleOrders.map((order) => {
               const statusMeta = STATUS_META[order.status] || {};
 
               return (
@@ -467,29 +565,52 @@ export default memo(function OrdersTable({
                   </TableCell>
                   {showCustomer && (
                     <TableCell>
-                      <Typography variant="body2" fontWeight={500} noWrap>
+                      <Typography
+                        variant="body2"
+                        fontWeight={500}
+                        title={order.customerName || "—"}
+                        sx={{
+                          maxWidth: 180,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
                         {order.customerName}
                       </Typography>
                     </TableCell>
                   )}
                   <TableCell>
-                    <Tooltip
-                      title={order.deliveryAddressText || "—"}
-                      arrow
-                      placement="top"
-                    >
+                    <Stack spacing={0.25} sx={{ maxWidth: 260 }}>
                       <Typography
                         variant="body2"
+                        title={order.deliveryAddressText || "—"}
                         sx={{
-                          maxWidth: 200,
+                          display: "-webkit-box",
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: "vertical",
                           overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
                         }}
                       >
                         {order.deliveryAddressText || "—"}
                       </Typography>
-                    </Tooltip>
+                      {String(order.deliveryAddressText || "").trim().length >
+                        72 && (
+                        <Button
+                          size="small"
+                          variant="text"
+                          onClick={() => setDetailsOrder(order)}
+                          sx={{
+                            alignSelf: "flex-start",
+                            p: 0,
+                            minHeight: 28,
+                          }}
+                        >
+                          Подробнее
+                        </Button>
+                      )}
+                    </Stack>
                   </TableCell>
                   <TableCell>
                     <Typography
@@ -536,13 +657,19 @@ export default memo(function OrdersTable({
                       }}
                     />
                   </TableCell>
-                  {hasActions && <TableCell>{actionRenderer(order)}</TableCell>}
+                  {hasActions && (
+                    <TableCell sx={{ minWidth: 280, verticalAlign: "top" }}>
+                      {actionRenderer(order)}
+                    </TableCell>
+                  )}
                 </TableRow>
               );
             })}
           </TableBody>
         </Table>
       )}
-    </Paper>
+      </Paper>
+      {detailsDialog}
+    </>
   );
 });

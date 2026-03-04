@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.mockConstruction;
@@ -22,9 +23,10 @@ import java.time.Instant;
 import java.util.List;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFCell;
-import org.apache.poi.xssf.usermodel.XSSFRow;
-import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.streaming.SXSSFCell;
+import org.apache.poi.xssf.streaming.SXSSFRow;
+import org.apache.poi.xssf.streaming.SXSSFSheet;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -56,9 +58,10 @@ class ReportServiceTest {
         "Водитель 1"
     );
     when(orderRepository.findReportRows(
-        Instant.parse("2026-02-01T00:00:00Z"),
-        Instant.parse("2026-02-10T00:00:00Z"),
-        OrderStatus.DELIVERED
+        eq(Instant.parse("2026-02-01T00:00:00Z")),
+        eq(Instant.parse("2026-02-10T00:00:00Z")),
+        eq(OrderStatus.DELIVERED),
+        any(org.springframework.data.domain.Pageable.class)
     )).thenReturn(List.of(row));
 
     byte[] payload = service.buildOrdersReport(
@@ -92,11 +95,22 @@ class ReportServiceTest {
         null,
         null
     );
-    when(orderRepository.findReportRows(null, null, null)).thenReturn(List.of(row));
+    when(orderRepository.findReportRows(
+        isNull(),
+        isNull(),
+        isNull(),
+        any(org.springframework.data.domain.Pageable.class)
+    ))
+        .thenReturn(List.of(row));
 
     byte[] payload = service.buildOrdersReport(null, null, "   ");
 
-    verify(orderRepository).findReportRows(null, null, null);
+    verify(orderRepository).findReportRows(
+        isNull(),
+        isNull(),
+        isNull(),
+        any(org.springframework.data.domain.Pageable.class)
+    );
     try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(payload))) {
       Sheet sheet = workbook.getSheetAt(0);
       assertThat(sheet.getRow(1).getCell(0).getNumericCellValue()).isEqualTo(0d);
@@ -119,12 +133,18 @@ class ReportServiceTest {
 
   @Test
   void buildOrdersReportConvertsWorkbookIoErrorsToHttp500() throws Exception {
-    when(orderRepository.findReportRows(null, null, null)).thenReturn(List.of());
+    when(orderRepository.findReportRows(
+        isNull(),
+        isNull(),
+        isNull(),
+        any(org.springframework.data.domain.Pageable.class)
+    ))
+        .thenReturn(List.of());
 
-    try (MockedConstruction<XSSFWorkbook> mocked = mockConstruction(XSSFWorkbook.class, (workbook, context) -> {
-      XSSFSheet sheet = mock(XSSFSheet.class);
-      XSSFRow row = mock(XSSFRow.class);
-      XSSFCell cell = mock(XSSFCell.class);
+    try (MockedConstruction<SXSSFWorkbook> mocked = mockConstruction(SXSSFWorkbook.class, (workbook, context) -> {
+      SXSSFSheet sheet = mock(SXSSFSheet.class);
+      SXSSFRow row = mock(SXSSFRow.class);
+      SXSSFCell cell = mock(SXSSFCell.class);
       when(workbook.createSheet(anyString())).thenReturn(sheet);
       when(sheet.createRow(anyInt())).thenReturn(row);
       when(row.createCell(anyInt())).thenReturn(cell);

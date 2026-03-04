@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getAssignedOrders, markOrderDelivered, subscribeNotifications } from '../api.js';
+import { getAssignedOrdersPage, markOrderDelivered, subscribeNotifications } from '../api.js';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -20,6 +20,20 @@ import CheckIcon from '@mui/icons-material/Check';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import Skeleton from '@mui/material/Skeleton';
 
+const DEFAULT_DEPOT = {
+  latitude: 53.8971270,
+  longitude: 30.3320410
+};
+
+function haversineKm(fromLat, fromLon, toLat, toLon) {
+  const toRad = (value) => (value * Math.PI) / 180;
+  const dLat = toRad(toLat - fromLat);
+  const dLon = toRad(toLon - fromLon);
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(toRad(fromLat)) * Math.cos(toRad(toLat)) * Math.sin(dLon / 2) ** 2;
+  return 2 * 6371.0088 * Math.asin(Math.sqrt(a));
+}
+
 function normalizeCoord(value, min, max) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric) || numeric < min || numeric > max) {
@@ -28,33 +42,102 @@ function normalizeCoord(value, min, max) {
   return numeric;
 }
 
-function mapUrl(latitude, longitude) {
-  const lat = normalizeCoord(latitude, -90, 90);
-  const lon = normalizeCoord(longitude, -180, 180);
-  if (lat == null || lon == null) return '';
-  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=17/${lat}/${lon}`;
-}
-
-const SHARED_DRIVER_BASE = { lat: 53.8971270, lon: 30.3320410 };
-
-function resolveDriverBase(assignedDriverName, assignedDriverId) {
-  const numericId = Number(assignedDriverId);
-  if (assignedDriverName == null && !Number.isInteger(numericId)) {
-    return null;
-  }
-  return SHARED_DRIVER_BASE;
-}
-
-function routeUrl(fromLat, fromLon, toLat, toLon) {
-  const originLat = normalizeCoord(fromLat, -90, 90);
-  const originLon = normalizeCoord(fromLon, -180, 180);
-  const destLat = normalizeCoord(toLat, -90, 90);
-  const destLon = normalizeCoord(toLon, -180, 180);
-  if (originLat == null || originLon == null || destLat == null || destLon == null) {
+function routeUrlForPoints(points) {
+  if (!points.length) {
     return '';
   }
-  const routeParam = encodeURIComponent(`${originLat},${originLon};${destLat},${destLon}`);
-  return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${routeParam}#map=13/${originLat}/${originLon}`;
+
+  const firstPoint = points[0];
+  const depotLat = normalizeCoord(DEFAULT_DEPOT.latitude, -90, 90);
+  const depotLon = normalizeCoord(DEFAULT_DEPOT.longitude, -180, 180);
+  if (depotLat == null || depotLon == null || firstPoint == null) {
+    return '';
+  }
+
+  return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${depotLat}%2C${depotLon}%3B${firstPoint.latitude}%2C${firstPoint.longitude}`;
+}
+
+function legRouteUrl(fromLat, fromLon, toLat, toLon) {
+  return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${fromLat}%2C${fromLon}%3B${toLat}%2C${toLon}`;
+}
+
+function buildRouteLegs(points) {
+  const depotLat = normalizeCoord(DEFAULT_DEPOT.latitude, -90, 90);
+  const depotLon = normalizeCoord(DEFAULT_DEPOT.longitude, -180, 180);
+  if (depotLat == null || depotLon == null || !points.length) {
+    return [];
+  }
+
+  const legs = [];
+  let fromLat = depotLat;
+  let fromLon = depotLon;
+  for (const point of points) {
+    legs.push({
+      toOrderId: point.orderId,
+      url: legRouteUrl(fromLat, fromLon, point.latitude, point.longitude)
+    });
+    fromLat = point.latitude;
+    fromLon = point.longitude;
+  }
+  return legs;
+}
+
+function buildNearestRoutePoints(orders) {
+  const depotLat = normalizeCoord(DEFAULT_DEPOT.latitude, -90, 90);
+  const depotLon = normalizeCoord(DEFAULT_DEPOT.longitude, -180, 180);
+  if (depotLat == null || depotLon == null) {
+    return [];
+  }
+
+  const remaining = orders
+    .filter((order) => order.status === 'ASSIGNED')
+    .map((order) => {
+      const lat = normalizeCoord(order.deliveryLatitude, -90, 90);
+      const lon = normalizeCoord(order.deliveryLongitude, -180, 180);
+      return {
+        orderId: order.id,
+        latitude: lat ?? depotLat,
+        longitude: lon ?? depotLon,
+        deliveryAddress: order.deliveryAddressText || 'Адрес не указан'
+      };
+    })
+    .filter(Boolean);
+
+  const ordered = [];
+  let previousLat = depotLat;
+  let previousLon = depotLon;
+
+  while (remaining.length) {
+    let nearestIndex = 0;
+    let nearestOrderId = Number(remaining[0].orderId) || Number.MAX_SAFE_INTEGER;
+    let nearestDistance = haversineKm(
+      previousLat,
+      previousLon,
+      remaining[0].latitude,
+      remaining[0].longitude
+    );
+
+    for (let index = 1; index < remaining.length; index += 1) {
+      const candidate = remaining[index];
+      const candidateDistance = haversineKm(previousLat, previousLon, candidate.latitude, candidate.longitude);
+      const candidateOrderId = Number(candidate.orderId) || Number.MAX_SAFE_INTEGER;
+      if (candidateDistance < nearestDistance) {
+        nearestDistance = candidateDistance;
+        nearestIndex = index;
+        nearestOrderId = candidateOrderId;
+      } else if (candidateDistance === nearestDistance && candidateOrderId < nearestOrderId) {
+        nearestIndex = index;
+        nearestOrderId = candidateOrderId;
+      }
+    }
+
+    const nextPoint = remaining.splice(nearestIndex, 1)[0];
+    ordered.push(nextPoint);
+    previousLat = nextPoint.latitude;
+    previousLon = nextPoint.longitude;
+  }
+
+  return ordered;
 }
 
 function statusMeta(status) {
@@ -66,10 +149,15 @@ function statusMeta(status) {
 
 export default function DriverView({ token, activeSection }) {
   const [orders, setOrders] = useState([]);
+  const [ordersPage, setOrdersPage] = useState(0);
+  const [ordersHasNext, setOrdersHasNext] = useState(false);
+  const [ordersTotalItems, setOrdersTotalItems] = useState(0);
+  const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
 
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
+  const ordersPageSize = 50;
 
   const activeDeliveries = useMemo(
     () => orders.filter((order) => order.status === 'ASSIGNED').length,
@@ -79,6 +167,9 @@ export default function DriverView({ token, activeSection }) {
     () => orders.filter((order) => order.status === 'DELIVERED').length,
     [orders]
   );
+  const driverRoutePoints = useMemo(() => buildNearestRoutePoints(orders), [orders]);
+  const routeLegs = useMemo(() => buildRouteLegs(driverRoutePoints), [driverRoutePoints]);
+  const commonRouteUrl = useMemo(() => routeUrlForPoints(driverRoutePoints), [driverRoutePoints]);
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
   const statusChipLabel = loading
     ? 'Обновление...'
@@ -92,7 +183,12 @@ export default function DriverView({ token, activeSection }) {
   const load = async () => {
     setLoading(true);
     try {
-      setOrders(await getAssignedOrders(token));
+      const pageData = await getAssignedOrdersPage(token, { page: 0, size: ordersPageSize });
+      const items = Array.isArray(pageData?.items) ? pageData.items : [];
+      setOrders(items);
+      setOrdersPage(Number.isInteger(pageData?.page) ? pageData.page : 0);
+      setOrdersHasNext(Boolean(pageData?.hasNext));
+      setOrdersTotalItems(Number.isFinite(pageData?.totalItems) ? pageData.totalItems : items.length);
     } catch (err) {
       showMessage(err.message || 'Не удалось загрузить назначения', 'error');
     } finally {
@@ -123,21 +219,32 @@ export default function DriverView({ token, activeSection }) {
     }
   };
 
-  const handleOpenRoute = (order) => {
-    const fallbackUrl = mapUrl(order.deliveryLatitude, order.deliveryLongitude);
-    if (!fallbackUrl) {
+  const handleLoadMoreOrders = async () => {
+    if (!ordersHasNext || ordersLoadingMore) {
+      return;
+    }
+    setOrdersLoadingMore(true);
+    try {
+      const nextPage = ordersPage + 1;
+      const pageData = await getAssignedOrdersPage(token, { page: nextPage, size: ordersPageSize });
+      const items = Array.isArray(pageData?.items) ? pageData.items : [];
+      setOrders((prev) => [...prev, ...items]);
+      setOrdersPage(Number.isInteger(pageData?.page) ? pageData.page : nextPage);
+      setOrdersHasNext(Boolean(pageData?.hasNext));
+      setOrdersTotalItems(Number.isFinite(pageData?.totalItems) ? pageData.totalItems : ordersTotalItems);
+    } catch (err) {
+      showMessage(err.message || 'Не удалось загрузить ещё заказы', 'error');
+    } finally {
+      setOrdersLoadingMore(false);
+    }
+  };
+
+  const handleOpenRoute = () => {
+    if (!commonRouteUrl) {
       showMessage('Координаты точки не указаны', 'warning');
       return;
     }
-
-    const driverBase = resolveDriverBase(order.assignedDriverName, order.assignedDriverId);
-    const route = driverBase
-      ? routeUrl(driverBase.lat, driverBase.lon, order.deliveryLatitude, order.deliveryLongitude)
-      : '';
-    window.open(route || fallbackUrl, '_blank', 'noopener');
-    if (!driverBase) {
-      showMessage('Для водителя не задана базовая точка, открыт только адрес доставки', 'warning');
-    }
+    window.open(commonRouteUrl, '_blank', 'noopener');
   };
 
   return (
@@ -167,6 +274,39 @@ export default function DriverView({ token, activeSection }) {
               </Box>
               <Chip icon={<LocalShippingIcon />} label={statusChipLabel} color={statusChipColor} />
             </Stack>
+            <Stack direction="row" sx={{ mt: 1.5 }}>
+                <Button
+                  variant="outlined"
+                  startIcon={<MapIcon />}
+                  onClick={handleOpenRoute}
+                  disabled={!commonRouteUrl}
+                >
+                  Открыть маршрут в OpenStreetMap
+                </Button>
+            </Stack>
+            {!!routeLegs.length && (
+              <Stack
+                direction="row"
+                spacing={1}
+                useFlexGap
+                flexWrap="wrap"
+                sx={{ mt: 1 }}
+              >
+                {routeLegs.map((leg, index) => (
+                  <Button
+                    key={`${leg.toOrderId}-${index}`}
+                    size="small"
+                    variant="text"
+                    component="a"
+                    href={leg.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Этап {index + 1} · #{leg.toOrderId}
+                  </Button>
+                ))}
+              </Stack>
+            )}
           </Paper>
 
                     {!orders.length && !loading && (
@@ -223,16 +363,6 @@ export default function DriverView({ token, activeSection }) {
                         ID заказа: {order.id}
                       </Typography>
                       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                        <Button
-                          variant="outlined"
-                          size="large"
-                          startIcon={<MapIcon />}
-                          onClick={() => handleOpenRoute(order)}
-                          disabled={!mapUrl(order.deliveryLatitude, order.deliveryLongitude)}
-                          sx={{ minHeight: 48 }}
-                        >
-                          Открыть карту
-                        </Button>
                         {order.status === 'ASSIGNED' && (
                           <Button
                             variant="contained"
@@ -265,6 +395,20 @@ export default function DriverView({ token, activeSection }) {
               );
             })}
           </Stack>
+          {ordersHasNext && (
+            <Stack alignItems="center" spacing={1}>
+              <Button
+                variant="outlined"
+                onClick={handleLoadMoreOrders}
+                disabled={ordersLoadingMore}
+              >
+                {ordersLoadingMore ? 'Загрузка...' : 'Показать ещё'}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Показано {orders.length} из {ordersTotalItems}
+              </Typography>
+            </Stack>
+          )}
         </Stack>
       )}
     </Box>

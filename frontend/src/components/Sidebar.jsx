@@ -32,7 +32,11 @@ export default memo(function Sidebar({
   };
 
   const drawerContent = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', px: 1.5, py: 2.5 }}>
+    <Box
+      component="aside"
+      aria-label="Боковая панель"
+      sx={{ height: '100%', display: 'flex', flexDirection: 'column', px: 1.5, py: 2.5 }}
+    >
       {/* User identity */}
       <Box sx={{ px: 1.5, mb: 3.5, display: 'flex', alignItems: 'center', gap: 1.5 }}>
         <Avatar
@@ -81,63 +85,65 @@ export default memo(function Sidebar({
       </Typography>
 
       {/* Navigation items */}
-      <List disablePadding sx={{ flex: 1 }}>
-        {items.map((item) => {
-          const isActive = activeSection === item.id;
-          return (
-            <ListItem key={item.id} disablePadding sx={{ mb: 0.25 }}>
-              <ListItemButton
-                selected={isActive}
-                onClick={() => handleNavigate(item.id)}
-                aria-current={isActive ? 'page' : undefined}
-                sx={(theme) => ({
-                  borderRadius: 2,
-                  py: 1,
-                  px: 1.5,
-                  minHeight: 40,
-                  bgcolor: isActive
-                    ? 'rgba(46, 91, 78, 0.06)'
-                    : 'transparent',
-                  color: isActive
-                    ? theme.palette.primary.main
-                    : theme.palette.text.secondary,
-                  '&:hover': {
+      <Box component="nav" aria-label="Основная навигация" sx={{ flex: 1 }}>
+        <List disablePadding>
+          {items.map((item) => {
+            const isActive = activeSection === item.id;
+            return (
+              <ListItem key={item.id} disablePadding sx={{ mb: 0.25 }}>
+                <ListItemButton
+                  selected={isActive}
+                  onClick={() => handleNavigate(item.id)}
+                  aria-current={isActive ? 'page' : undefined}
+                  sx={(theme) => ({
+                    borderRadius: 2,
+                    py: 1,
+                    px: 1.5,
+                    minHeight: 40,
                     bgcolor: isActive
-                      ? 'rgba(46, 91, 78, 0.08)'
-                      : 'rgba(0, 0, 0, 0.03)',
+                      ? 'rgba(46, 91, 78, 0.06)'
+                      : 'transparent',
                     color: isActive
                       ? theme.palette.primary.main
-                      : theme.palette.text.primary
-                  },
-                  transition: 'all 0.15s ease',
-                  '&.Mui-selected': {
-                    bgcolor: 'rgba(46, 91, 78, 0.06)'
-                  },
-                  '&.Mui-selected:hover': {
-                    bgcolor: 'rgba(46, 91, 78, 0.08)'
-                  }
-                })}
-              >
-                <ListItemIcon
-                  sx={{
-                    minWidth: 32,
-                    color: 'inherit'
-                  }}
+                      : theme.palette.text.secondary,
+                    '&:hover': {
+                      bgcolor: isActive
+                        ? 'rgba(46, 91, 78, 0.08)'
+                        : 'rgba(0, 0, 0, 0.03)',
+                      color: isActive
+                        ? theme.palette.primary.main
+                        : theme.palette.text.primary
+                    },
+                    transition: 'background-color 0.15s ease, color 0.15s ease',
+                    '&.Mui-selected': {
+                      bgcolor: 'rgba(46, 91, 78, 0.06)'
+                    },
+                    '&.Mui-selected:hover': {
+                      bgcolor: 'rgba(46, 91, 78, 0.08)'
+                    }
+                  })}
                 >
-                  {itemIcon(item.id, { fontSize: 'small' })}
-                </ListItemIcon>
-                <ListItemText
-                  primary={item.label}
-                  primaryTypographyProps={{
-                    fontWeight: isActive ? 600 : 400,
-                    fontSize: '0.875rem'
-                  }}
-                />
-              </ListItemButton>
-            </ListItem>
-          );
-        })}
-      </List>
+                  <ListItemIcon
+                    sx={{
+                      minWidth: 32,
+                      color: 'inherit'
+                    }}
+                  >
+                    {itemIcon(item.id, { fontSize: 'small' })}
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={item.label}
+                    primaryTypographyProps={{
+                      fontWeight: isActive ? 600 : 400,
+                      fontSize: '0.875rem'
+                    }}
+                  />
+                </ListItemButton>
+              </ListItem>
+            );
+          })}
+        </List>
+      </Box>
 
     </Box>
   );

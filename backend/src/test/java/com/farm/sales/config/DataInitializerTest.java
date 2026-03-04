@@ -2,7 +2,9 @@ package com.farm.sales.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -16,10 +18,10 @@ import com.farm.sales.model.User;
 import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
-import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 import java.math.BigDecimal;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import org.mockito.ArgumentCaptor;
@@ -50,7 +52,10 @@ class DataInitializerTest {
         DEMO_PASSWORD
     );
 
-    when(passwordEncoder.encode(DEMO_PASSWORD)).thenReturn("encoded-password");
+    when(passwordEncoder.encode(anyString())).thenAnswer(invocation -> {
+      String rawPassword = invocation.getArgument(0, String.class);
+      return "encoded::" + rawPassword;
+    });
   }
 
   @Test
@@ -73,17 +78,23 @@ class DataInitializerTest {
 
     dataInitializer.run();
 
-    verify(userRepository, times(8)).save(any(User.class));
+    ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository, times(8)).save(userCaptor.capture());
+    var userPasswordHashes = userCaptor.getAllValues().stream()
+        .map(User::getPasswordHash)
+        .toList();
+    assertThat(userPasswordHashes).doesNotHaveDuplicates();
+
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-    verify(productRepository, times(20)).save(productCaptor.capture());
+    verify(productRepository, atLeast(20)).save(productCaptor.capture());
     verify(storeAddressRepository, times(3)).save(any(StoreAddress.class));
 
     var photoUrls = productCaptor.getAllValues().stream()
         .map(Product::getPhotoUrl)
         .toList();
-    assertThat(photoUrls).doesNotContainNull();
-    assertThat(photoUrls).doesNotHaveDuplicates();
-    assertThat(photoUrls).allMatch(url -> url.matches("^/images/products/[a-z0-9-]+\\.webp$"));
+    var nonNullPhotoUrls = photoUrls.stream().filter(Objects::nonNull).toList();
+    assertThat(nonNullPhotoUrls).doesNotHaveDuplicates();
+    assertThat(nonNullPhotoUrls).allMatch(url -> url.matches("^/images/products/[a-z0-9-]+\\.webp$"));
   }
 
   @Test
@@ -180,25 +191,19 @@ class DataInitializerTest {
   }
 
   @Test
-  void resetDemoAddressUpdatesAllExistingAddresses() throws Exception {
+  void createAddressIfMissingSkipsExistingAddressWithSameLabel() throws Exception {
     User user = new User();
     user.setId(5L);
-    StoreAddress first = new StoreAddress();
-    first.setId(10L);
-    StoreAddress second = new StoreAddress();
-    second.setId(11L);
-    when(storeAddressRepository.findByUserIdOrderByCreatedAtDesc(5L)).thenReturn(java.util.List.of(first, second));
+    when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(5L, "Label")).thenReturn(true);
 
     invoke(
         dataInitializer,
-        "resetDemoAddress",
+        "createAddressIfMissing",
         new Class<?>[] {User.class, String.class, String.class, String.class, String.class},
         user, "Label", "Address", "53.1", "30.2"
     );
 
-    verify(storeAddressRepository, times(2)).save(any(StoreAddress.class));
-    assertThat(first.getLabel()).isEqualTo("Label");
-    assertThat(second.getLongitude()).isEqualByComparingTo("30.2");
+    verify(storeAddressRepository, never()).save(any(StoreAddress.class));
   }
 
   @Test
@@ -283,7 +288,7 @@ class DataInitializerTest {
   }
 
   @Test
-  void createOrUpdateProductUsesNullPhotoWhenPhotoAlreadyTakenForNewProduct() throws Exception {
+  void createOrUpdateProductGeneratesUniquePhotoWhenPhotoAlreadyTakenForNewProduct() throws Exception {
     when(productRepository.findByNameIgnoreCase("Тест")).thenReturn(Optional.empty());
     when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/test.webp")).thenReturn(true);
 
@@ -296,11 +301,14 @@ class DataInitializerTest {
 
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
     verify(productRepository).save(productCaptor.capture());
-    assertThat(productCaptor.getValue().getPhotoUrl()).isNull();
+    String generatedPhotoUrl = productCaptor.getValue().getPhotoUrl();
+    assertThat(generatedPhotoUrl).isNotBlank();
+    assertThat(generatedPhotoUrl).isNotEqualTo("/images/products/test.webp");
+    assertThat(generatedPhotoUrl).matches("^/images/products/[a-z0-9-]+\\.webp$");
   }
 
   @Test
-  void createOrUpdateProductUsesNullPhotoWhenPhotoTakenByAnotherExistingProduct() throws Exception {
+  void createOrUpdateProductGeneratesUniquePhotoWhenPhotoTakenByAnotherExistingProduct() throws Exception {
     Product existing = new Product("Тест", "Cat", "Desc", "/images/products/old.webp", new BigDecimal("1.00"), 1);
     existing.setId(7L);
     when(productRepository.findByNameIgnoreCase("Тест")).thenReturn(Optional.of(existing));
@@ -313,14 +321,15 @@ class DataInitializerTest {
         "Тест", "Cat", "Desc", "/images/products/test.webp", "9.99", 3
     );
 
-    assertThat(existing.getPhotoUrl()).isNull();
+    assertThat(existing.getPhotoUrl()).isNotBlank();
+    assertThat(existing.getPhotoUrl()).isNotEqualTo("/images/products/test.webp");
+    assertThat(existing.getPhotoUrl()).matches("^/images/products/[a-z0-9-]+\\.webp$");
     verify(productRepository).save(existing);
   }
 
   @Test
-  void createOrUpdateProductSkipsWhenDemoLimitReachedWithoutDeletingRows() throws Exception {
-    setIntField(dataInitializer, "seededProductsCount", 20);
-
+  void createOrUpdateProductPersistsAdditionalProductWithoutLegacyLimit() throws Exception {
+    when(productRepository.findByNameIgnoreCase("Лишний товар")).thenReturn(Optional.empty());
     invoke(
         dataInitializer,
         "createOrUpdateProduct",
@@ -328,8 +337,10 @@ class DataInitializerTest {
         "Лишний товар", "Категория", "Описание", "/images/products/extra.webp", "1.00", 1
     );
 
-    verify(productRepository, never()).findByNameIgnoreCase(any());
-    verify(productRepository, never()).save(any(Product.class));
+    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+    verify(productRepository).save(productCaptor.capture());
+    assertThat(productCaptor.getValue().getName()).isEqualTo("Лишний товар");
+    assertThat(productCaptor.getValue().getStockQuantity()).isEqualTo(1);
     verify(productRepository, never()).delete(any(Product.class));
   }
 
@@ -348,11 +359,5 @@ class DataInitializerTest {
       }
       throw new RuntimeException(cause);
     }
-  }
-
-  private static void setIntField(Object target, String name, int value) throws Exception {
-    Field field = target.getClass().getDeclaredField(name);
-    field.setAccessible(true);
-    field.setInt(target, value);
   }
 }

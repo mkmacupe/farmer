@@ -16,7 +16,7 @@ test('director can create delivery request', async ({ page }) => {
   // Navigate to Catalog via sidebar (label is "Каталог")
   await page.getByRole('button', { name: /каталог/i }).click();
   // Wait for the catalog section heading
-  await expect(page.getByRole('heading', { name: /каталог и корзина/i, level: 6 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /каталог и корзина/i }).first()).toBeVisible();
   // Add product to cart - the button text is "В корзину" (not already in cart)
   await page.getByRole('button', { name: /^в корзину$/i }).first().click();
   // Select delivery address
@@ -34,11 +34,11 @@ test('manager can approve created order', async ({ page }) => {
   await waitForWorkspaceReady(page);
 
   // Manager dashboard heading should be visible
-  await expect(page.getByRole('heading', { name: /панель менеджера/i, level: 5 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /панель менеджера/i }).first()).toBeVisible();
   // Navigate to orders via sidebar (label is "Заявки")
   await page.getByRole('button', { name: /заявки/i }).first().click();
   // Wait for the orders section heading
-  await expect(page.getByRole('heading', { name: /заявки на доставку/i, level: 5 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /заявки на доставку/i }).first()).toBeVisible();
   // Click approve button on the first CREATED order
   await page.getByRole('button', { name: /одобрить/i }).first().click();
   await expect(page.getByText(/заказ #301 одобрен/i)).toBeVisible();
@@ -50,7 +50,7 @@ test('logistician can assign driver to approved order', async ({ page }) => {
   await waitForWorkspaceReady(page);
 
   // Logistician should see the logistics heading
-  await expect(page.getByRole('heading', { name: /логистика и назначения/i, level: 5 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /логистика и назначения/i }).first()).toBeVisible();
   // Find the approved order row (#302) and select a driver
   // The table shows orders with "#302" format
   const approvedOrderRow = page.getByRole('row', { name: /#302/i });
@@ -70,7 +70,7 @@ test('driver can mark assigned order as delivered', async ({ page }) => {
   await waitForWorkspaceReady(page);
 
   // Driver should see the deliveries heading
-  await expect(page.getByRole('heading', { name: /мои доставки/i, level: 5 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /мои доставки/i }).first()).toBeVisible();
   // Mark the order as delivered
   await page.getByRole('button', { name: /отметить доставленным/i }).first().click();
   await expect(page.getByText(/отмечен как доставленный/i)).toBeVisible();

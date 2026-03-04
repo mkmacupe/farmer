@@ -2,9 +2,8 @@ package com.farm.sales.model;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -43,7 +42,7 @@ public class Order {
   @Column(name = "delivery_longitude", precision = 10, scale = 7)
   private BigDecimal deliveryLongitude;
 
-  @Enumerated(EnumType.STRING)
+  @Convert(converter = OrderStatusConverter.class)
   @Column(nullable = false)
   private OrderStatus status;
 

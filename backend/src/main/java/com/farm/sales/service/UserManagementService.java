@@ -7,6 +7,7 @@ import com.farm.sales.model.Role;
 import com.farm.sales.model.User;
 import com.farm.sales.repository.UserRepository;
 import java.util.List;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.http.HttpStatus;
@@ -44,7 +45,12 @@ public class UserManagementService {
         Role.DIRECTOR
     );
 
-    User saved = userRepository.save(director);
+    User saved;
+    try {
+      saved = userRepository.save(director);
+    } catch (DataIntegrityViolationException ex) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Пользователь с таким логином уже существует");
+    }
     auditTrailPublisher.publish(
         "DIRECTOR_CREATED",
         "USER",

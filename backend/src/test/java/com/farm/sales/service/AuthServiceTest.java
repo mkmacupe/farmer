@@ -102,4 +102,45 @@ class AuthServiceTest {
     verify(passwordEncoder).matches("wrong", "stored-hash");
   }
 
+  @Test
+  void demoLoginReturnsTokenWhenDemoEnabledAndUserIsAllowed() {
+    User user = new User();
+    user.setId(7L);
+    user.setUsername("manager");
+    user.setFullName("Manager");
+    user.setRole(Role.MANAGER);
+
+    when(userRepository.findByUsername("manager")).thenReturn(Optional.of(user));
+    Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+    when(jwt.getTokenValue()).thenReturn("demo-token");
+    when(jwtEncoder.encode(any())).thenReturn(jwt);
+
+    AuthResponse response = authService.demoLogin("manager", true);
+
+    assertThat(response.token()).isEqualTo("demo-token");
+    assertThat(response.role()).isEqualTo("MANAGER");
+  }
+
+  @Test
+  void demoLoginFailsWhenDemoModeDisabled() {
+    assertThatThrownBy(() -> authService.demoLogin("manager", false))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        });
+  }
+
+  @Test
+  void demoLoginFailsForUnknownOrNotAllowedUser() {
+    when(userRepository.findByUsername("intruder")).thenReturn(Optional.empty());
+
+    assertThatThrownBy(() -> authService.demoLogin("intruder", true))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        });
+  }
+
 }

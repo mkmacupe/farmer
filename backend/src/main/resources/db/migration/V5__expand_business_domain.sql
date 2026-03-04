@@ -26,7 +26,7 @@ ALTER TABLE products
 CREATE INDEX idx_products_category ON products(category);
 
 CREATE TABLE store_addresses (
-  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   user_id BIGINT NOT NULL,
   label VARCHAR(120) NOT NULL,
   address_line VARCHAR(500) NOT NULL,

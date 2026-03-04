@@ -5,6 +5,7 @@ import Typography from '@mui/material/Typography';
 import Button from '@mui/material/Button';
 import Box from '@mui/material/Box';
 import IconButton from '@mui/material/IconButton';
+import LogoutIcon from '@mui/icons-material/Logout';
 import { sectionLabel } from './navigationData.js';
 
 export default memo(function Header({
@@ -56,15 +57,19 @@ export default memo(function Header({
           aria-label="Выйти"
           sx={{
             color: 'text.secondary',
-            minWidth: { xs: 'auto', sm: 88 },
+            minWidth: { xs: 40, sm: 88 },
             px: { xs: 1, sm: 1.5 },
             fontSize: '0.8125rem',
+            minHeight: 40,
             '&:hover': {
               color: 'text.primary'
             }
           }}
           size="small"
         >
+          <Box component="span" sx={{ display: { xs: 'inline-flex', sm: 'none' }, alignItems: 'center' }}>
+            <LogoutIcon fontSize="small" />
+          </Box>
           <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
             Выйти
           </Box>

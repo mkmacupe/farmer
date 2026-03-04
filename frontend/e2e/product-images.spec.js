@@ -37,7 +37,6 @@ test.describe('Product Images Validation', () => {
       
       // Проверяем что есть изображения
       expect(webpFiles.length).toBeGreaterThan(0);
-      console.log(`Found ${webpFiles.length} product images`);
       
       // Проверяем все ожидаемые файлы
       const expectedImages = Object.values(PRODUCT_IMAGE_MAPPING);
@@ -71,11 +70,6 @@ test.describe('Product Images Validation', () => {
         }
       }
       
-      if (duplicates.length > 0) {
-        console.log('Duplicate images found (identical content):');
-        duplicates.forEach(d => console.log(`  ${d.file1} = ${d.file2}`));
-      }
-      
       expect(
         duplicates.length,
         `Found ${duplicates.length} duplicate images: ${duplicates.map(d => `${d.file1}=${d.file2}`).join(', ')}`
@@ -100,11 +94,6 @@ test.describe('Product Images Validation', () => {
         if (stats.size > MAX_SIZE) {
           issues.push(`${file}: too large (${Math.round(stats.size / 1024)}KB) - should be optimized`);
         }
-      }
-      
-      if (issues.length > 0) {
-        console.log('Image size issues:');
-        issues.forEach(i => console.log(`  ${i}`));
       }
       
       expect(issues.length, `Found ${issues.length} size issues: ${issues.join('; ')}`).toBe(0);
@@ -183,6 +172,15 @@ test.describe('Product Images Validation', () => {
           return;
         }
         
+        if (pathname.endsWith('/api/orders/my/page')) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ items: [], page: 0, size: 200, totalItems: 0, totalPages: 0, hasNext: false })
+          });
+          return;
+        }
+
         if (pathname.endsWith('/api/orders/my')) {
           await route.fulfill({
             status: 200,
@@ -243,7 +241,7 @@ test.describe('Product Images Validation', () => {
       
       // Переходим в каталог
       await page.getByRole('button', { name: /^каталог$/i }).click();
-      await expect(page.getByRole('heading', { name: /каталог и корзина/i, level: 6 })).toBeVisible();
+      await expect(page.getByRole('heading', { name: /каталог и корзина/i }).first()).toBeVisible();
       
       // Ждём загрузки
       await page.waitForTimeout(500);
@@ -284,16 +282,8 @@ test.describe('Product Images Validation', () => {
         }
       }
       
-      console.log(`Checked ${cardCount} product cards, found ${imageUrls.size} unique image URLs`);
       expect(imageUrls.size, 'At least one product image URL should be collected').toBeGreaterThan(0);
       expect(imageUrls.size, 'Each rendered product card should have an image URL').toBe(cardCount);
-      
-      if (duplicateUrls.length > 0) {
-        console.log('Products sharing same image:');
-        duplicateUrls.forEach(d => 
-          console.log(`  ${d.url}: "${d.product1}" and "${d.product2}"`)
-        );
-      }
       
       expect(
         duplicateUrls.length,
@@ -353,6 +343,15 @@ test.describe('Product Images Validation', () => {
           return;
         }
         
+        if (pathname.endsWith('/api/orders/my/page')) {
+          await route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ items: [], page: 0, size: 200, totalItems: 0, totalPages: 0, hasNext: false })
+          });
+          return;
+        }
+
         if (pathname.endsWith('/api/orders/my')) {
           await route.fulfill({ status: 200, contentType: 'application/json', body: '[]' });
           return;
@@ -413,15 +412,6 @@ test.describe('Product Images Validation', () => {
       const stdDev = Math.sqrt(variance);
       const coefficientOfVariation = (stdDev / avgSize) * 100;
       
-      console.log(`Image size stats: avg=${Math.round(avgSize/1024)}KB, stdDev=${Math.round(stdDev/1024)}KB, CV=${coefficientOfVariation.toFixed(1)}%`);
-      
-      // Показываем outliers
-      const outliers = fileSizes.filter(f => Math.abs(f.size - avgSize) > 2 * stdDev);
-      if (outliers.length > 0) {
-        console.log('Size outliers (>2 std dev from mean):');
-        outliers.forEach(o => console.log(`  ${o.file}: ${Math.round(o.size/1024)}KB`));
-      }
-      
       // Коэффициент вариации не должен превышать 100% (иначе изображения слишком разные)
       expect(
         coefficientOfVariation,
@@ -438,11 +428,6 @@ test.describe('Product Images Validation', () => {
         if (!existingFiles.has(image)) {
           missingImages.push({ product, image });
         }
-      }
-      
-      if (missingImages.length > 0) {
-        console.log('Missing images:');
-        missingImages.forEach(m => console.log(`  ${m.product} -> ${m.image}`));
       }
       
       expect(
@@ -473,11 +458,6 @@ test.describe('Product Images Validation', () => {
         if (!validPattern.test(file)) {
           invalidNames.push(file);
         }
-      }
-      
-      if (invalidNames.length > 0) {
-        console.log('Files with invalid naming:');
-        invalidNames.forEach(f => console.log(`  ${f}`));
       }
       
       expect(

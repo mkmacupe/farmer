@@ -3,10 +3,14 @@ package com.farm.sales.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
 
+import com.farm.sales.dto.DashboardCategoryInsightResponse;
+import com.farm.sales.dto.DashboardTrendResponse;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.LocalDate;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -60,5 +64,41 @@ class DashboardServiceTest {
     assertThat(summary.ordersByStatus())
         .extracting(status -> status.count())
         .containsOnly(0L);
+  }
+
+  @Test
+  void trendsMapsRows() {
+    Instant from = Instant.parse("2026-01-01T00:00:00Z");
+    Instant to = Instant.parse("2026-01-02T23:59:59Z");
+    OrderRepository.DailyTrendRow row = org.mockito.Mockito.mock(OrderRepository.DailyTrendRow.class);
+    when(row.getDay()).thenReturn(LocalDate.of(2026, 1, 1));
+    when(row.getTotalOrders()).thenReturn(3L);
+    when(row.getTotalAmount()).thenReturn(new BigDecimal("120.555"));
+    when(row.getDeliveredCount()).thenReturn(1L);
+    when(orderRepository.findDailyTrends(from, to)).thenReturn(List.of(row));
+
+    DashboardTrendResponse trends = dashboardService.getTrends(from, to);
+
+    assertThat(trends.points()).hasSize(1);
+    assertThat(trends.points().get(0).date()).isEqualTo(LocalDate.of(2026, 1, 1));
+    assertThat(trends.points().get(0).orders()).isEqualTo(3);
+    assertThat(trends.points().get(0).delivered()).isEqualTo(1);
+    assertThat(trends.points().get(0).revenue()).isEqualByComparingTo("120.56");
+  }
+
+  @Test
+  void categoryInsightsMapsRows() {
+    Instant from = Instant.parse("2026-01-01T00:00:00Z");
+    Instant to = Instant.parse("2026-01-02T23:59:59Z");
+    OrderRepository.CategoryUnitsRow row = org.mockito.Mockito.mock(OrderRepository.CategoryUnitsRow.class);
+    when(row.getCategory()).thenReturn("Овощи");
+    when(row.getTotalUnits()).thenReturn(15L);
+    when(orderRepository.findCategoryUnits(from, to)).thenReturn(List.of(row));
+
+    List<DashboardCategoryInsightResponse> insights = dashboardService.getCategoryInsights(from, to);
+
+    assertThat(insights).hasSize(1);
+    assertThat(insights.get(0).category()).isEqualTo("Овощи");
+    assertThat(insights.get(0).units()).isEqualTo(15L);
   }
 }

@@ -7,6 +7,8 @@ const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
 const OSRM_PUBLIC_ROUTE_API = 'https://router.project-osrm.org/route/v1/driving';
 const ROAD_ROUTE_TIMEOUT_MS = 4200;
 const ROAD_ROUTE_SEGMENT_TIMEOUT_MS = 1800;
+const ROAD_ROUTE_CACHE_TTL_MS = 10 * 60 * 1000;
+const ROAD_ROUTE_CACHE_MAX_ITEMS = 180;
 const ROAD_ROUTE_CACHE = new Map();
 const ROAD_ROUTE_PENDING = new Map();
 
@@ -67,13 +69,52 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
+function pruneExpiredRoutes(now = Date.now()) {
+  for (const [key, entry] of ROAD_ROUTE_CACHE.entries()) {
+    if (entry.expiresAt <= now) {
+      ROAD_ROUTE_CACHE.delete(key);
+    }
+  }
+}
+
+function readCachedRoute(key) {
+  const entry = ROAD_ROUTE_CACHE.get(key);
+  if (!entry) {
+    return null;
+  }
+  if (entry.expiresAt <= Date.now()) {
+    ROAD_ROUTE_CACHE.delete(key);
+    return null;
+  }
+  return entry.points;
+}
+
+function writeCachedRoute(key, points) {
+  pruneExpiredRoutes();
+  if (ROAD_ROUTE_CACHE.has(key)) {
+    ROAD_ROUTE_CACHE.delete(key);
+  }
+  ROAD_ROUTE_CACHE.set(key, {
+    points,
+    expiresAt: Date.now() + ROAD_ROUTE_CACHE_TTL_MS
+  });
+
+  while (ROAD_ROUTE_CACHE.size > ROAD_ROUTE_CACHE_MAX_ITEMS) {
+    const oldestKey = ROAD_ROUTE_CACHE.keys().next().value;
+    if (!oldestKey) {
+      break;
+    }
+    ROAD_ROUTE_CACHE.delete(oldestKey);
+  }
+}
+
 async function requestRoadRoute(points, signal, timeoutMs) {
   if (points.length < 2) {
     return null;
   }
 
   const key = routeCacheKey(points);
-  const cachedPoints = ROAD_ROUTE_CACHE.get(key);
+  const cachedPoints = readCachedRoute(key);
   if (cachedPoints) {
     return cachedPoints;
   }
@@ -117,7 +158,7 @@ async function requestRoadRoute(points, signal, timeoutMs) {
         throw new Error('OSRM malformed geometry');
       }
 
-      ROAD_ROUTE_CACHE.set(key, normalizedPoints);
+      writeCachedRoute(key, normalizedPoints);
       return normalizedPoints;
     } finally {
       window.clearTimeout(timeoutId);
@@ -261,20 +302,38 @@ function RoutePlanMap({ plan }) {
   }, [plan]);
 
   return (
-    <Box
-      ref={containerRef}
-      role="application"
-      aria-label="Карта автопостроенных маршрутов"
-      sx={{
-        width: '100%',
-        height: { xs: 210, md: 250 },
-        borderRadius: 2,
-        border: '1px solid',
-        borderColor: 'divider',
-        overflow: 'hidden',
-        bgcolor: 'background.default'
-      }}
-    />
+    <Box>
+      <Box
+        ref={containerRef}
+        aria-label="Карта автопостроенных маршрутов"
+        aria-describedby="route-plan-map-description"
+        sx={{
+          width: '100%',
+          height: { xs: 210, md: 250 },
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          overflow: 'hidden',
+          bgcolor: 'background.default'
+        }}
+      />
+      <Box
+        id="route-plan-map-description"
+        sx={{
+          position: 'absolute',
+          width: 1,
+          height: 1,
+          p: 0,
+          m: -1,
+          overflow: 'hidden',
+          clip: 'rect(0 0 0 0)',
+          whiteSpace: 'nowrap',
+          border: 0
+        }}
+      >
+        Визуальная схема маршрутов. Подробности точек доступны в таблице маршрутного плана.
+      </Box>
+    </Box>
   );
 }
 

@@ -104,17 +104,20 @@ export default function AuthenticatedApp({
   return (
     <ThemeProvider theme={themeMinimal}>
       <CssBaseline />
+      <a href="#main-content" className="skip-link">
+        Перейти к основному содержимому
+      </a>
       <Box sx={rootSx}>
         {!isMobile && (
           <Suspense fallback={null}>
             <Sidebar
               user={auth}
               activeSection={activeSection}
-              onNavigate={onNavigate}
-            />
-          </Suspense>
-        )}
-        <Box component="main" sx={mainSx}>
+            onNavigate={onNavigate}
+          />
+        </Suspense>
+      )}
+        <Box component="main" id="main-content" tabIndex={-1} sx={mainSx}>
           <Header
             user={auth}
             activeSection={activeSection}

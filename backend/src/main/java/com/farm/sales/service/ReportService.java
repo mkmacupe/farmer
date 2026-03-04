@@ -3,17 +3,16 @@ package com.farm.sales.service;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
-import org.apache.poi.ss.usermodel.Workbook;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +20,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ReportService {
+  private static final int REPORT_ROW_WINDOW = 200;
+  private static final int MAX_REPORT_ROWS = 20_000;
   private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
       .withLocale(Locale.US)
       .withZone(ZoneOffset.UTC);
@@ -34,10 +35,17 @@ public class ReportService {
   public byte[] buildOrdersReport(Instant from, Instant to, String statusValue) {
     OrderStatus status = parseStatus(statusValue);
 
-    List<OrderRepository.ReportRow> orders = orderRepository.findReportRows(from, to, status);
+    List<OrderRepository.ReportRow> orders = orderRepository.findReportRows(from, to, status, PageRequest.of(0, MAX_REPORT_ROWS + 1));
+    if (orders.size() > MAX_REPORT_ROWS) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Слишком большой отчёт. Сузьте период или фильтр статуса"
+      );
+    }
 
-    try (Workbook workbook = new XSSFWorkbook();
+    try (SXSSFWorkbook workbook = new SXSSFWorkbook(REPORT_ROW_WINDOW);
          ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+      workbook.setCompressTempFiles(true);
       Sheet sheet = workbook.createSheet("Заказы");
       createHeader(sheet);
       setColumnWidths(sheet);
@@ -46,10 +54,10 @@ public class ReportService {
       for (OrderRepository.ReportRow order : orders) {
         Row row = sheet.createRow(rowIndex++);
         row.createCell(0).setCellValue(order.getOrderId() == null ? 0 : order.getOrderId());
-        row.createCell(1).setCellValue(order.getStoreName());
-        row.createCell(2).setCellValue(order.getStatus().name());
-        row.createCell(3).setCellValue(REPORT_DATE_FORMATTER.format(order.getCreatedAt()));
-        row.createCell(4).setCellValue(order.getTotalAmount().doubleValue());
+        row.createCell(1).setCellValue(order.getStoreName() == null ? "-" : order.getStoreName());
+        row.createCell(2).setCellValue(order.getStatus() == null ? "-" : order.getStatus().name());
+        row.createCell(3).setCellValue(order.getCreatedAt() == null ? "-" : REPORT_DATE_FORMATTER.format(order.getCreatedAt()));
+        row.createCell(4).setCellValue(order.getTotalAmount() == null ? 0d : order.getTotalAmount().doubleValue());
         row.createCell(5).setCellValue(order.getItemCount() == null ? 0 : order.getItemCount());
         row.createCell(6).setCellValue(order.getDeliveryAddressText() == null ? "-" : order.getDeliveryAddressText());
         row.createCell(7).setCellValue(order.getDriverName() == null ? "-" : order.getDriverName());
@@ -57,7 +65,7 @@ public class ReportService {
 
       workbook.write(outputStream);
       return outputStream.toByteArray();
-    } catch (IOException ex) {
+    } catch (Exception ex) {
       throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Не удалось сформировать отчёт");
     }
   }

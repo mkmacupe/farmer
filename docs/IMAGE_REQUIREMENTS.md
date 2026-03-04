@@ -22,7 +22,7 @@
 
 ---
 
-## Image List (34 images)
+## Base Image List (34 images)
 
 ### Dairy Products (Молочная продукция)
 
@@ -99,6 +99,12 @@
 | `water.webp` | Вода питьевая артезианская 1.5 л | Artesian drinking water | Clear 1.5L water bottle |
 
 ---
+
+## Expanded Catalog (Seed Data)
+
+В демо-сиде используется расширенный каталог (200+ позиций) с именами вида `mogilev-product-001.webp`.
+Для них применяются те же требования по формату, фону и размеру. Базовый список выше остаётся обязательным
+для соответствия курсовому заданию, а дополнительные изображения можно генерировать серийно.
 
 ## AI Image Generation Prompts
 
@@ -232,7 +238,7 @@ Before adding each image, verify:
 
 ---
 
-## Current Issues to Fix
+## Current Issues to Fix (Base Set)
 
 ### Placeholders (need real images)
 - `millet.webp` - just text "Millet" on beige

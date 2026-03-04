@@ -103,9 +103,6 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
       } else {
         markerRef.current.setLatLng(selectedPoint);
       }
-      map.setView(selectedPoint, Math.max(PICKED_ZOOM, map.getZoom()), {
-        animate: true,
-      });
       onSelectRef.current?.(
         formatCoordinate(event.latlng.lat),
         formatCoordinate(event.latlng.lng),
@@ -126,7 +123,7 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
       mapRef.current = null;
       markerRef.current = null;
     };
-  }, [latitude, longitude]);
+  }, []);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -151,7 +148,6 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
     } else {
       markerRef.current.setLatLng(point);
     }
-    map.panTo(point, { animate: false });
   }, [latitude, longitude]);
 
   return (
@@ -159,8 +155,8 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
       <div
         ref={containerRef}
         className="map-picker-canvas"
-        role="application"
         aria-label="Карта выбора адреса"
+        aria-describedby="address-map-instructions"
         style={{
           width: "100%",
           height: "clamp(360px, 50vh, 520px)",
@@ -174,6 +170,22 @@ export default function AddressMapPicker({ latitude, longitude, onSelect }) {
           opacity: 1,
         }}
       />
+      <p
+        id="address-map-instructions"
+        style={{
+          position: "absolute",
+          width: "1px",
+          height: "1px",
+          padding: 0,
+          margin: "-1px",
+          overflow: "hidden",
+          clip: "rect(0, 0, 0, 0)",
+          whiteSpace: "nowrap",
+          border: 0,
+        }}
+      >
+        Сначала нажмите кнопку открытия карты, затем кликните по точке доставки.
+      </p>
       {!mapEnabled && (
         <div
           style={{

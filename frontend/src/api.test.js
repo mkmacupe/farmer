@@ -78,7 +78,7 @@ describe('api', () => {
     api = await import('./api.js');
   });
 
-  it('uses backend host and port when VITE_API_BASE is default /api', async () => {
+  it('keeps relative /api base when VITE_API_BASE is set to /api', async () => {
     vi.stubEnv('VITE_API_BASE', '/api');
     vi.stubEnv('VITE_PROXY_API_HOST', '127.0.0.1');
     vi.stubEnv('VITE_PROXY_API_PORT', '8080');
@@ -88,7 +88,7 @@ describe('api', () => {
 
     await defaultApi.login('manager', 'secret');
 
-    expect(fetchMock.mock.calls[0][0]).toBe('http://127.0.0.1:8080/api/auth/login');
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/auth/login');
     vi.unstubAllEnvs();
     vi.resetModules();
     api = await import('./api.js');
@@ -107,6 +107,21 @@ describe('api', () => {
     expect(options.method).toBe('POST');
     expect(options.headers['Content-Type']).toBe('application/json');
     expect(options.body).toBe(JSON.stringify({ username: 'manager', password: 'secret' }));
+  });
+
+  it('demoLogin sends POST request with username only', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ token: 'jwt-demo' }));
+
+    const result = await api.demoLogin('manager');
+
+    expect(result).toEqual({ token: 'jwt-demo' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0];
+    const parsed = new URL(url, 'http://localhost');
+    expect(parsed.pathname).toBe('/api/auth/demo-login');
+    expect(options.method).toBe('POST');
+    expect(options.headers['Content-Type']).toBe('application/json');
+    expect(options.body).toBe(JSON.stringify({ username: 'manager' }));
   });
 
   it('getProductsPage builds query parameters and auth header', async () => {

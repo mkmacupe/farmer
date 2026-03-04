@@ -21,7 +21,7 @@ const palette = {
   warning: {
     main: '#b18a52',
     light: '#f7efe2',
-    dark: '#8f6f43'
+    dark: '#6f522e'
   },
   error: {
     main: '#b97777',
@@ -39,7 +39,7 @@ const palette = {
   },
   text: {
     primary: '#18181b',
-    secondary: '#71717a'
+    secondary: '#63636c'
   },
   divider: '#f0f0f0',
   action: {
@@ -90,6 +90,23 @@ const themeMinimal = createTheme({
         }
       }
     },
+    MuiTypography: {
+      defaultProps: {
+        variantMapping: {
+          h1: 'h1',
+          h2: 'h2',
+          h3: 'h3',
+          h4: 'h2',
+          h5: 'h2',
+          h6: 'h3',
+          subtitle1: 'p',
+          subtitle2: 'p',
+          body1: 'p',
+          body2: 'p',
+          inherit: 'p'
+        }
+      }
+    },
     MuiButton: {
       defaultProps: {
         disableElevation: true,
@@ -99,7 +116,7 @@ const themeMinimal = createTheme({
         root: {
           borderRadius: 8,
           padding: '8px 18px',
-          transition: 'all 0.15s ease',
+          transition: 'background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease',
           fontWeight: 600,
           '&:focus-visible': {
             outline: `3px solid ${alpha(palette.primary.main, 0.5)}`,
@@ -138,7 +155,7 @@ const themeMinimal = createTheme({
     MuiIconButton: {
       styleOverrides: {
         root: {
-          transition: 'all 0.15s ease',
+          transition: 'background-color 0.15s ease, color 0.15s ease',
           '&:hover': {
             backgroundColor: 'rgba(0,0,0,0.04)'
           },
@@ -207,7 +224,7 @@ const themeMinimal = createTheme({
         root: {
           borderRadius: 8,
           backgroundColor: palette.background.paper,
-          transition: 'all 0.15s ease',
+          transition: 'background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease',
           '& .MuiOutlinedInput-notchedOutline': {
             borderColor: '#e4e4e7',
             transition: 'border-color 0.15s ease'
@@ -303,7 +320,7 @@ const themeMinimal = createTheme({
           props: { variant: 'filled', color: 'warning' },
           style: {
             backgroundColor: '#f7efe2',
-            color: '#8f6f43'
+            color: '#6f522e'
           }
         },
         {
@@ -341,7 +358,7 @@ const themeMinimal = createTheme({
           props: { variant: 'outlined', color: 'warning' },
           style: {
             borderColor: '#dfcfb6',
-            color: '#8f6f43',
+            color: '#6f522e',
             backgroundColor: '#fbf8f2'
           }
         },
@@ -359,6 +376,16 @@ const themeMinimal = createTheme({
       styleOverrides: {
         root: {
           borderColor: palette.divider
+        }
+      }
+    },
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: {
+          color: palette.text.secondary,
+          '&.Mui-disabled': {
+            color: '#5f6368'
+          }
         }
       }
     },
@@ -385,8 +412,8 @@ const themeMinimal = createTheme({
         },
         standardWarning: {
           backgroundColor: '#fbf8f2',
-          color: '#8f6f43',
-          '& .MuiAlert-icon': { color: '#b18a52' }
+          color: '#6f522e',
+          '& .MuiAlert-icon': { color: '#6f522e' }
         }
       }
     },
@@ -466,7 +493,7 @@ const themeMinimal = createTheme({
       styleOverrides: {
         root: {
           borderRadius: 8,
-          transition: 'all 0.15s ease'
+          transition: 'background-color 0.15s ease, color 0.15s ease'
         }
       }
     },

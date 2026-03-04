@@ -5,6 +5,7 @@ import com.farm.sales.dto.AutoAssignPreviewResponse;
 import com.farm.sales.dto.AutoAssignResultResponse;
 import com.farm.sales.dto.DriverAssignRequest;
 import com.farm.sales.dto.OrderCreateRequest;
+import com.farm.sales.dto.OrderPageResponse;
 import com.farm.sales.dto.OrderResponse;
 import com.farm.sales.dto.OrderTimelineEventResponse;
 import com.farm.sales.model.Role;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -59,10 +61,26 @@ public class OrderController {
     return ResponseEntity.ok(orderService.getOrdersForRole(Role.DIRECTOR, userId));
   }
 
+  @GetMapping("/my/page")
+  public ResponseEntity<OrderPageResponse> myOrdersPage(@AuthenticationPrincipal Jwt jwt,
+                                                        @RequestParam(required = false) Integer page,
+                                                        @RequestParam(required = false) Integer size) {
+    Long userId = jwtClaimsReader.requireUserId(jwt);
+    return ResponseEntity.ok(orderService.getOrdersPageForRole(Role.DIRECTOR, userId, page, size));
+  }
+
   @GetMapping("/assigned")
   public ResponseEntity<List<OrderResponse>> assignedOrders(@AuthenticationPrincipal Jwt jwt) {
     Long userId = jwtClaimsReader.requireUserId(jwt);
     return ResponseEntity.ok(orderService.getOrdersForRole(Role.DRIVER, userId));
+  }
+
+  @GetMapping("/assigned/page")
+  public ResponseEntity<OrderPageResponse> assignedOrdersPage(@AuthenticationPrincipal Jwt jwt,
+                                                              @RequestParam(required = false) Integer page,
+                                                              @RequestParam(required = false) Integer size) {
+    Long userId = jwtClaimsReader.requireUserId(jwt);
+    return ResponseEntity.ok(orderService.getOrdersPageForRole(Role.DRIVER, userId, page, size));
   }
 
   @GetMapping
@@ -70,6 +88,15 @@ public class OrderController {
     Role role = jwtClaimsReader.requireSingleRole(jwt);
     Long userId = jwtClaimsReader.requireUserId(jwt);
     return ResponseEntity.ok(orderService.getOrdersForRole(role, userId));
+  }
+
+  @GetMapping("/page")
+  public ResponseEntity<OrderPageResponse> allOrdersPage(@AuthenticationPrincipal Jwt jwt,
+                                                         @RequestParam(required = false) Integer page,
+                                                         @RequestParam(required = false) Integer size) {
+    Role role = jwtClaimsReader.requireSingleRole(jwt);
+    Long userId = jwtClaimsReader.requireUserId(jwt);
+    return ResponseEntity.ok(orderService.getOrdersPageForRole(role, userId, page, size));
   }
 
   @PostMapping("/{id}/approve")

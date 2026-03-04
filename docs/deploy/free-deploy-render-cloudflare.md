@@ -1,8 +1,8 @@
-# Бесплатный деплой (Render + Cloudflare Pages)
+# Бесплатный деплой (Render или Render + Cloudflare Pages)
 
-Ниже рабочий сценарий для курсового проекта:
-- backend (Spring Boot) -> Render Free Web Service
-- frontend (Vite/React) -> Cloudflare Pages
+Ниже два рабочих сценария для курсового проекта:
+- Вариант A (проще): backend + frontend на Render
+- Вариант B: backend на Render, frontend на Cloudflare Pages
 
 ## 1) Подготовка репозитория
 
@@ -18,24 +18,25 @@ C:\Progra~1\Git\cmd\git.exe branch -M main
 C:\Progra~1\Git\cmd\git.exe push -u origin main
 ```
 
-## 2) Деплой backend на Render
+## 2) Деплой backend + frontend на Render (вариант A)
 
 1. Откройте:
    `https://dashboard.render.com/blueprint/new?repo=https://github.com/<YOUR_USER>/<YOUR_REPO>`
 2. Нажмите `Apply`.
-3. В переменных сервиса задайте:
-   - `APP_DEMO_PASSWORD` (свой пароль демо-пользователей)
-   - `APP_CORS_ALLOWED_ORIGINS` (пока временно): `https://<PAGES_PROJECT>.pages.dev`
-4. Дождитесь статуса `Live` и скопируйте URL backend:
-   - `https://<render-service>.onrender.com`
+3. В переменных сервиса `farm-sales-backend` задайте:
+   - `APP_DEMO_PASSWORD` (базовый пароль демо-пользователей; фактический формат: `<APP_DEMO_PASSWORD>:<username>`)
+   - `APP_CORS_ALLOWED_ORIGINS` (пока временно): `https://farm-sales-frontend.onrender.com`
+4. В переменных сервиса `farm-sales-frontend` задайте:
+   - `VITE_API_BASE=https://farm-sales-backend.onrender.com/api`
+5. Дождитесь статуса `Live` у обоих сервисов.
 
 Проверка:
 
 ```text
-https://<render-service>.onrender.com/actuator/health
+https://farm-sales-backend.onrender.com/actuator/health
 ```
 
-## 3) Деплой frontend на Cloudflare Pages
+## 3) Деплой frontend на Cloudflare Pages (вариант B)
 
 1. Cloudflare Dashboard -> `Workers & Pages` -> `Create` -> `Pages` -> `Connect to Git`.
 2. Выберите этот же GitHub-репозиторий.
@@ -48,7 +49,7 @@ https://<render-service>.onrender.com/actuator/health
    - `VITE_API_BASE=https://<render-service>.onrender.com/api`
 5. Нажмите `Save and Deploy`.
 
-## 4) Финальная связка CORS
+## 4) Финальная связка CORS (вариант B)
 
 После того как получите итоговый домен Pages (`https://<PAGES_PROJECT>.pages.dev`), обновите на Render:
 

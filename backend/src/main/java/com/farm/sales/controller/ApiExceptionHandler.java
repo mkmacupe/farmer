@@ -15,6 +15,8 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
 @RestControllerAdvice
@@ -95,6 +97,29 @@ public class ApiExceptionHandler {
         HttpStatus.CONFLICT.value(),
         HttpStatus.CONFLICT.getReasonPhrase(),
         "Данные были изменены другим пользователем. Обновите страницу и повторите действие.",
+        List.of()
+    ));
+  }
+
+  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+  public ResponseEntity<ErrorResponse> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+    List<String> details = ex.getSupportedMethods() == null ? List.of() : List.of(ex.getSupportedMethods());
+    return ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED).body(new ErrorResponse(
+        Instant.now(),
+        HttpStatus.METHOD_NOT_ALLOWED.value(),
+        HttpStatus.METHOD_NOT_ALLOWED.getReasonPhrase(),
+        "Метод запроса не поддерживается",
+        details
+    ));
+  }
+
+  @ExceptionHandler(NoResourceFoundException.class)
+  public ResponseEntity<ErrorResponse> handleResourceNotFound(NoResourceFoundException ex) {
+    return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ErrorResponse(
+        Instant.now(),
+        HttpStatus.NOT_FOUND.value(),
+        HttpStatus.NOT_FOUND.getReasonPhrase(),
+        "Ресурс не найден",
         List.of()
     ));
   }

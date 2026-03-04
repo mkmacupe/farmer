@@ -12,11 +12,28 @@ const ROLE_CASES = [
   { username: 'logistician', heading: /логистика и назначения/i },
   { username: 'driver1', heading: /мои доставки/i }
 ];
+const HOME_TAB_BY_USER = {
+  director: /профиль/i,
+  manager: /сводка/i,
+  logistician: /назначения/i,
+  driver1: /доставки/i
+};
 
 async function waitForWorkspaceReady(page) {
   const loadingPlaceholder = page.getByText(/загружаем рабочее пространство/i);
   if (await loadingPlaceholder.count()) {
     await expect(loadingPlaceholder).toBeHidden({ timeout: 15_000 });
+  }
+}
+
+async function openRoleHomeSection(page, username) {
+  const homePattern = HOME_TAB_BY_USER[username];
+  if (!homePattern) {
+    return;
+  }
+  const tabButton = page.getByRole('button', { name: homePattern }).first();
+  if (await tabButton.count()) {
+    await tabButton.click();
   }
 }
 
@@ -29,7 +46,8 @@ for (const roleCase of ROLE_CASES) {
     await installApiMock(page, { fixedNow: FIXED_NOW });
     await loginAs(page, roleCase.username);
     await waitForWorkspaceReady(page);
-    await expect(page.getByRole('heading', { name: roleCase.heading, level: 5 })).toBeVisible();
+    await openRoleHomeSection(page, roleCase.username);
+    await expect(page.getByRole('heading', { name: roleCase.heading }).first()).toBeVisible();
 
     await page.addStyleTag({
       content: `

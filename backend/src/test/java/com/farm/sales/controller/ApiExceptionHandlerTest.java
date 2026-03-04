@@ -8,6 +8,7 @@ import com.farm.sales.dto.ErrorResponse;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Path;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,9 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.BeanPropertyBindingResult;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import org.springframework.web.server.ResponseStatusException;
 
 class ApiExceptionHandlerTest {
@@ -88,5 +91,27 @@ class ApiExceptionHandlerTest {
     assertThat(unexpected.getStatusCode()).isEqualTo(HttpStatus.INTERNAL_SERVER_ERROR);
     assertThat(unexpected.getBody().message()).isEqualTo("Непредвиденная ошибка сервера");
     assertThat(unexpected.getBody().details()).isEmpty();
+  }
+
+  @Test
+  void handleMethodNotSupportedReturns405() {
+    ResponseEntity<ErrorResponse> response = handler.handleMethodNotSupported(
+        new HttpRequestMethodNotSupportedException("GET", List.of("POST"))
+    );
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
+    assertThat(response.getBody().message()).isEqualTo("Метод запроса не поддерживается");
+    assertThat(response.getBody().details()).containsExactly("POST");
+  }
+
+  @Test
+  void handleResourceNotFoundReturns404() {
+    ResponseEntity<ErrorResponse> response = handler.handleResourceNotFound(
+        new NoResourceFoundException(org.springframework.http.HttpMethod.GET, "/api/dashboard/categories")
+    );
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+    assertThat(response.getBody().message()).isEqualTo("Ресурс не найден");
+    assertThat(response.getBody().details()).isEmpty();
   }
 }

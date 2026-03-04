@@ -2,14 +2,14 @@ import { memo, useState } from 'react';
 import './LoginForm.css';
 
 const DEMO_ACCOUNTS = [
-  { label: 'mogilevkhim', username: 'mogilevkhim' },
-  { label: 'mogilevlift', username: 'mogilevlift' },
-  { label: 'babushkina', username: 'babushkina' },
-  { label: 'manager', username: 'manager' },
-  { label: 'logistician', username: 'logistician' },
-  { label: 'driver1', username: 'driver1' },
-  { label: 'driver2', username: 'driver2' },
-  { label: 'driver3', username: 'driver3' }
+  { label: 'mogilevkhim', username: 'mogilevkhim', password: 'MhvK8r2pQ1' },
+  { label: 'mogilevlift', username: 'mogilevlift', password: 'MlvT4n7xR2' },
+  { label: 'babushkina', username: 'babushkina', password: 'BbkP6m9sL3' },
+  { label: 'manager', username: 'manager', password: 'MgrD5v8cN4' },
+  { label: 'logistician', username: 'logistician', password: 'LogS7q1wE5' },
+  { label: 'driver1', username: 'driver1', password: 'Drv1A9k2Z6' },
+  { label: 'driver2', username: 'driver2', password: 'Drv2B8m3Y7' },
+  { label: 'driver3', username: 'driver3', password: 'Drv3C7n4X8' }
 ];
 
 function LoginForm({ onLogin, loading, error }) {
@@ -18,9 +18,9 @@ function LoginForm({ onLogin, loading, error }) {
 
   const canSubmit = username.trim().length > 0 && password.length > 0;
 
-  const applyDemo = (usernameValue) => {
-    setUsername(usernameValue);
-    setPassword('1');
+  const applyDemo = (account) => {
+    setUsername(account.username);
+    setPassword(account.password);
   };
 
   const submit = (event) => {
@@ -80,7 +80,7 @@ function LoginForm({ onLogin, loading, error }) {
                 key={account.username}
                 type="button"
                 className={username === account.username ? 'is-active' : ''}
-                onClick={() => applyDemo(account.username)}
+                onClick={() => applyDemo(account)}
                 disabled={loading}
               >
                 {account.label}

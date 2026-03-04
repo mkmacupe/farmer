@@ -7,10 +7,7 @@ import com.farm.sales.model.Product;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
 import com.farm.sales.repository.OrderRepository;
-import com.farm.sales.repository.OrderTimelineEventRepository;
 import com.farm.sales.repository.ProductRepository;
-import com.farm.sales.repository.RealtimeNotificationRepository;
-import com.farm.sales.repository.StockMovementRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
@@ -63,24 +60,15 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private final ProductRepository productRepository;
   private final StoreAddressRepository storeAddressRepository;
   private final OrderRepository orderRepository;
-  private final OrderTimelineEventRepository orderTimelineEventRepository;
-  private final StockMovementRepository stockMovementRepository;
-  private final RealtimeNotificationRepository realtimeNotificationRepository;
 
   public DemoTransportScenarioInitializer(UserRepository userRepository,
                                           ProductRepository productRepository,
                                           StoreAddressRepository storeAddressRepository,
-                                          OrderRepository orderRepository,
-                                          OrderTimelineEventRepository orderTimelineEventRepository,
-                                          StockMovementRepository stockMovementRepository,
-                                          RealtimeNotificationRepository realtimeNotificationRepository) {
+                                          OrderRepository orderRepository) {
     this.userRepository = userRepository;
     this.productRepository = productRepository;
     this.storeAddressRepository = storeAddressRepository;
     this.orderRepository = orderRepository;
-    this.orderTimelineEventRepository = orderTimelineEventRepository;
-    this.stockMovementRepository = stockMovementRepository;
-    this.realtimeNotificationRepository = realtimeNotificationRepository;
   }
 
   @Override
@@ -107,7 +95,10 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
       return;
     }
 
-    clearExistingOrdersAndPoints(directors);
+    if (orderRepository.count() > 0) {
+      log.info("Demo transport scenario skipped: orders already exist, destructive reseed disabled.");
+      return;
+    }
     seedOrdersForMogilev(directors, manager, products);
   }
 
@@ -120,21 +111,6 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
       }
     }
     return directors;
-  }
-
-  private void clearExistingOrdersAndPoints(List<User> directors) {
-    realtimeNotificationRepository.deleteAllInBatch();
-    orderTimelineEventRepository.deleteAllInBatch();
-    stockMovementRepository.deleteAllInBatch();
-    orderRepository.deleteAll();
-    orderRepository.flush();
-
-    for (User director : directors) {
-      List<StoreAddress> addresses = storeAddressRepository.findByUserIdOrderByCreatedAtDesc(director.getId());
-      if (!addresses.isEmpty()) {
-        storeAddressRepository.deleteAllInBatch(addresses);
-      }
-    }
   }
 
   private void seedOrdersForMogilev(List<User> directors, User manager, List<Product> products) {

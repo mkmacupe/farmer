@@ -26,6 +26,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 public class NotificationStreamService {
   private static final Logger logger = LoggerFactory.getLogger(NotificationStreamService.class);
   private static final long STREAM_TIMEOUT_MS = 0L;
+  private static final int MAX_ACTIVE_SUBSCRIBERS = 1000;
   private static final int HEARTBEAT_SECONDS = 25;
   private static final int DISPATCH_SECONDS = 1;
   private static final int DISPATCH_BATCH_SIZE = 200;
@@ -53,8 +54,9 @@ public class NotificationStreamService {
 
   public SseEmitter subscribe(Long userId, Set<String> roles) {
     SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
-    Subscriber subscriber = new Subscriber(userId, roles, emitter);
+    Subscriber subscriber = new Subscriber(userId, normalizeRoles(roles), emitter);
     subscribers.add(subscriber);
+    enforceSubscriberLimit();
 
     emitter.onCompletion(() -> subscribers.remove(subscriber));
     emitter.onTimeout(() -> {
@@ -80,6 +82,23 @@ public class NotificationStreamService {
     }
 
     return emitter;
+  }
+
+  private void enforceSubscriberLimit() {
+    while (subscribers.size() > MAX_ACTIVE_SUBSCRIBERS) {
+      if (subscribers.isEmpty()) {
+        return;
+      }
+      Subscriber dropped = subscribers.remove(0);
+      if (dropped == null) {
+        return;
+      }
+      try {
+        dropped.emitter().complete();
+      } catch (Exception ignored) {
+        // Ignore emitter completion issues for dropped subscribers.
+      }
+    }
   }
 
   public void publishToRoles(Set<String> targetRoles, RealtimeNotificationResponse notification) {

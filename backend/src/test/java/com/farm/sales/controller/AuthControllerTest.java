@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import com.farm.sales.dto.AuthRequest;
 import com.farm.sales.dto.AuthResponse;
+import com.farm.sales.dto.DemoLoginRequest;
 import com.farm.sales.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,7 +20,7 @@ class AuthControllerTest {
   @BeforeEach
   void setUp() {
     authService = mock(AuthService.class);
-    controller = new AuthController(authService);
+    controller = new AuthController(authService, true);
   }
 
   @Test
@@ -33,6 +34,19 @@ class AuthControllerTest {
     assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(httpResponse.getBody()).isEqualTo(response);
     verify(authService).login(request);
+  }
+
+  @Test
+  void demoLoginDelegatesToServiceAndReturnsOk() {
+    DemoLoginRequest request = new DemoLoginRequest("manager");
+    AuthResponse response = new AuthResponse("token", "manager", "Manager", "MANAGER");
+    when(authService.demoLogin("manager", true)).thenReturn(response);
+
+    var httpResponse = controller.demoLogin(request);
+
+    assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(httpResponse.getBody()).isEqualTo(response);
+    verify(authService).demoLogin("manager", true);
   }
 
 }

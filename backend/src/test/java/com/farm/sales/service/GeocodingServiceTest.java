@@ -9,6 +9,8 @@ import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 import com.farm.sales.dto.GeoLookupResponse;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.MissingNode;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpServer;
@@ -28,7 +30,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.server.ResponseStatusException;
-import tools.jackson.databind.node.MissingNode;
 
 class GeocodingServiceTest {
   private HttpServer server;
@@ -227,7 +228,7 @@ class GeocodingServiceTest {
         (java.util.function.Function<org.springframework.web.util.UriBuilder, java.net.URI>) any(java.util.function.Function.class);
     when(uriSpec.uri(uriFunction)).thenReturn(headersSpec);
     when(headersSpec.retrieve()).thenReturn(responseSpec);
-    when(responseSpec.body(tools.jackson.databind.JsonNode.class)).thenReturn(MissingNode.getInstance());
+    when(responseSpec.body(JsonNode.class)).thenReturn(MissingNode.getInstance());
 
     Field field = GeocodingService.class.getDeclaredField("restClient");
     field.setAccessible(true);

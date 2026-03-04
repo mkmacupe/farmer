@@ -35,14 +35,35 @@ describe('LoginForm', () => {
     expect(onLogin).toHaveBeenCalledWith('manager', 'secret123');
   });
 
-  it('fills demo credentials with password 1', async () => {
+  it('fills credentials via demo button with unique profile password', async () => {
     const onLogin = vi.fn();
     render(<LoginForm onLogin={onLogin} loading={false} error="" />);
 
     await userEvent.click(screen.getByRole('button', { name: 'manager' }));
-    await userEvent.click(screen.getByRole('button', { name: /войти/i }));
 
-    expect(onLogin).toHaveBeenCalledWith('manager', '1');
+    expect(screen.getByLabelText(/логин/i)).toHaveValue('manager');
+    expect(screen.getByLabelText(/пароль/i)).toHaveValue('MgrD5v8cN4');
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it('does not auto-login via demo buttons even when onQuickLogin is provided', async () => {
+    const onLogin = vi.fn();
+    const onQuickLogin = vi.fn();
+    render(
+      <LoginForm
+        onLogin={onLogin}
+        onQuickLogin={onQuickLogin}
+        loading={false}
+        error=""
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'manager' }));
+
+    expect(screen.getByLabelText(/логин/i)).toHaveValue('manager');
+    expect(screen.getByLabelText(/пароль/i)).toHaveValue('MgrD5v8cN4');
+    expect(onQuickLogin).not.toHaveBeenCalled();
+    expect(onLogin).not.toHaveBeenCalled();
   });
 
   it('shows server error message', () => {

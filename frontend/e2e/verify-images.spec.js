@@ -46,6 +46,10 @@ test('verify all seeded products have unique and valid images', async ({ page })
     await route.fulfill({ json: [] });
   });
 
+  await page.route('**/api/orders/my/page*', async route => {
+    await route.fulfill({ json: { items: [], page: 0, size: 200, totalItems: 0, totalPages: 0, hasNext: false } });
+  });
+
   await page.route('**/api/orders/my', async route => {
     await route.fulfill({ json: [] });
   });
@@ -60,14 +64,11 @@ test('verify all seeded products have unique and valid images', async ({ page })
   const imageUrls = products.map(product => product.photoUrl);
   const uniqueImageUrls = new Set(imageUrls);
   expect(uniqueImageUrls.size).toBe(products.length);
-  console.log(`Verified ${uniqueImageUrls.size} unique image URLs for ${products.length} seeded products.`);
 
   const catalogSection = page.locator('#director-catalog');
   await expect(catalogSection).toBeVisible();
 
   for (const product of products) {
-    console.log(`Verifying image for: ${product.name}`);
-
     const image = catalogSection.getByRole('img', { name: product.name }).first();
     await expect(image).toHaveCount(1);
     await expect(image).toBeVisible();
@@ -82,6 +83,4 @@ test('verify all seeded products have unique and valid images', async ({ page })
     const contentType = response.headers()['content-type'] || '';
     expect(contentType).toMatch(/^image\//);
   }
-
-  console.log(`SUCCESS: All ${products.length} seeded product images are unique and load with status 200.`);
 });

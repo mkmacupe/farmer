@@ -1,7 +1,10 @@
 package com.farm.sales.service;
 
+import com.farm.sales.dto.DashboardCategoryInsightResponse;
 import com.farm.sales.dto.DashboardStatusCountResponse;
 import com.farm.sales.dto.DashboardSummaryResponse;
+import com.farm.sales.dto.DashboardTrendPointResponse;
+import com.farm.sales.dto.DashboardTrendResponse;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
 import java.math.BigDecimal;
@@ -54,8 +57,35 @@ public class DashboardService {
     );
   }
 
+  @Transactional(readOnly = true)
+  public DashboardTrendResponse getTrends(Instant from, Instant to) {
+    List<DashboardTrendPointResponse> points = orderRepository.findDailyTrends(from, to).stream()
+        .map(row -> new DashboardTrendPointResponse(
+            row.getDay(),
+            intOrZero(row.getTotalOrders()),
+            decimalOrZero(row.getTotalAmount()).setScale(2, RoundingMode.HALF_UP),
+            intOrZero(row.getDeliveredCount())
+        ))
+        .toList();
+    return new DashboardTrendResponse(from, to, points);
+  }
+
+  @Transactional(readOnly = true)
+  public List<DashboardCategoryInsightResponse> getCategoryInsights(Instant from, Instant to) {
+    return orderRepository.findCategoryUnits(from, to).stream()
+        .map(row -> new DashboardCategoryInsightResponse(
+            row.getCategory(),
+            longOrZero(row.getTotalUnits())
+        ))
+        .toList();
+  }
+
   private long longOrZero(Long value) {
     return value == null ? 0L : value;
+  }
+
+  private int intOrZero(Long value) {
+    return value == null ? 0 : Math.toIntExact(value);
   }
 
   private BigDecimal decimalOrZero(BigDecimal value) {

@@ -1,8 +1,8 @@
-import { Suspense, lazy, memo, useEffect, useMemo, useState } from 'react';
+import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   approveAutoAssignOrders,
   assignOrderDriver,
-  getAllOrders,
+  getAllOrdersPage,
   getDrivers,
   getOrderTimeline,
   previewAutoAssignOrders,
@@ -108,6 +108,10 @@ export default function LogisticianView({ token, activeSection }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const [orders, setOrders] = useState([]);
+  const [ordersPage, setOrdersPage] = useState(0);
+  const [ordersHasNext, setOrdersHasNext] = useState(false);
+  const [ordersTotalItems, setOrdersTotalItems] = useState(0);
+  const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
   const [drivers, setDrivers] = useState([]);
   const [driversLoaded, setDriversLoaded] = useState(false);
   const [driverSelection, setDriverSelection] = useState({});
@@ -124,11 +128,12 @@ export default function LogisticianView({ token, activeSection }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [selectedTimelineOrderId, setSelectedTimelineOrderId] = useState(null);
   const [timeline, setTimeline] = useState([]);
+  const ordersPageSize = 50;
 
-  const pendingAssignmentCount = useMemo(
-    () => orders.filter((order) => order.status === 'APPROVED').length,
-    [orders]
-  );
+  const pendingAssignmentCount = useMemo(() => {
+    const loadedApproved = orders.filter((order) => order.status === 'APPROVED').length;
+    return ordersTotalItems > loadedApproved ? ordersTotalItems : loadedApproved;
+  }, [orders, ordersTotalItems]);
   const latestNotifications = useMemo(() => notifications.slice(0, 4), [notifications]);
   const routePlanAssignments = useMemo(() => {
     if (!routePlan?.routes) {
@@ -149,18 +154,26 @@ export default function LogisticianView({ token, activeSection }) {
   };
 
   const loadOrders = async () => {
-    const ordersData = await getAllOrders(token);
-    setOrders(ordersData);
+    const ordersPage = await getAllOrdersPage(token, { page: 0, size: ordersPageSize });
+    const items = Array.isArray(ordersPage?.items) ? ordersPage.items : [];
+    setOrders(items);
+    setOrdersPage(Number.isInteger(ordersPage?.page) ? ordersPage.page : 0);
+    setOrdersHasNext(Boolean(ordersPage?.hasNext));
+    setOrdersTotalItems(Number.isFinite(ordersPage?.totalItems) ? ordersPage.totalItems : items.length);
   };
 
   const load = async ({ includeDrivers = false } = {}) => {
     setLoading(true);
     try {
       const [ordersData, driversData] = await Promise.all([
-        getAllOrders(token),
+        getAllOrdersPage(token, { page: 0, size: ordersPageSize }),
         includeDrivers || !driversLoaded ? getDrivers(token) : Promise.resolve(null)
       ]);
-      setOrders(ordersData);
+      const items = Array.isArray(ordersData?.items) ? ordersData.items : [];
+      setOrders(items);
+      setOrdersPage(Number.isInteger(ordersData?.page) ? ordersData.page : 0);
+      setOrdersHasNext(Boolean(ordersData?.hasNext));
+      setOrdersTotalItems(Number.isFinite(ordersData?.totalItems) ? ordersData.totalItems : items.length);
       if (driversData) {
         setDrivers(driversData);
         setDriversLoaded(true);
@@ -184,7 +197,7 @@ export default function LogisticianView({ token, activeSection }) {
     return () => unsubscribe();
   }, [token]);
 
-  const handleAssign = async (orderId) => {
+  const handleAssign = useCallback(async (orderId) => {
     const driverId = Number(driverSelection[orderId]);
     if (!driverId) {
       return showMessage('Выберите водителя перед назначением', 'warning');
@@ -199,6 +212,26 @@ export default function LogisticianView({ token, activeSection }) {
       showMessage(err.message || 'Не удалось назначить водителя', 'error');
     } finally {
       setActionLoading(false);
+    }
+  }, [driverSelection, token]);
+
+  const handleLoadMoreOrders = async () => {
+    if (!ordersHasNext || ordersLoadingMore) {
+      return;
+    }
+    setOrdersLoadingMore(true);
+    try {
+      const nextPage = ordersPage + 1;
+      const ordersPageData = await getAllOrdersPage(token, { page: nextPage, size: ordersPageSize });
+      const items = Array.isArray(ordersPageData?.items) ? ordersPageData.items : [];
+      setOrders((prev) => [...prev, ...items]);
+      setOrdersPage(Number.isInteger(ordersPageData?.page) ? ordersPageData.page : nextPage);
+      setOrdersHasNext(Boolean(ordersPageData?.hasNext));
+      setOrdersTotalItems(Number.isFinite(ordersPageData?.totalItems) ? ordersPageData.totalItems : ordersTotalItems);
+    } catch (err) {
+      showMessage(err.message || 'Не удалось загрузить ещё заказы', 'error');
+    } finally {
+      setOrdersLoadingMore(false);
     }
   };
 
@@ -256,7 +289,7 @@ export default function LogisticianView({ token, activeSection }) {
     showMessage('Маршрутный план отклонен, назначения не сохранены', 'info');
   };
 
-  const handleLoadTimeline = async (orderId) => {
+  const handleLoadTimeline = useCallback(async (orderId) => {
     setActionLoading(true);
     try {
       const data = await getOrderTimeline(token, orderId);
@@ -268,7 +301,59 @@ export default function LogisticianView({ token, activeSection }) {
     } finally {
       setActionLoading(false);
     }
-  };
+  }, [token]);
+
+  const renderOrderActions = useCallback((order) => (
+    <Stack
+      direction="column"
+      spacing={1}
+      alignItems="stretch"
+      sx={{ minWidth: 220 }}
+    >
+      {order.status === 'APPROVED' && (
+        <>
+          <TextField
+            select
+            size="small"
+            value={driverSelection[order.id] || ''}
+            onChange={(e) => setDriverSelection((prev) => ({ ...prev, [order.id]: e.target.value }))}
+            fullWidth
+            disabled={actionLoading}
+            SelectProps={{
+              displayEmpty: true,
+              inputProps: {
+                'aria-label': `Выбор водителя для заказа #${order.id}`
+              }
+            }}
+          >
+            <MenuItem value="" disabled>Выберите водителя</MenuItem>
+            {drivers.map((driver) => (
+              <MenuItem key={driver.id} value={driver.id}>{driver.fullName}</MenuItem>
+            ))}
+          </TextField>
+          <Button
+            variant="contained"
+            size="small"
+            onClick={() => handleAssign(order.id)}
+            disabled={actionLoading}
+            fullWidth
+          >
+            Назначить
+          </Button>
+        </>
+      )}
+      <Button
+        size="small"
+        variant="outlined"
+        startIcon={<HistoryIcon />}
+        onClick={() => handleLoadTimeline(order.id)}
+        disabled={actionLoading}
+        fullWidth
+      >
+        История
+      </Button>
+    </Stack>
+  ), [actionLoading, driverSelection, drivers, handleAssign, handleLoadTimeline]);
 
   return (
     <Box sx={{ pb: 4 }}>
@@ -326,57 +411,28 @@ export default function LogisticianView({ token, activeSection }) {
             </Grid>
           </Grid>
 
-                    <OrdersTable
+          <OrdersTable
             orders={orders}
             loading={loading}
             emptyText="Заказы отсутствуют."
-            actionRenderer={(order) => (
-              <Stack
-                direction={{ xs: 'column', sm: 'row' }}
-                spacing={1}
-                alignItems={{ xs: 'stretch', sm: 'center' }}
-              >
-                {order.status === 'APPROVED' && (
-                  <>
-                    <TextField
-                      select
-                      size="small"
-                      placeholder="Выберите водителя"
-                      value={driverSelection[order.id] || ''}
-                      onChange={(e) => setDriverSelection((prev) => ({ ...prev, [order.id]: e.target.value }))}
-                      fullWidth={isMobile}
-                      sx={{ minWidth: { sm: 180 } }}
-                      disabled={actionLoading}
-                    >
-                      <MenuItem value="" disabled>Выберите водителя</MenuItem>
-                      {drivers.map((driver) => (
-                        <MenuItem key={driver.id} value={driver.id}>{driver.fullName}</MenuItem>
-                      ))}
-                    </TextField>
-                    <Button 
-                      variant="contained" 
-                      size="small"
-                      onClick={() => handleAssign(order.id)} 
-                      disabled={actionLoading}
-                      fullWidth={isMobile}
-                    >
-                      Назначить
-                    </Button>
-                  </>
-                )}
-                <Button 
-                  size="small" 
-                  variant="outlined" 
-                  startIcon={<HistoryIcon />}
-                  onClick={() => handleLoadTimeline(order.id)} 
-                  disabled={actionLoading}
-                  fullWidth={isMobile}
-                >
-                  История
-                </Button>
-              </Stack>
-            )}
+            actionRenderer={renderOrderActions}
+            maxRendered={orders.length}
           />
+
+          {ordersHasNext && (
+            <Stack alignItems="center" spacing={1} sx={{ mt: 2 }}>
+              <Button
+                variant="outlined"
+                onClick={handleLoadMoreOrders}
+                disabled={ordersLoadingMore}
+              >
+                {ordersLoadingMore ? 'Загрузка...' : 'Показать ещё'}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                Показано {orders.length} из {ordersTotalItems}
+              </Typography>
+            </Stack>
+          )}
 
           {!!latestNotifications.length && (
             <Paper variant="outlined" sx={{ p: 3, borderRadius: 2, mt: 4 }}>
@@ -384,8 +440,13 @@ export default function LogisticianView({ token, activeSection }) {
                 <NotificationsIcon color="action" /> Последние уведомления
               </Typography>
               <Stack spacing={1}>
-                {latestNotifications.map((notif, idx) => (
-                  <Alert key={idx} severity="info" icon={false} sx={{ py: 0 }}>
+                {latestNotifications.map((notif) => (
+                  <Alert
+                    key={`${notif.createdAt || 'event'}-${notif.title || 'Событие'}-${notif.orderId || 'na'}`}
+                    severity="info"
+                    icon={false}
+                    sx={{ py: 0 }}
+                  >
                     <Typography variant="subtitle2" component="span" fontWeight="bold">
                       {notif.title || 'Событие'}: 
                     </Typography>

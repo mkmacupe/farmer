@@ -9,6 +9,7 @@
 /frontend/coverage/
 /frontend/.env.local
 /output/
+/tmp/
 
 # IDE
 .idea/

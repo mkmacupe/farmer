@@ -2,6 +2,39 @@ function nowIso(fixedNow) {
   return fixedNow || new Date().toISOString();
 }
 
+function toPage(url, items) {
+  const page = Number.parseInt(url.searchParams.get('page') || '0', 10);
+  const size = Number.parseInt(url.searchParams.get('size') || `${items.length || 50}`, 10);
+  const safePage = Number.isFinite(page) && page >= 0 ? page : 0;
+  const safeSize = Number.isFinite(size) && size > 0 ? size : 50;
+  const start = safePage * safeSize;
+  const pagedItems = items.slice(start, start + safeSize);
+  const totalItems = items.length;
+  const totalPages = totalItems === 0 ? 0 : Math.ceil(totalItems / safeSize);
+  return {
+    items: pagedItems,
+    page: safePage,
+    size: safeSize,
+    totalItems,
+    totalPages,
+    hasNext: start + safeSize < totalItems
+  };
+}
+
+function toDateKey(value) {
+  if (!value) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  if (typeof value === 'string') {
+    return value.slice(0, 10);
+  }
+  try {
+    return new Date(value).toISOString().slice(0, 10);
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
 export async function installApiMock(page, options = {}) {
   const state = {
     nextOrderId: 400,
@@ -162,6 +195,41 @@ export async function installApiMock(page, options = {}) {
       return;
     }
 
+    if (path.endsWith('/api/auth/demo-login') && method === 'POST') {
+      const payload = JSON.parse(request.postData() || '{}');
+      const username = String(payload.username || '').trim().toLowerCase();
+      const roles = {
+        director: 'DIRECTOR',
+        manager: 'MANAGER',
+        logistician: 'LOGISTICIAN',
+        driver1: 'DRIVER',
+        driver2: 'DRIVER',
+        driver3: 'DRIVER',
+        mogilevkhim: 'DIRECTOR',
+        mogilevlift: 'DIRECTOR',
+        babushkina: 'DIRECTOR'
+      };
+      if (!roles[username]) {
+        await route.fulfill({
+          status: 401,
+          contentType: 'application/json',
+          body: JSON.stringify({ message: 'Invalid demo user' })
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          token: `token-${username}`,
+          username,
+          fullName: username[0].toUpperCase() + username.slice(1),
+          role: roles[username]
+        })
+      });
+      return;
+    }
+
     if (path.endsWith('/api/notifications/stream') && method === 'GET') {
       await route.fulfill({
         status: 200,
@@ -209,6 +277,39 @@ export async function installApiMock(page, options = {}) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(state.addresses)
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/orders/my/page') && method === 'GET') {
+      const items = tokenUser === 'director'
+        ? state.orders.filter((order) => order.customerId === 11)
+        : [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(toPage(url, items))
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/orders/assigned/page') && method === 'GET') {
+      const items = tokenUser === 'driver1'
+        ? state.orders.filter((order) => order.assignedDriverId === 31)
+        : [];
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(toPage(url, items))
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/orders/page') && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(toPage(url, state.orders))
       });
       return;
     }
@@ -405,6 +506,60 @@ export async function installApiMock(page, options = {}) {
             { status: 'DELIVERED', count: deliveredOrders }
           ]
         })
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/dashboard/trends') && method === 'GET') {
+      const buckets = new Map();
+      for (const order of state.orders) {
+        const key = toDateKey(order.createdAt);
+        const current = buckets.get(key) || { orders: 0, revenue: 0, delivered: 0 };
+        current.orders += 1;
+        current.revenue += Number(order.totalAmount || 0);
+        if (order.status === 'DELIVERED') {
+          current.delivered += 1;
+        }
+        buckets.set(key, current);
+      }
+      const points = [...buckets.entries()]
+        .sort((a, b) => a[0].localeCompare(b[0]))
+        .map(([date, stats]) => ({
+          date,
+          orders: stats.orders,
+          revenue: Number(stats.revenue.toFixed(2)),
+          delivered: stats.delivered
+        }));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          from: null,
+          to: null,
+          points
+        })
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/dashboard/categories') && method === 'GET') {
+      const productCategoryById = new Map(state.products.map((product) => [product.id, product.category]));
+      const totals = new Map();
+      state.orders.forEach((order) => {
+        (order.items || []).forEach((item) => {
+          const category = productCategoryById.get(item.productId) || item.productCategory || 'Без категории';
+          const quantity = Number(item.quantity || 0);
+          if (quantity <= 0) return;
+          totals.set(category, (totals.get(category) || 0) + quantity);
+        });
+      });
+      const response = [...totals.entries()]
+        .sort((a, b) => b[1] - a[1])
+        .map(([category, units]) => ({ category, units }));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(response)
       });
       return;
     }

@@ -21,18 +21,11 @@ const DATA_INITIALIZER_PATH = path.resolve(
   'DataInitializer.java'
 );
 
-const DEMO_LIMIT_REGEX = /DEMO_PRODUCTS_LIMIT\s*=\s*(\d+)\s*;/;
 const PRODUCT_REGEX =
   /createOrUpdateProduct\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*image\("([^"]+)"\)\s*,\s*"([^"]+)"\s*,\s*(\d+)\s*\);/gs;
 
 export function loadDemoProductsFromDataInitializer() {
   const source = fs.readFileSync(DATA_INITIALIZER_PATH, 'utf-8');
-
-  const limitMatch = source.match(DEMO_LIMIT_REGEX);
-  const demoLimit = Number.parseInt(limitMatch?.[1] || '0', 10);
-  if (!Number.isFinite(demoLimit) || demoLimit <= 0) {
-    throw new Error(`Could not parse DEMO_PRODUCTS_LIMIT from ${DATA_INITIALIZER_PATH}`);
-  }
 
   const allProducts = [];
   for (const match of source.matchAll(PRODUCT_REGEX)) {
@@ -52,5 +45,5 @@ export function loadDemoProductsFromDataInitializer() {
     throw new Error(`Could not parse products from ${DATA_INITIALIZER_PATH}`);
   }
 
-  return allProducts.slice(0, demoLimit);
+  return allProducts;
 }

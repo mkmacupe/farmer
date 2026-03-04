@@ -28,11 +28,15 @@ export default memo(function BottomNav({ role, activeSection, onNavigate }) {
         px: 0.5
       }}
     >
-      <Box sx={{ overflowX: 'auto', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}>
+      <Box
+        component="nav"
+        aria-label="Мобильная навигация"
+        sx={{ overflowX: 'auto', scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } }}
+      >
         <BottomNavigation
           showLabels
           value={activeSection}
-          aria-label="Мобильная навигация"
+          aria-label="Панель мобильной навигации"
           onChange={(event, value) => onNavigate(value)}
           sx={{
             height: compactMode ? 68 : 64,

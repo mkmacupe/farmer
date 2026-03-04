@@ -500,6 +500,7 @@ function Start-Frontend {
     [int]$ApiPort,
     [int]$FrontendPort,
     [string]$FrontendHost,
+    [string]$DemoPasswordBase,
     [switch]$Production
   )
 
@@ -515,7 +516,8 @@ function Start-Frontend {
   $envLocalContent = @(
     "VITE_API_BASE=$apiBase",
     "VITE_PROXY_API_HOST=127.0.0.1",
-    "VITE_PROXY_API_PORT=$ApiPort"
+    "VITE_PROXY_API_PORT=$ApiPort",
+    "VITE_DEMO_PASSWORD_BASE=$DemoPasswordBase"
   ) -join [Environment]::NewLine
   Set-Content -Path $envLocalPath -Value $envLocalContent -Encoding ascii
 
@@ -601,10 +603,12 @@ if (-not $backendReady) {
 }
 
 if (-not $NoFrontend) {
+  $demoPasswordBase = if ($composeEnv.Contains("DEMO_PASSWORD")) { $composeEnv["DEMO_PASSWORD"] } else { "1" }
   Start-Frontend `
     -ApiPort $effectiveApiPort `
     -FrontendPort $effectiveFrontendPort `
     -FrontendHost $effectiveFrontendHost `
+    -DemoPasswordBase $demoPasswordBase `
     -Production:$FrontendProduction
 
   if (-not (Wait-ForPortListening -Port $effectiveFrontendPort -TimeoutSeconds 60)) {
@@ -637,5 +641,5 @@ if (-not $NoFrontend) {
 }
 if ($composeEnv["APP_DEMO_ENABLED"] -eq "true") {
   Write-Host "Demo users: mogilevkhim / mogilevlift / babushkina / manager / logistician / driver1 / driver2 / driver3"
-  Write-Host "Demo password: (hidden, see DEMO_PASSWORD in .env)"
+  Write-Host "Demo passwords are unique per user and stored as bcrypt hashes in DB."
 }

@@ -5,12 +5,15 @@ import com.farm.sales.audit.AuditTrailPublisher;
 import com.farm.sales.config.JwtProperties;
 import com.farm.sales.dto.AuthRequest;
 import com.farm.sales.dto.AuthResponse;
+import com.farm.sales.config.DataInitializer;
 import com.farm.sales.model.User;
 import com.farm.sales.repository.UserRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Set;
 import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -22,12 +25,25 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class AuthService {
+  private static final Set<String> DEMO_USERNAMES = Set.of(
+      "mogilevkhim",
+      "mogilevlift",
+      "babushkina",
+      "manager",
+      "logistician",
+      "driver1",
+      "driver2",
+      "driver3"
+  );
+
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
   private final JwtEncoder jwtEncoder;
   private final JwtProperties jwtProperties;
   private final AuditTrailPublisher auditTrailPublisher;
   private final String dummyPasswordHash;
+  @Autowired(required = false)
+  private DataInitializer dataInitializer;
 
   public AuthService(UserRepository userRepository,
                      PasswordEncoder passwordEncoder,
@@ -63,6 +79,36 @@ public class AuthService {
     String token = generateToken(user);
     auditTrailPublisher.publishWithActor(
         "AUTH_LOGIN_SUCCESS",
+        "AUTH",
+        user.getUsername(),
+        "role=" + user.getRole().name(),
+        new AuditActor(user.getUsername(), user.getId(), user.getRole().name())
+    );
+    return new AuthResponse(token, user.getUsername(), user.getFullName(), user.getRole().name());
+  }
+
+  public AuthResponse demoLogin(String username, boolean demoEnabled) {
+    if (!demoEnabled) {
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Демо-вход отключён");
+    }
+
+    String normalizedUsername = username == null ? "" : username.trim();
+    if (!DEMO_USERNAMES.contains(normalizedUsername)) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль");
+    }
+
+    User user = userRepository.findByUsername(normalizedUsername).orElse(null);
+    if (user == null && dataInitializer != null) {
+      dataInitializer.seedDemoData();
+      user = userRepository.findByUsername(normalizedUsername).orElse(null);
+    }
+    if (user == null) {
+      throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль");
+    }
+
+    String token = generateToken(user);
+    auditTrailPublisher.publishWithActor(
+        "AUTH_DEMO_LOGIN_SUCCESS",
         "AUTH",
         user.getUsername(),
         "role=" + user.getRole().name(),

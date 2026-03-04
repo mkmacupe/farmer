@@ -23,9 +23,7 @@ const resolveApiBase = () => {
   const configuredApiBase = import.meta.env.VITE_API_BASE?.trim();
   if (configuredApiBase) {
     const normalizedConfiguredApiBase = normalizeApiBase(configuredApiBase);
-    if (normalizedConfiguredApiBase !== '/api') {
-      return normalizedConfiguredApiBase;
-    }
+    return normalizedConfiguredApiBase;
   }
   return buildDefaultApiBase();
 };
@@ -119,7 +117,9 @@ async function readErrorMessage(response) {
 
 async function handleResponse(response) {
   if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
+    const error = new Error(await readErrorMessage(response));
+    error.status = response.status;
+    throw error;
   }
   if (response.status === 204) {
     return null;
@@ -140,6 +140,15 @@ export async function login(username, password) {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, password })
+  });
+  return handleResponse(response);
+}
+
+export async function demoLogin(username) {
+  const response = await apiFetch(`${API_BASE}/auth/demo-login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username })
   });
   return handleResponse(response);
 }
@@ -319,6 +328,23 @@ export async function getMyOrders(token) {
   return handleResponse(response);
 }
 
+export async function getMyOrdersPage(token, params = {}) {
+  const search = new URLSearchParams();
+  if (params.page != null) {
+    search.set('page', String(params.page));
+  }
+  if (params.size != null) {
+    search.set('size', String(params.size));
+  }
+  const query = search.toString();
+  const url = query ? `${API_BASE}/orders/my/page?${query}` : `${API_BASE}/orders/my/page`;
+  const response = await apiFetch(url, {
+    headers: { ...authHeaders(token) }
+  });
+  const payload = await handleResponse(response);
+  return normalizeOrdersPage(payload, params.page ?? 0, params.size ?? 50);
+}
+
 export async function getAssignedOrders(token) {
   const response = await apiFetch(`${API_BASE}/orders/assigned`, {
     headers: { ...authHeaders(token) }
@@ -326,11 +352,45 @@ export async function getAssignedOrders(token) {
   return handleResponse(response);
 }
 
+export async function getAssignedOrdersPage(token, params = {}) {
+  const search = new URLSearchParams();
+  if (params.page != null) {
+    search.set('page', String(params.page));
+  }
+  if (params.size != null) {
+    search.set('size', String(params.size));
+  }
+  const query = search.toString();
+  const url = query ? `${API_BASE}/orders/assigned/page?${query}` : `${API_BASE}/orders/assigned/page`;
+  const response = await apiFetch(url, {
+    headers: { ...authHeaders(token) }
+  });
+  const payload = await handleResponse(response);
+  return normalizeOrdersPage(payload, params.page ?? 0, params.size ?? 50);
+}
+
 export async function getAllOrders(token) {
   const response = await apiFetch(`${API_BASE}/orders`, {
     headers: { ...authHeaders(token) }
   });
   return handleResponse(response);
+}
+
+export async function getAllOrdersPage(token, params = {}) {
+  const search = new URLSearchParams();
+  if (params.page != null) {
+    search.set('page', String(params.page));
+  }
+  if (params.size != null) {
+    search.set('size', String(params.size));
+  }
+  const query = search.toString();
+  const url = query ? `${API_BASE}/orders/page?${query}` : `${API_BASE}/orders/page`;
+  const response = await apiFetch(url, {
+    headers: { ...authHeaders(token) }
+  });
+  const payload = await handleResponse(response);
+  return normalizeOrdersPage(payload, params.page ?? 0, params.size ?? 50);
 }
 
 export async function approveOrder(token, id) {
@@ -352,6 +412,29 @@ export async function assignOrderDriver(token, id, driverId) {
 
 export async function autoAssignOrders(token) {
   return previewAutoAssignOrders(token);
+}
+
+function normalizeOrdersPage(payload, fallbackPage = 0, fallbackSize = 50) {
+  if (payload && Array.isArray(payload.items)) {
+    return {
+      items: payload.items,
+      page: Number.isInteger(payload.page) ? payload.page : fallbackPage,
+      size: Number.isInteger(payload.size) ? payload.size : fallbackSize,
+      totalItems: Number.isFinite(payload.totalItems) ? payload.totalItems : payload.items.length,
+      totalPages: Number.isInteger(payload.totalPages) ? payload.totalPages : 1,
+      hasNext: Boolean(payload.hasNext)
+    };
+  }
+
+  const items = Array.isArray(payload) ? payload : [];
+  return {
+    items,
+    page: fallbackPage,
+    size: fallbackSize,
+    totalItems: items.length,
+    totalPages: items.length ? 1 : 0,
+    hasNext: false
+  };
 }
 
 export async function previewAutoAssignOrders(token) {
@@ -437,6 +520,28 @@ export async function getDashboardSummary(token, params) {
   if (params?.to) search.set('to', params.to);
 
   const response = await apiFetch(`${API_BASE}/dashboard/summary?${search.toString()}`, {
+    headers: { ...authHeaders(token) }
+  });
+  return handleResponse(response);
+}
+
+export async function getDashboardTrends(token, params) {
+  const search = new URLSearchParams();
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+
+  const response = await apiFetch(`${API_BASE}/dashboard/trends?${search.toString()}`, {
+    headers: { ...authHeaders(token) }
+  });
+  return handleResponse(response);
+}
+
+export async function getDashboardCategories(token, params) {
+  const search = new URLSearchParams();
+  if (params?.from) search.set('from', params.from);
+  if (params?.to) search.set('to', params.to);
+
+  const response = await apiFetch(`${API_BASE}/dashboard/categories?${search.toString()}`, {
     headers: { ...authHeaders(token) }
   });
   return handleResponse(response);

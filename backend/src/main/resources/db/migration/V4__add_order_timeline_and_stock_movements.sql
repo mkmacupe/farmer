@@ -1,5 +1,5 @@
 CREATE TABLE order_timeline_events (
-  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   order_id BIGINT NOT NULL,
   from_status VARCHAR(20),
   to_status VARCHAR(20) NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE order_timeline_events (
 CREATE INDEX idx_order_timeline_order_created ON order_timeline_events(order_id, created_at);
 
 CREATE TABLE stock_movements (
-  id BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  id BIGINT PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
   product_id BIGINT NOT NULL,
   order_id BIGINT,
   movement_type VARCHAR(20) NOT NULL,

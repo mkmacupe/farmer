@@ -11,6 +11,7 @@ import com.farm.sales.dto.AutoAssignRoutePointResponse;
 import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderItemRequest;
 import com.farm.sales.dto.OrderItemResponse;
+import com.farm.sales.dto.OrderPageResponse;
 import com.farm.sales.dto.OrderResponse;
 import com.farm.sales.dto.RealtimeNotificationResponse;
 import com.farm.sales.model.Order;
@@ -21,6 +22,7 @@ import com.farm.sales.model.Role;
 import com.farm.sales.model.StockMovementType;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
+import com.farm.sales.repository.OrderItemRepository;
 import com.farm.sales.repository.OrderRepository;
 import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.UserRepository;
@@ -42,6 +44,10 @@ import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -49,7 +55,12 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class OrderService {
-  private static final int MAX_ORDERS_IN_LIST = 500;
+  private static final Logger log = LoggerFactory.getLogger(OrderService.class);
+  private static final int MAX_ORDERS_IN_LIST = 200;
+  private static final int DEFAULT_ORDERS_PAGE_SIZE = 50;
+  private static final int MAX_ORDERS_PAGE_SIZE = 200;
+  private static final int ROUTING_FETCH_PAGE_SIZE = 200;
+  private static final int ROUTING_FETCH_MAX_PAGES = 50;
   private static final int TRANSPORT_DRIVER_LIMIT = 3;
   private static final int MAX_CLUSTER_REFINEMENT_ITERATIONS = 5;
   private static final double EARTH_RADIUS_KM = 6371.0088;
@@ -67,6 +78,7 @@ public class OrderService {
       "driver3", MOGILEV_CLUSTER_RING.get(2)
   );
   private final OrderRepository orderRepository;
+  private final OrderItemRepository orderItemRepository;
   private final ProductRepository productRepository;
   private final UserRepository userRepository;
   private final DirectorProfileService directorProfileService;
@@ -74,6 +86,27 @@ public class OrderService {
   private final StockMovementService stockMovementService;
   private final OrderTimelineService orderTimelineService;
   private final NotificationStreamService notificationStreamService;
+
+  @Autowired
+  public OrderService(OrderRepository orderRepository,
+                      OrderItemRepository orderItemRepository,
+                      ProductRepository productRepository,
+                      UserRepository userRepository,
+                      DirectorProfileService directorProfileService,
+                      AuditTrailPublisher auditTrailPublisher,
+                      StockMovementService stockMovementService,
+                      OrderTimelineService orderTimelineService,
+                      NotificationStreamService notificationStreamService) {
+    this.orderRepository = orderRepository;
+    this.orderItemRepository = orderItemRepository;
+    this.productRepository = productRepository;
+    this.userRepository = userRepository;
+    this.directorProfileService = directorProfileService;
+    this.auditTrailPublisher = auditTrailPublisher;
+    this.stockMovementService = stockMovementService;
+    this.orderTimelineService = orderTimelineService;
+    this.notificationStreamService = notificationStreamService;
+  }
 
   public OrderService(OrderRepository orderRepository,
                       ProductRepository productRepository,
@@ -83,14 +116,17 @@ public class OrderService {
                       StockMovementService stockMovementService,
                       OrderTimelineService orderTimelineService,
                       NotificationStreamService notificationStreamService) {
-    this.orderRepository = orderRepository;
-    this.productRepository = productRepository;
-    this.userRepository = userRepository;
-    this.directorProfileService = directorProfileService;
-    this.auditTrailPublisher = auditTrailPublisher;
-    this.stockMovementService = stockMovementService;
-    this.orderTimelineService = orderTimelineService;
-    this.notificationStreamService = notificationStreamService;
+    this(
+        orderRepository,
+        null,
+        productRepository,
+        userRepository,
+        directorProfileService,
+        auditTrailPublisher,
+        stockMovementService,
+        orderTimelineService,
+        notificationStreamService
+    );
   }
 
   @Transactional
@@ -209,16 +245,56 @@ public class OrderService {
 
   @Transactional
   public List<OrderResponse> getOrdersForRole(Role role, Long userId) {
-    PageRequest pageRequest = PageRequest.of(0, MAX_ORDERS_IN_LIST);
-    List<Order> orders = switch (role) {
-      case DIRECTOR -> orderRepository.findByCustomerIdOrderByCreatedAtDesc(userId, pageRequest);
-      case DRIVER -> orderRepository.findByAssignedDriverIdOrderByCreatedAtDesc(userId, pageRequest);
-      case MANAGER -> orderRepository.findAllByOrderByCreatedAtDesc(pageRequest);
-      case LOGISTICIAN -> orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.APPROVED, pageRequest);
+    return getOrdersPageForRole(role, userId, 0, MAX_ORDERS_IN_LIST).items();
+  }
+
+  @Transactional
+  public OrderPageResponse getOrdersPageForRole(Role role, Long userId, Integer page, Integer size) {
+    int normalizedPage = normalizePage(page);
+    int normalizedSize = normalizeOrderPageSize(size);
+    PageRequest pageRequest = PageRequest.of(normalizedPage, normalizedSize);
+
+    Page<Order> ordersPage = switch (role) {
+      case DIRECTOR -> orderRepository.findPageByCustomerIdOrderByCreatedAtDesc(userId, pageRequest);
+      case DRIVER -> orderRepository.findPageByAssignedDriverIdOrderByCreatedAtDesc(userId, pageRequest);
+      case MANAGER -> orderRepository.findPageAllByOrderByCreatedAtDesc(pageRequest);
+      case LOGISTICIAN -> orderRepository.findPageByStatusOrderByCreatedAtDesc(OrderStatus.APPROVED, pageRequest);
     };
-    return orders.stream()
-        .map(this::toResponse)
+    if (ordersPage == null) {
+      List<Order> fallbackOrders = switch (role) {
+        case DIRECTOR -> orderRepository.findByCustomerIdOrderByCreatedAtDesc(userId, pageRequest);
+        case DRIVER -> orderRepository.findByAssignedDriverIdOrderByCreatedAtDesc(userId, pageRequest);
+        case MANAGER -> orderRepository.findAllByOrderByCreatedAtDesc(pageRequest);
+        case LOGISTICIAN -> orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.APPROVED, pageRequest);
+      };
+      List<Order> safeOrders = fallbackOrders == null ? List.of() : fallbackOrders;
+      Map<Long, List<OrderItem>> fallbackItemsByOrderId = loadItemsByOrderId(safeOrders);
+      List<OrderResponse> fallbackItems = safeOrders.stream()
+          .map(order -> toResponse(order, fallbackItemsByOrderId.getOrDefault(order.getId(), List.of())))
+          .toList();
+      return new OrderPageResponse(
+          fallbackItems,
+          normalizedPage,
+          normalizedSize,
+          fallbackItems.size(),
+          fallbackItems.isEmpty() ? 0 : 1,
+          false
+      );
+    }
+
+    Map<Long, List<OrderItem>> itemsByOrderId = loadItemsByOrderId(ordersPage.getContent());
+    List<OrderResponse> items = ordersPage.getContent().stream()
+        .map(order -> toResponse(order, itemsByOrderId.getOrDefault(order.getId(), List.of())))
         .toList();
+
+    return new OrderPageResponse(
+        items,
+        ordersPage.getNumber(),
+        ordersPage.getSize(),
+        ordersPage.getTotalElements(),
+        ordersPage.getTotalPages(),
+        ordersPage.hasNext()
+    );
   }
 
   @Transactional
@@ -308,10 +384,7 @@ public class OrderService {
   @Transactional
   public AutoAssignPreviewResponse previewAutoAssignPlan(Long logisticianId) {
     requireUserRole(logisticianId, Role.LOGISTICIAN, "Логист не найден");
-    List<Order> approvedOrders = orderRepository.findByStatusOrderByCreatedAtDesc(
-        OrderStatus.APPROVED,
-        PageRequest.of(0, MAX_ORDERS_IN_LIST)
-    );
+    List<Order> approvedOrders = loadApprovedOrdersForRouting(false);
     List<User> routingDrivers = resolveRoutingDrivers();
     if (approvedOrders.isEmpty()) {
       return new AutoAssignPreviewResponse(
@@ -390,10 +463,7 @@ public class OrderService {
     User logistician = requireUserRole(logisticianId, Role.LOGISTICIAN, "Логист не найден");
     List<AutoAssignApproveItemRequest> requestedAssignments = request == null ? List.of() : request.assignments();
 
-    List<Order> approvedOrders = orderRepository.findByStatusOrderByCreatedAtDescForUpdate(
-        OrderStatus.APPROVED,
-        PageRequest.of(0, MAX_ORDERS_IN_LIST)
-    );
+    List<Order> approvedOrders = loadApprovedOrdersForRouting(true);
     int totalApproved = approvedOrders.size();
     if (requestedAssignments == null || requestedAssignments.isEmpty() || totalApproved == 0) {
       return new AutoAssignResultResponse(totalApproved, 0, totalApproved, 0.0, List.of());
@@ -519,6 +589,37 @@ public class OrderService {
     return toResponse(saved);
   }
 
+  private List<Order> loadApprovedOrdersForRouting(boolean forUpdate) {
+    List<Order> approvedOrders = new ArrayList<>();
+    boolean reachedPageLimit = true;
+
+    for (int page = 0; page < ROUTING_FETCH_MAX_PAGES; page++) {
+      PageRequest pageRequest = PageRequest.of(page, ROUTING_FETCH_PAGE_SIZE);
+      List<Order> chunk = forUpdate
+          ? orderRepository.findByStatusOrderByCreatedAtDescForUpdate(OrderStatus.APPROVED, pageRequest)
+          : orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.APPROVED, pageRequest);
+      if (chunk.isEmpty()) {
+        reachedPageLimit = false;
+        break;
+      }
+      approvedOrders.addAll(chunk);
+      if (chunk.size() < ROUTING_FETCH_PAGE_SIZE) {
+        reachedPageLimit = false;
+        break;
+      }
+    }
+
+    if (reachedPageLimit) {
+      log.warn(
+          "Auto-assign approved orders list was truncated at {} records ({} pages x {}).",
+          approvedOrders.size(),
+          ROUTING_FETCH_MAX_PAGES,
+          ROUTING_FETCH_PAGE_SIZE
+      );
+    }
+    return approvedOrders;
+  }
+
   private Order assignDriverInternal(Order order, User logistician, User driver) {
     if (order.getStatus() != OrderStatus.APPROVED) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Назначать водителя можно только для заказов в статусе APPROVED");
@@ -595,10 +696,27 @@ public class OrderService {
   }
 
   private Map<Long, Integer> resolveActiveLoads(List<User> drivers) {
+    if (drivers.isEmpty()) {
+      return Map.of();
+    }
+
+    List<Long> driverIds = drivers.stream()
+        .map(User::getId)
+        .filter(id -> id != null)
+        .toList();
+    if (driverIds.isEmpty()) {
+      return Map.of();
+    }
+
+    Map<Long, Integer> aggregatedLoads = orderRepository.countByAssignedDriverIdsAndStatus(driverIds, OrderStatus.ASSIGNED).stream()
+        .collect(Collectors.toMap(
+            OrderRepository.DriverLoadAggregate::getDriverId,
+            row -> Math.toIntExact(Math.min(row.getTotal(), Integer.MAX_VALUE))
+        ));
+
     Map<Long, Integer> activeLoads = new HashMap<>();
     for (User driver : drivers) {
-      long activeAssignments = orderRepository.countByAssignedDriverIdAndStatus(driver.getId(), OrderStatus.ASSIGNED);
-      activeLoads.put(driver.getId(), Math.toIntExact(Math.min(activeAssignments, Integer.MAX_VALUE)));
+      activeLoads.put(driver.getId(), aggregatedLoads.getOrDefault(driver.getId(), 0));
     }
     return activeLoads;
   }
@@ -972,8 +1090,52 @@ public class OrderService {
     return user;
   }
 
+  private Map<Long, List<OrderItem>> loadItemsByOrderId(List<Order> orders) {
+    if (orders == null || orders.isEmpty()) {
+      return Map.of();
+    }
+    if (orderItemRepository == null) {
+      return orders.stream().collect(Collectors.toMap(
+          Order::getId,
+          order -> order.getItems() == null ? List.of() : order.getItems()
+      ));
+    }
+    List<Long> orderIds = orders.stream()
+        .map(Order::getId)
+        .filter(id -> id != null)
+        .toList();
+    if (orderIds.isEmpty()) {
+      return Map.of();
+    }
+
+    Map<Long, List<OrderItem>> byOrderId = new HashMap<>();
+    for (OrderItem item : orderItemRepository.findByOrderIdInWithProduct(orderIds)) {
+      Long orderId = item.getOrder() == null ? null : item.getOrder().getId();
+      if (orderId == null) {
+        continue;
+      }
+      byOrderId.computeIfAbsent(orderId, ignored -> new ArrayList<>()).add(item);
+    }
+    return byOrderId;
+  }
+
+  private List<OrderItem> loadItemsByOrderId(Long orderId) {
+    if (orderId == null) {
+      return List.of();
+    }
+    if (orderItemRepository == null) {
+      return List.of();
+    }
+    return orderItemRepository.findByOrderIdWithProduct(orderId);
+  }
+
   private OrderResponse toResponse(Order order) {
-    List<OrderItemResponse> items = order.getItems().stream()
+    List<OrderItem> orderItems = order.getItems() == null ? List.of() : order.getItems();
+    return toResponse(order, orderItems);
+  }
+
+  private OrderResponse toResponse(Order order, List<OrderItem> orderItems) {
+    List<OrderItemResponse> items = orderItems.stream()
         .map(item -> new OrderItemResponse(
             item.getProduct().getId(),
             item.getProduct().getName(),
@@ -1039,6 +1201,20 @@ public class OrderService {
   }
 
   private record QueueState(int node, long distance) {
+  }
+
+  private int normalizePage(Integer rawPage) {
+    if (rawPage == null || rawPage < 0) {
+      return 0;
+    }
+    return rawPage;
+  }
+
+  private int normalizeOrderPageSize(Integer rawSize) {
+    if (rawSize == null || rawSize <= 0) {
+      return DEFAULT_ORDERS_PAGE_SIZE;
+    }
+    return Math.min(rawSize, MAX_ORDERS_PAGE_SIZE);
   }
 
   private static final class FlowEdge {

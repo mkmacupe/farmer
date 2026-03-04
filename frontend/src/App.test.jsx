@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App.jsx';
 import { clearAuth, loadAuth, saveAuth } from './authStorage.js';
-import { login } from './api.js';
+import { demoLogin, login } from './api.js';
 
 vi.mock('./authStorage.js', () => ({
   loadAuth: vi.fn(),
@@ -10,6 +10,7 @@ vi.mock('./authStorage.js', () => ({
 }));
 
 vi.mock('./api.js', () => ({
+  demoLogin: vi.fn(),
   login: vi.fn()
 }));
 
@@ -34,6 +35,12 @@ describe('App', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     loadAuth.mockReturnValue(null);
+    demoLogin.mockResolvedValue({
+      token: 'jwt-token',
+      username: 'driver',
+      fullName: 'Driver One',
+      role: 'DRIVER'
+    });
     login.mockResolvedValue({
       token: 'jwt-token',
       username: 'driver',
@@ -75,6 +82,35 @@ describe('App', () => {
 
     expect(await screen.findByText('Неверный логин или пароль')).toBeInTheDocument();
     expect(saveAuth).not.toHaveBeenCalled();
+  });
+
+  it('fills login form when profile button is clicked', () => {
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'manager' }));
+
+    expect(screen.getByLabelText(/логин/i)).toHaveValue('manager');
+    expect(screen.getByLabelText(/пароль/i)).toHaveValue('MgrD5v8cN4');
+    expect(demoLogin).not.toHaveBeenCalled();
+    expect(login).not.toHaveBeenCalled();
+  });
+
+  it('logs in with autofilled unique profile password after manual submit', async () => {
+    login.mockResolvedValueOnce({
+      token: 'manager-token',
+      username: 'manager',
+      fullName: 'Manager',
+      role: 'MANAGER'
+    });
+
+    render(<App />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'manager' }));
+    fireEvent.click(screen.getByRole('button', { name: /войти/i }));
+
+    await waitFor(() => expect(login).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
+    await waitForWorkspaceReady();
+    expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
   });
 
   it('trims username before login request', async () => {

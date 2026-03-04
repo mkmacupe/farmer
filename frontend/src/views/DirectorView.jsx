@@ -1,15 +1,14 @@
-import { Suspense, lazy, useEffect, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
   createDirectorAddress,
   createOrder,
   deleteDirectorAddress,
   getDirectorAddresses,
   getDirectorProfile,
-  getMyOrders,
+  getMyOrdersPage,
   getProductCategories,
   getProductsPage,
   reverseGeo,
-  repeatOrder,
   subscribeNotifications,
   updateDirectorAddress,
   updateDirectorProfile,
@@ -101,17 +100,22 @@ export default function DirectorView({ token, activeSection }) {
   const [catalogCategory, setCatalogCategory] = useState("");
   const [catalogSearchInput, setCatalogSearchInput] = useState("");
   const [catalogSearch, setCatalogSearch] = useState("");
-  const catalogPageSize = 12;
+  const catalogPageSize = 24;
+  const ordersPageSize = 50;
   const [catalogPage, setCatalogPage] = useState(0);
   const [catalogHasNext, setCatalogHasNext] = useState(false);
   const [catalogTotalItems, setCatalogTotalItems] = useState(0);
   const [catalogLoadingMore, setCatalogLoadingMore] = useState(false);
-  const [quantities, setQuantities] = useState({});
+  const [cartItems, setCartItems] = useState({});
   const [selectedAddressId, setSelectedAddressId] = useState("");
   const theme = useTheme();
   const isCompactLayout = useMediaQuery(theme.breakpoints.down("md"));
 
   const [orders, setOrders] = useState([]);
+  const [ordersPage, setOrdersPage] = useState(0);
+  const [ordersHasNext, setOrdersHasNext] = useState(false);
+  const [ordersTotalItems, setOrdersTotalItems] = useState(0);
+  const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
   const [notifications, setNotifications] = useState([]);
 
   const [loading, setLoading] = useState(false);
@@ -123,19 +127,15 @@ export default function DirectorView({ token, activeSection }) {
     !activeSection || activeSection === sectionId;
   const isAddressSectionVisible = showSection("director-addresses");
   const isCatalogSectionVisible = showSection("director-catalog");
+  const showMobileCartFab = isCompactLayout && isCatalogSectionVisible;
   const shouldLoadAddresses =
     isAddressSectionVisible || isCatalogSectionVisible;
 
-  const selectedItems = useMemo(
-    () =>
-      products
-        .map((product) => ({
-          product,
-          quantity: Number.parseInt(quantities[product.id] || "0", 10),
-        }))
-        .filter((item) => item.quantity > 0),
-    [products, quantities],
-  );
+  const selectedItems = useMemo(() => {
+    return Object.values(cartItems).filter(
+      (item) => Number(item?.quantity || 0) > 0 && item.product,
+    );
+  }, [cartItems]);
 
   const selectedProductsCount = selectedItems.length;
   const selectedUnitsCount = selectedItems.reduce(
@@ -175,7 +175,7 @@ export default function DirectorView({ token, activeSection }) {
       ? "Выберите адрес для оформления заказа."
       : "";
 
-  const loadProfile = async (signal) => {
+  const loadProfile = useCallback(async (signal) => {
     const data = await getDirectorProfile(token);
     if (signal?.aborted) {
       return;
@@ -185,9 +185,9 @@ export default function DirectorView({ token, activeSection }) {
       fullName: data.fullName || "",
       phone: data.phone || "",
     });
-  };
+  }, [token]);
 
-  const loadAddresses = async (signal) => {
+  const loadAddresses = useCallback(async (signal) => {
     const data = await getDirectorAddresses(token);
     if (signal?.aborted) {
       return;
@@ -196,37 +196,64 @@ export default function DirectorView({ token, activeSection }) {
     if (!selectedAddressId && data.length > 0) {
       setSelectedAddressId(String(data[0].id));
     }
-  };
+  }, [selectedAddressId, token]);
 
-  const loadCatalog = async (signal) => {
-    const [productsPage, categoriesData] = await Promise.all([
-      getProductsPage(token, {
-        category: catalogCategory || null,
-        q: catalogSearch || null,
-        page: 0,
-        size: catalogPageSize,
-      }),
-      getProductCategories(token),
-    ]);
+  const loadCatalogProducts = useCallback(async (signal) => {
+    const productsPage = await getProductsPage(token, {
+      category: catalogCategory || null,
+      q: catalogSearch || null,
+      page: 0,
+      size: catalogPageSize,
+    });
     if (signal?.aborted) {
       return;
     }
-    setProducts(filterLocalizedProducts(productsPage.items));
+    const filteredProducts = filterLocalizedProducts(productsPage.items);
+    setProducts(filteredProducts);
+    setCartItems((prev) => {
+      const next = { ...prev };
+      filteredProducts.forEach((product) => {
+        const existing = prev[product.id];
+        if (!existing) return;
+        const maxStock = Number(product.stockQuantity ?? existing.product?.stockQuantity ?? 0);
+        const clampedQuantity = Math.max(
+          0,
+          Math.min(Number(existing.quantity || 0), Number.isFinite(maxStock) ? maxStock : Number(existing.quantity || 0)),
+        );
+        if (clampedQuantity <= 0) {
+          delete next[product.id];
+        } else {
+          next[product.id] = { product, quantity: clampedQuantity };
+        }
+      });
+      return next;
+    });
     setCatalogPage(productsPage.page);
     setCatalogHasNext(productsPage.hasNext);
     setCatalogTotalItems(productsPage.totalItems);
-    setCategories(filterLocalizedCategories(categoriesData));
-  };
+  }, [catalogCategory, catalogSearch, token]);
 
-  const loadOrders = async (signal) => {
-    const data = await getMyOrders(token);
+  const loadCatalogCategories = useCallback(async (signal) => {
+    const categoriesData = await getProductCategories(token);
     if (signal?.aborted) {
       return;
     }
-    setOrders(data);
-  };
+    setCategories(filterLocalizedCategories(categoriesData));
+  }, [token]);
 
-  const load = async (signal) => {
+  const loadOrders = useCallback(async (signal) => {
+    const pageData = await getMyOrdersPage(token, { page: 0, size: ordersPageSize });
+    if (signal?.aborted) {
+      return;
+    }
+    const items = Array.isArray(pageData?.items) ? pageData.items : [];
+    setOrders(items);
+    setOrdersPage(Number.isInteger(pageData?.page) ? pageData.page : 0);
+    setOrdersHasNext(Boolean(pageData?.hasNext));
+    setOrdersTotalItems(Number.isFinite(pageData?.totalItems) ? pageData.totalItems : items.length);
+  }, [token]);
+
+  const load = useCallback(async (signal) => {
     if (signal?.aborted) {
       return;
     }
@@ -244,7 +271,7 @@ export default function DirectorView({ token, activeSection }) {
         setLoading(false);
       }
     }
-  };
+  }, [loadOrders, loadProfile]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -258,7 +285,7 @@ export default function DirectorView({ token, activeSection }) {
       controller.abort();
       unsubscribe();
     };
-  }, [token]);
+  }, [load, token]);
 
   useEffect(() => {
     if (!shouldLoadAddresses) {
@@ -271,20 +298,33 @@ export default function DirectorView({ token, activeSection }) {
       }
     });
     return () => controller.abort();
-  }, [token, shouldLoadAddresses]);
+  }, [loadAddresses, shouldLoadAddresses]);
 
   useEffect(() => {
     if (!isCatalogSectionVisible) {
       return;
     }
     const controller = new AbortController();
-    loadCatalog(controller.signal).catch((err) => {
+    loadCatalogProducts(controller.signal).catch((err) => {
       if (!controller.signal.aborted) {
-        setError(err.message || "Не удалось загрузить каталог");
+        setError(err.message || "Не удалось загрузить каталог товаров");
       }
     });
     return () => controller.abort();
-  }, [token, isCatalogSectionVisible, catalogCategory, catalogSearch]);
+  }, [isCatalogSectionVisible, loadCatalogProducts]);
+
+  useEffect(() => {
+    if (!isCatalogSectionVisible || categories.length) {
+      return;
+    }
+    const controller = new AbortController();
+    loadCatalogCategories(controller.signal).catch((err) => {
+      if (!controller.signal.aborted) {
+        setError(err.message || "Не удалось загрузить категории");
+      }
+    });
+    return () => controller.abort();
+  }, [categories.length, isCatalogSectionVisible, loadCatalogCategories]);
 
   useEffect(() => {
     const handle = window.setTimeout(() => {
@@ -379,10 +419,6 @@ export default function DirectorView({ token, activeSection }) {
   };
 
   const handleAddressDelete = async (id) => {
-    const confirmed = window.confirm("Удалить адрес доставки?");
-    if (!confirmed) {
-      return;
-    }
     setError("");
     try {
       setLoading(true);
@@ -456,8 +492,8 @@ export default function DirectorView({ token, activeSection }) {
       setLoading(true);
       await createOrder(token, { deliveryAddressId, items });
       setSuccess("Заявка на доставку создана");
-      setQuantities({});
-      await Promise.all([loadCatalog(), loadOrders()]);
+      setCartItems({});
+      await Promise.all([loadCatalogProducts(), loadOrders()]);
     } catch (err) {
       setError(err.message || "Не удалось создать заказ");
     } finally {
@@ -465,33 +501,78 @@ export default function DirectorView({ token, activeSection }) {
     }
   };
 
-  const handleRepeatOrder = async (orderId) => {
-    const confirmed = window.confirm(
-      `Повторить заказ #${orderId}? Товары будут добавлены в корзину.`,
-    );
-    if (!confirmed) {
-      return;
-    }
+  const handleRepeatOrder = useCallback(async (order) => {
     setError("");
     setSuccess("");
+    const sourceItems = Array.isArray(order?.items) ? order.items : [];
+    const items = sourceItems
+      .map((item) => ({
+        productId: Number(item?.productId),
+        quantity: Number(item?.quantity),
+      }))
+      .filter((item) => Number.isFinite(item.productId) && item.productId > 0 && Number.isFinite(item.quantity) && item.quantity > 0);
+
+    const deliveryAddressId = Number(selectedAddressId) || Number(order?.deliveryAddressId);
+    if (!deliveryAddressId) {
+      setError("Для повтора выберите адрес доставки");
+      return;
+    }
+    if (!items.length) {
+      setError("Невозможно повторить заказ без позиций");
+      return;
+    }
+
     try {
       setLoading(true);
-      await repeatOrder(token, orderId);
-      setSuccess(`Заказ #${orderId} повторён`);
-      await Promise.all([loadCatalog(), loadOrders()]);
+      await createOrder(token, { deliveryAddressId, items });
+      setSuccess(`Заказ #${order?.id} повторён`);
+      await Promise.all([loadCatalogProducts(), loadOrders()]);
     } catch (err) {
       setError(err.message || "Не удалось повторить заказ");
     } finally {
       setLoading(false);
     }
-  };
+  }, [loadCatalogProducts, loadOrders, selectedAddressId, token]);
 
   const updateQuantity = (product, nextValue) => {
     const clamped = Math.max(0, Math.min(nextValue, product.stockQuantity));
-    setQuantities((prev) => ({
-      ...prev,
-      [product.id]: clamped ? String(clamped) : "",
-    }));
+    setCartItems((prev) => {
+      const next = { ...prev };
+      if (clamped <= 0) {
+        delete next[product.id];
+        return next;
+      }
+      next[product.id] = { product, quantity: clamped };
+      return next;
+    });
+  };
+
+  const handleLoadMoreOrders = async () => {
+    if (!ordersHasNext || ordersLoadingMore) {
+      return;
+    }
+    setOrdersLoadingMore(true);
+    setError("");
+    try {
+      const nextPage = ordersPage + 1;
+      const pageData = await getMyOrdersPage(token, {
+        page: nextPage,
+        size: ordersPageSize,
+      });
+      const items = Array.isArray(pageData?.items) ? pageData.items : [];
+      setOrders((prev) => [...prev, ...items]);
+      setOrdersPage(Number.isInteger(pageData?.page) ? pageData.page : nextPage);
+      setOrdersHasNext(Boolean(pageData?.hasNext));
+      setOrdersTotalItems(
+        Number.isFinite(pageData?.totalItems)
+          ? pageData.totalItems
+          : ordersTotalItems,
+      );
+    } catch (err) {
+      setError(err.message || "Не удалось загрузить ещё заказы");
+    } finally {
+      setOrdersLoadingMore(false);
+    }
   };
 
   const handleLoadMoreProducts = async () => {
@@ -508,9 +589,26 @@ export default function DirectorView({ token, activeSection }) {
         page: nextPage,
         size: catalogPageSize,
       });
-      setProducts((prev) =>
-        filterLocalizedProducts([...prev, ...nextPageData.items]),
-      );
+      const merged = filterLocalizedProducts([...products, ...nextPageData.items]);
+      setProducts(merged);
+      setCartItems((current) => {
+        const next = { ...current };
+        merged.forEach((product) => {
+          const existing = current[product.id];
+          if (!existing) return;
+          const maxStock = Number(product.stockQuantity ?? existing.product?.stockQuantity ?? 0);
+          const clampedQuantity = Math.max(
+            0,
+            Math.min(Number(existing.quantity || 0), Number.isFinite(maxStock) ? maxStock : Number(existing.quantity || 0)),
+          );
+          if (clampedQuantity <= 0) {
+            delete next[product.id];
+          } else {
+            next[product.id] = { product, quantity: clampedQuantity };
+          }
+        });
+        return next;
+      });
       setCatalogPage(nextPageData.page);
       setCatalogHasNext(nextPageData.hasNext);
       setCatalogTotalItems(nextPageData.totalItems);
@@ -618,7 +716,7 @@ export default function DirectorView({ token, activeSection }) {
         </Button>
         <Button
           variant="outlined"
-          onClick={() => setQuantities({})}
+          onClick={() => setCartItems({})}
           disabled={loading}
         >
           Очистить
@@ -627,7 +725,20 @@ export default function DirectorView({ token, activeSection }) {
     </Paper>
   );
 
-  const HeroStat = null; // removed
+  const renderOrderActions = useCallback(
+    (order) => (
+      <Button
+        variant="outlined"
+        size="small"
+        startIcon={<RefreshIcon />}
+        onClick={() => handleRepeatOrder(order)}
+        disabled={loading}
+      >
+        Повторить
+      </Button>
+    ),
+    [handleRepeatOrder, loading],
+  );
 
   return (
     <Stack spacing={3} sx={{ pb: 4 }}>
@@ -1173,8 +1284,7 @@ export default function DirectorView({ token, activeSection }) {
             <Grid size={{ xs: 12, md: 8 }}>
               <Grid container spacing={2}>
                 {products.map((product) => {
-                  const quantity =
-                    Number.parseInt(quantities[product.id] || "0", 10) || 0;
+                  const quantity = Number(cartItems[product.id]?.quantity || 0);
                   return (
                     <Grid size={{ xs: 12, sm: 6, lg: 4 }} key={product.id}>
                       <Card
@@ -1347,36 +1457,44 @@ export default function DirectorView({ token, activeSection }) {
             loading={loading && !orders.length}
             showCustomer={false}
             emptyText="История заказов пуста."
-            actionRenderer={(order) => (
+            actionRenderer={renderOrderActions}
+            maxRendered={orders.length}
+          />
+          {ordersHasNext && (
+            <Stack alignItems="center" spacing={1} sx={{ mt: 2 }}>
               <Button
                 variant="outlined"
-                size="small"
-                startIcon={<RefreshIcon />}
-                onClick={() => handleRepeatOrder(order.id)}
-                disabled={loading}
+                onClick={handleLoadMoreOrders}
+                disabled={ordersLoadingMore}
               >
-                Повторить
+                {ordersLoadingMore ? "Загрузка..." : "Показать ещё"}
               </Button>
-            )}
-          />
+              <Typography variant="caption" color="text.secondary">
+                Показано {orders.length} из {ordersTotalItems}
+              </Typography>
+            </Stack>
+          )}
         </Box>
       )}
 
-      <Fab
-        variant="extended"
-        color="secondary"
-        onClick={handleCreateOrder}
-        disabled={loading || !canCreateOrder}
-        sx={{
-          position: "fixed",
-          right: 16,
-          bottom: { xs: 92, md: 24 },
-          display: { xs: "flex", md: "none" },
-        }}
-      >
-        <ShoppingCartIcon sx={{ mr: 1 }} />
-        {formatMoney(selectedTotal)} BYN
-      </Fab>
+      {showMobileCartFab && (
+        <Fab
+          variant="extended"
+          color="secondary"
+          aria-label={`Оформить заказ на ${formatMoney(selectedTotal)} BYN`}
+          onClick={handleCreateOrder}
+          disabled={loading || !canCreateOrder}
+          sx={{
+            position: "fixed",
+            right: 16,
+            bottom: "calc(84px + env(safe-area-inset-bottom, 0px))",
+            maxWidth: "calc(100vw - 32px)",
+          }}
+        >
+          <ShoppingCartIcon sx={{ mr: 1 }} />
+          {formatMoney(selectedTotal)} BYN
+        </Fab>
+      )}
     </Stack>
   );
 }

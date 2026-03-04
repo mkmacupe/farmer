@@ -63,7 +63,7 @@ Frontend в production-режиме (без React dev build):
 ```powershell
 .\start-dev.ps1 -FrontendHost 0.0.0.0 -FrontendOrigin http://<VPN-IP>:5173
 ```
-Если адрес меняется часто, можно задать `APP_CORS_ALLOWED_ORIGINS=*` в окружении или `.env`.
+Если адрес меняется часто, можно временно задать `APP_CORS_ALLOWED_ORIGINS=*` в окружении или `.env` (только для локальной разработки; в продакшене используйте явный список доменов).
 Если backend ушёл с `8080` на другой порт, скрипт сам запишет его в `frontend/.env.local` для Vite proxy.
 
 Строгий режим (без автоподбора портов):
@@ -99,7 +99,9 @@ Frontend в production-режиме (без React dev build):
 - `driver1`
 - `driver2`
 - `driver3`
-- Пароль: `DEMO_PASSWORD` из `.env`
+- Базовый пароль: `DEMO_PASSWORD` из `.env`
+- Фактический пароль профиля: `<DEMO_PASSWORD>:<username>`
+  - Пример для `manager`: `<DEMO_PASSWORD>:manager`
 
 ## Основные API
 - Auth:
@@ -120,22 +122,31 @@ Frontend в production-режиме (без React dev build):
   - `DELETE /api/director/addresses/{id}`
 - Геоданные:
   - `GET /api/geo/lookup?q=<text>&limit=5`
+  - `GET /api/geo/reverse?lat=<lat>&lon=<lon>`
 - Заказы:
   - `POST /api/orders`
   - `POST /api/orders/{id}/repeat`
   - `GET /api/orders/my`
+  - `GET /api/orders/my/page`
   - `GET /api/orders/assigned`
+  - `GET /api/orders/assigned/page`
   - `GET /api/orders`
+  - `GET /api/orders/page`
   - `POST /api/orders/{id}/approve`
   - `POST /api/orders/{id}/assign-driver`
   - `POST /api/orders/{id}/deliver`
   - `GET /api/orders/{id}/timeline`
+  - `POST /api/orders/auto-assign`
+  - `POST /api/orders/auto-assign/preview`
+  - `POST /api/orders/auto-assign/approve`
 - Пользователи:
   - `POST /api/users/directors`
   - `GET /api/users/directors`
   - `GET /api/users/drivers`
 - Отчёты/аналитика:
   - `GET /api/dashboard/summary?from=YYYY-MM-DD&to=YYYY-MM-DD`
+  - `GET /api/dashboard/trends?from=YYYY-MM-DD&to=YYYY-MM-DD`
+  - `GET /api/dashboard/categories?from=YYYY-MM-DD&to=YYYY-MM-DD`
   - `GET /api/reports/orders?from=YYYY-MM-DD&to=YYYY-MM-DD&status=DELIVERED`
   - `GET /api/stock-movements?productId=1&from=YYYY-MM-DD&to=YYYY-MM-DD`
   - `GET /api/audit/logs`

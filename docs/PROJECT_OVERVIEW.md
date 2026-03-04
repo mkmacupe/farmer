@@ -12,7 +12,7 @@
 
 ## 3) Технологии
 - **Frontend:** React + Vite
-- **Backend:** Java, Spring Boot 4, Spring Security (JWT), Spring Data JPA
+- **Backend:** Java, Spring Boot 3, Spring Security (JWT), Spring Data JPA
 - **БД:** MySQL
 - **Документация API:** OpenAPI/Swagger
 - **Интеграции:** геокодирование адресов (Nominatim/OpenStreetMap), онлайн-карты (OSM links)

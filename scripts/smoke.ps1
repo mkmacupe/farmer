@@ -1,21 +1,19 @@
 param(
-  [string]$Base = "http://127.0.0.1:8080/api",
-  [string]$DemoPassword = $env:DEMO_PASSWORD
+  [string]$Base = "http://127.0.0.1:8080/api"
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-if ([string]::IsNullOrWhiteSpace($DemoPassword)) {
-  $envFilePath = Join-Path (Split-Path -Parent $PSScriptRoot) ".env"
-  if (Test-Path -LiteralPath $envFilePath) {
-    $demoPasswordLine = Get-Content -LiteralPath $envFilePath |
-      Where-Object { $_ -match "^\s*DEMO_PASSWORD=" } |
-      Select-Object -First 1
-    if ($demoPasswordLine) {
-      $DemoPassword = ($demoPasswordLine -split "=", 2)[1].Trim()
-    }
-  }
+ $DemoUserPasswords = @{
+  "mogilevkhim" = "MhvK8r2pQ1"
+  "mogilevlift" = "MlvT4n7xR2"
+  "babushkina" = "BbkP6m9sL3"
+  "manager" = "MgrD5v8cN4"
+  "logistician" = "LogS7q1wE5"
+  "driver1" = "Drv1A9k2Z6"
+  "driver2" = "Drv2B8m3Y7"
+  "driver3" = "Drv3C7n4X8"
 }
 
 function Invoke-LocalRest {
@@ -71,9 +69,13 @@ function Invoke-LocalWeb {
 function Login {
   param([string]$Username)
 
+  if (-not $DemoUserPasswords.ContainsKey($Username)) {
+    throw "Unknown demo username '$Username'."
+  }
+
   $body = @{
     username = $Username
-    password = $DemoPassword
+    password = $DemoUserPasswords[$Username]
   } | ConvertTo-Json
 
   return Invoke-LocalRest `
@@ -88,8 +90,22 @@ function AuthHeaders {
   return @{ Authorization = "Bearer $Token" }
 }
 
-if ([string]::IsNullOrWhiteSpace($DemoPassword)) {
-  throw "DEMO_PASSWORD is required. Set DEMO_PASSWORD env variable or configure it in .env."
+function Normalize-Collection {
+  param([Parameter(Mandatory = $true)]$Payload)
+
+  if ($null -eq $Payload) {
+    return @()
+  }
+  if ($Payload -is [array]) {
+    return $Payload
+  }
+  if ($Payload.PSObject.Properties["items"] -and $Payload.items -is [array]) {
+    return $Payload.items
+  }
+  if ($Payload.PSObject.Properties["items"] -and $Payload.items) {
+    return @($Payload.items)
+  }
+  return @($Payload)
 }
 
 $director = Login -Username "mogilevkhim"
@@ -97,7 +113,8 @@ $manager = Login -Username "manager"
 $logistician = Login -Username "logistician"
 $driver = Login -Username "driver1"
 
-$products = Invoke-LocalRest -Method Get -Uri "$Base/products" -Headers (AuthHeaders $director.token)
+$productsPayload = Invoke-LocalRest -Method Get -Uri "$Base/products" -Headers (AuthHeaders $director.token)
+$products = Normalize-Collection -Payload $productsPayload
 if (-not $products -or $products.Count -lt 1) {
   throw "No products returned from API."
 }
