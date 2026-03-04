@@ -25,10 +25,8 @@ services:
       - key: APP_CORS_ALLOWED_ORIGINS
         value: "https://farmer.indevs.in"
 
-  - type: web
+  - type: static
     name: farm-sales-frontend
-    runtime: static
-    plan: free
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
