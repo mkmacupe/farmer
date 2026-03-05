@@ -1,5 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  approveAllOrders,
   approveOrder,
   createDirectorUser,
   createProduct,
@@ -695,11 +696,12 @@ export default function ManagerView({ token, activeSection }) {
         return;
       }
       setDashboard(data);
-    } catch (err) {
+    } catch (_err) {
       if (signal?.aborted) {
         return;
       }
-      showMessage(err?.message || "Не удалось загрузить сводку", "error");
+      // Keep manager workspace usable even when dashboard summary endpoint is unavailable.
+      setDashboard(null);
     }
   };
 
@@ -814,6 +816,26 @@ export default function ManagerView({ token, activeSection }) {
     (orderId) => handleApproveRef.current(orderId),
     [],
   );
+
+  const handleApproveAll = async () => {
+    if (!ordersByStatus.CREATED?.length) {
+      return showMessage("Нет заказов для одобрения", "info");
+    }
+    if (!window.confirm(`Одобрить все новые заказы (${ordersByStatus.CREATED.length} шт.)?`)) {
+      return;
+    }
+
+    setActionLoading(true);
+    try {
+      await approveAllOrders(token);
+      showMessage(`Все новые заказы одобрены`);
+      await Promise.all([loadOrders(), loadDashboard()]);
+    } catch (err) {
+      showMessage(err.message || "Не удалось одобрить все заказы", "error");
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const handleLoadTimelineRef = useRef(null);
   handleLoadTimelineRef.current = async (orderId) => {
@@ -1346,8 +1368,8 @@ export default function ManagerView({ token, activeSection }) {
                       color={trendMeta.momentum >= 0 ? "success" : "warning"}
                       label={
                         trendMeta.momentum >= 0
-                          ? "Рост к вчера"
-                          : "Снижение к вчера"
+                          ? "Выше, чем вчера"
+                          : "Ниже, чем вчера"
                       }
                     />
                   </Stack>
@@ -1601,20 +1623,40 @@ export default function ManagerView({ token, activeSection }) {
         ))}
       {showSection("manager-orders") && (
         <Box>
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="h5"
-              fontWeight={600}
-              gutterBottom
-              sx={{ letterSpacing: "-0.02em" }}
+          <Box
+            sx={{
+              mb: 3,
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "flex-start",
+              flexWrap: "wrap",
+              gap: 2,
+            }}
+          >
+            <Box>
+              <Typography
+                variant="h5"
+                fontWeight={600}
+                gutterBottom
+                sx={{ letterSpacing: "-0.02em" }}
+              >
+                Заявки на доставку
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                {isMobile
+                  ? "Используйте действия на карточках для управления."
+                  : "Перетаскивайте карточки между статусами"}
+              </Typography>
+            </Box>
+            <Button
+              variant="contained"
+              color="success"
+              startIcon={<CheckIcon />}
+              onClick={handleApproveAll}
+              disabled={actionLoading || !ordersByStatus.CREATED?.length}
             >
-              Заявки на доставку
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              {isMobile
-                ? "Используйте действия на карточках для управления."
-                : "Перетаскивайте карточки между статусами"}
-            </Typography>
+              Одобрить все ({ordersByStatus.CREATED?.length || 0})
+            </Button>
           </Box>
 
           <Grid container spacing={2}>
@@ -1716,10 +1758,10 @@ export default function ManagerView({ token, activeSection }) {
               variant="contained"
               startIcon={<AddIcon />}
               onClick={() => handleOpenProductDrawer()}
+              data-testid="add-product-button"
             >
               Добавить товар
-            </Button>
-          </Box>
+            </Button>          </Box>
 
           <Paper
             variant="outlined"
@@ -1926,6 +1968,7 @@ export default function ManagerView({ token, activeSection }) {
                     fullWidth
                     onClick={handleDirectorCreate}
                     disabled={actionLoading}
+                    data-testid="create-user-button"
                   >
                     Создать пользователя
                   </Button>
