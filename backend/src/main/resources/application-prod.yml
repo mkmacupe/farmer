@@ -8,12 +8,13 @@ spring:
     password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
     hikari:
-      maximum-pool-size: 2
+      maximum-pool-size: 4
       minimum-idle: 1
       idle-timeout: 30000
       pool-name: NeonHikariPool
       max-lifetime: 1800000
-      connection-timeout: 30000
+      connection-timeout: 60000
+      initialization-fail-timeout: 60000
   jpa:
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     hibernate:
