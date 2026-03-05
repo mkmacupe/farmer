@@ -587,6 +587,22 @@ export default function LogisticianView({ token, activeSection }) {
                         <Typography variant="body2" color="text.secondary">
                           {route.assignedOrders} точек • {route.estimatedRouteDistanceKm} км
                         </Typography>
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
+                          <Typography 
+                            variant="caption" 
+                            color={route.totalWeightKg > 1400 ? 'error.main' : 'text.secondary'}
+                            sx={{ fontWeight: route.totalWeightKg > 1400 ? 700 : 400 }}
+                          >
+                            Вес: {route.totalWeightKg} / 1500 кг
+                          </Typography>
+                          <Typography 
+                            variant="caption" 
+                            color={route.totalVolumeM3 > 11 ? 'error.main' : 'text.secondary'}
+                            sx={{ fontWeight: route.totalVolumeM3 > 11 ? 700 : 400 }}
+                          >
+                            Объем: {route.totalVolumeM3} / 12 м³
+                          </Typography>
+                        </Stack>
                         <Typography variant="caption" color="text.secondary">
                           {route.points.length
                             ? `Старт: ${routePlan.depotLabel || 'База'}`

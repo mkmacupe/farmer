@@ -33,6 +33,12 @@ public class Product {
   @Column(name = "stock_quantity", nullable = false)
   private Integer stockQuantity;
 
+  @Column(name = "weight_kg", nullable = false)
+  private Double weightKg = 1.0;
+
+  @Column(name = "volume_m3", nullable = false)
+  private Double volumeM3 = 0.001;
+
   public Product() {
   }
 
@@ -48,6 +54,24 @@ public class Product {
     this.photoUrl = photoUrl;
     this.price = price;
     this.stockQuantity = stockQuantity;
+  }
+
+  public Product(String name,
+                 String category,
+                 String description,
+                 String photoUrl,
+                 BigDecimal price,
+                 Integer stockQuantity,
+                 Double weightKg,
+                 Double volumeM3) {
+    this.name = name;
+    this.category = category;
+    this.description = description;
+    this.photoUrl = photoUrl;
+    this.price = price;
+    this.stockQuantity = stockQuantity;
+    this.weightKg = weightKg;
+    this.volumeM3 = volumeM3;
   }
 
   public Long getId() {
@@ -104,5 +128,21 @@ public class Product {
 
   public void setStockQuantity(Integer stockQuantity) {
     this.stockQuantity = stockQuantity;
+  }
+
+  public Double getWeightKg() {
+    return weightKg;
+  }
+
+  public void setWeightKg(Double weightKg) {
+    this.weightKg = weightKg;
+  }
+
+  public Double getVolumeM3() {
+    return volumeM3;
+  }
+
+  public void setVolumeM3(Double volumeM3) {
+    this.volumeM3 = volumeM3;
   }
 }
