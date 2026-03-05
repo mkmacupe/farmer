@@ -50,9 +50,11 @@ class SecurityAuthorizationIntegrationTest {
                   "name": "Яблоки",
                   "category": "Фрукты",
                   "description": "Зелёные яблоки",
-                  "photoUrl": "/images/products/apple.webp",
+                  "photoUrl": "/images/products/new-test-apple.webp",
                   "price": 12.50,
-                  "stockQuantity": 10
+                  "stockQuantity": 10,
+                  "weightKg": 1.0,
+                  "volumeM3": 0.0012
                 }
                 """))
         .andExpect(status().isForbidden());
@@ -68,9 +70,11 @@ class SecurityAuthorizationIntegrationTest {
                   "name": "Яблоки",
                   "category": "Фрукты",
                   "description": "Зелёные яблоки",
-                  "photoUrl": "/images/products/apple.webp",
+                  "photoUrl": "/images/products/new-test-apple.webp",
                   "price": 12.50,
-                  "stockQuantity": 10
+                  "stockQuantity": 10,
+                  "weightKg": 1.0,
+                  "volumeM3": 0.0012
                 }
                 """))
         .andExpect(status().isCreated());
@@ -142,6 +146,21 @@ class SecurityAuthorizationIntegrationTest {
   void directorCannotReadDashboard() throws Exception {
     mockMvc.perform(get("/api/dashboard/summary")
             .with(jwtFor("director", 10L, "DIRECTOR")))
+        .andExpect(status().isForbidden());
+  }
+
+  @Test
+  void managerCanApproveAllOrders() throws Exception {
+    mockMvc.perform(post("/api/orders/approve-all")
+            .with(jwtFor("manager", 1L, "MANAGER")))
+        // Security should allow manager to reach controller; service can still return 404 for missing data.
+        .andExpect(status().isNotFound());
+  }
+
+  @Test
+  void logisticianCannotApproveAllOrders() throws Exception {
+    mockMvc.perform(post("/api/orders/approve-all")
+            .with(jwtFor("logistician", 2L, "LOGISTICIAN")))
         .andExpect(status().isForbidden());
   }
 

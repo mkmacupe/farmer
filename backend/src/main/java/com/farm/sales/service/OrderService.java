@@ -304,6 +304,19 @@ public class OrderService {
     User manager = requireUserRole(managerId, Role.MANAGER, "Менеджер не найден");
     Order order = orderRepository.findById(orderId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Заказ не найден"));
+    return approveOrderInternal(order, manager);
+  }
+
+  @Transactional
+  public List<OrderResponse> approveAllOrders(Long managerId) {
+    User manager = requireUserRole(managerId, Role.MANAGER, "Менеджер не найден");
+    List<Order> ordersToApprove = orderRepository.findByStatus(OrderStatus.CREATED);
+    return ordersToApprove.stream()
+        .map(order -> approveOrderInternal(order, manager))
+        .toList();
+  }
+
+  private OrderResponse approveOrderInternal(Order order, User manager) {
     if (order.getStatus() != OrderStatus.CREATED) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Можно одобрять только заказы в статусе CREATED");
     }
@@ -725,7 +738,10 @@ public class OrderService {
     Map<Long, Integer> aggregatedLoads = orderRepository.countByAssignedDriverIdsAndStatus(driverIds, OrderStatus.ASSIGNED).stream()
         .collect(Collectors.toMap(
             OrderRepository.DriverLoadAggregate::getDriverId,
-            row -> Math.toIntExact(Math.min(row.getTotal(), Integer.MAX_VALUE))
+            row -> {
+              long total = row.getTotal() == null ? 0L : row.getTotal().longValue();
+              return Math.toIntExact(Math.min(total, Integer.MAX_VALUE));
+            }
         ));
 
     Map<Long, Integer> activeLoads = new HashMap<>();

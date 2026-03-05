@@ -11,17 +11,17 @@ services:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
       - key: SPRING_DATASOURCE_URL
-        value: "jdbc:postgresql://ep-crimson-tooth-abykm6ln-pooler.eu-west-2.aws.neon.tech/neondb?sslmode=require"
+        sync: false
       - key: SPRING_DATASOURCE_USERNAME
-        value: "neondb_owner"
+        sync: false
       - key: SPRING_DATASOURCE_PASSWORD
-        value: "npg_lk5sbDdMOt8X"
+        sync: false
       - key: JWT_SECRET
         generateValue: true
       - key: APP_DEMO_ENABLED
         value: "true"
       - key: APP_DEMO_PASSWORD
-        value: "admin123"
+        sync: false
       - key: APP_CORS_ALLOWED_ORIGINS
         value: "https://farmer.indevs.in"
 
@@ -38,4 +38,4 @@ services:
         destination: /index.html
     envVars:
       - key: VITE_API_BASE
-        sync: false
+        value: "https://farm-sales-backend.onrender.com/api"

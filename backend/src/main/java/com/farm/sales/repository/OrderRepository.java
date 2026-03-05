@@ -19,19 +19,19 @@ import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
   interface DashboardSummaryAggregate {
-    Long getTotalOrders();
+    Number getTotalOrders();
 
     BigDecimal getTotalAmount();
 
     BigDecimal getDeliveredRevenue();
 
-    Long getCreatedCount();
+    Number getCreatedCount();
 
-    Long getApprovedCount();
+    Number getApprovedCount();
 
-    Long getAssignedCount();
+    Number getAssignedCount();
 
-    Long getDeliveredCount();
+    Number getDeliveredCount();
   }
 
   interface ReportRow {
@@ -45,7 +45,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
     BigDecimal getTotalAmount();
 
-    Long getItemCount();
+    Number getItemCount();
 
     String getDeliveryAddressText();
 
@@ -55,23 +55,23 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
   interface DriverLoadAggregate {
     Long getDriverId();
 
-    Long getTotal();
+    Number getTotal();
   }
 
   interface DailyTrendRow {
     Object getDay();
 
-    Long getTotalOrders();
+    Number getTotalOrders();
 
     BigDecimal getTotalAmount();
 
-    Long getDeliveredCount();
+    Number getDeliveredCount();
   }
 
   interface CategoryUnitsRow {
     String getCategory();
 
-    Long getTotalUnits();
+    Number getTotalUnits();
   }
 
   @Override
@@ -108,6 +108,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       order by o.createdAt desc
       """)
   Page<Order> findPageByStatusOrderByCreatedAtDesc(@Param("status") OrderStatus status, Pageable pageable);
+
+  @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
+  List<Order> findByStatus(OrderStatus status);
 
   @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
   List<Order> findByCustomerIdOrderByCreatedAtDesc(Long customerId, Pageable pageable);
@@ -204,10 +207,10 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       select count(o) as totalOrders,
              coalesce(sum(o.totalAmount), 0) as totalAmount,
              coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then o.totalAmount end), 0) as deliveredRevenue,
-             coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.CREATED then 1 else 0 end), 0) as createdCount,
-             coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.APPROVED then 1 else 0 end), 0) as approvedCount,
-             coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.ASSIGNED then 1 else 0 end), 0) as assignedCount,
-             coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then 1 else 0 end), 0) as deliveredCount
+             sum(case when o.status = com.farm.sales.model.OrderStatus.CREATED then 1L else 0L end) as createdCount,
+             sum(case when o.status = com.farm.sales.model.OrderStatus.APPROVED then 1L else 0L end) as approvedCount,
+             sum(case when o.status = com.farm.sales.model.OrderStatus.ASSIGNED then 1L else 0L end) as assignedCount,
+             sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then 1L else 0L end) as deliveredCount
       from Order o
       where (:fromInstant is null or o.createdAt >= :fromInstant)
         and (:toInstant is null or o.createdAt <= :toInstant)
@@ -219,7 +222,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       select cast(o.createdAt as date) as day,
              count(o) as totalOrders,
              coalesce(sum(o.totalAmount), 0) as totalAmount,
-             coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then 1 else 0 end), 0) as deliveredCount
+             sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then 1L else 0L end) as deliveredCount
       from Order o
       where (:fromInstant is null or o.createdAt >= :fromInstant)
         and (:toInstant is null or o.createdAt <= :toInstant)
@@ -231,7 +234,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
 
   @Query("""
       select p.category as category,
-             coalesce(sum(oi.quantity), 0) as totalUnits
+             coalesce(sum(oi.quantity), 0L) as totalUnits
       from Order o
       join o.items oi
       join oi.product p

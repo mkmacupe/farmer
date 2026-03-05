@@ -29,6 +29,10 @@ const resolveApiBase = () => {
 };
 
 const API_BASE = resolveApiBase();
+const LOGIN_TIMEOUT_MS = 65_000;
+const LOGIN_RETRY_DELAY_MS = 1_500;
+const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
+const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
 
 async function apiFetch(url, options = {}) {
   const { timeoutMs = 15000, ...rest } = options;
@@ -50,15 +54,29 @@ async function apiFetch(url, options = {}) {
     return await globalThis.fetch(url, { ...rest, signal: controller.signal });
   } catch (error) {
     if (error?.name === 'AbortError') {
-      throw new Error('Истекло время ожидания ответа от сервера.');
+      throw new Error(NETWORK_TIMEOUT_MESSAGE);
     }
     if (error instanceof TypeError) {
-      throw new Error('Сервер недоступен. Убедитесь, что backend запущен.');
+      throw new Error(NETWORK_UNAVAILABLE_MESSAGE);
     }
     throw error;
   } finally {
     window.clearTimeout(timeoutId);
   }
+}
+
+function isRetryableNetworkError(error) {
+  return error?.message === NETWORK_TIMEOUT_MESSAGE || error?.message === NETWORK_UNAVAILABLE_MESSAGE;
+}
+
+function isAuthPayload(payload) {
+  return Boolean(payload) && typeof payload === 'object' && typeof payload.token === 'string' && payload.token.trim().length > 0;
+}
+
+function waitMs(duration) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, duration);
+  });
 }
 
 function pickErrorMessage(payload) {
@@ -136,12 +154,37 @@ function authHeaders(token) {
 }
 
 export async function login(username, password) {
-  const response = await apiFetch(`${API_BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
-  return handleResponse(response);
+  const makeAttempt = async () => {
+    const response = await apiFetch(`${API_BASE}/auth/login`, {
+      method: 'POST',
+      timeoutMs: LOGIN_TIMEOUT_MS,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const payload = await handleResponse(response);
+    if (!isAuthPayload(payload)) {
+      throw new Error('Сервис авторизации недоступен. Проверьте адрес API и повторите вход.');
+    }
+    return payload;
+  };
+
+  try {
+    return await makeAttempt();
+  } catch (error) {
+    if (!isRetryableNetworkError(error)) {
+      throw error;
+    }
+  }
+
+  await waitMs(LOGIN_RETRY_DELAY_MS);
+  try {
+    return await makeAttempt();
+  } catch (error) {
+    if (isRetryableNetworkError(error)) {
+      throw new Error('Сервер просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
+    }
+    throw error;
+  }
 }
 
 export async function demoLogin(username) {
@@ -395,6 +438,14 @@ export async function getAllOrdersPage(token, params = {}) {
 
 export async function approveOrder(token, id) {
   const response = await apiFetch(`${API_BASE}/orders/${id}/approve`, {
+    method: 'POST',
+    headers: { ...authHeaders(token) }
+  });
+  return handleResponse(response);
+}
+
+export async function approveAllOrders(token) {
+  const response = await apiFetch(`${API_BASE}/orders/approve-all`, {
     method: 'POST',
     headers: { ...authHeaders(token) }
   });

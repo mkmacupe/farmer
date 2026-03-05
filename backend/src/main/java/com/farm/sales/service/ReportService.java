@@ -12,6 +12,8 @@ import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -20,6 +22,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class ReportService {
+  private static final Logger log = LoggerFactory.getLogger(ReportService.class);
   private static final int REPORT_ROW_WINDOW = 200;
   private static final int MAX_REPORT_ROWS = 20_000;
   private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
@@ -45,7 +48,6 @@ public class ReportService {
 
     try (SXSSFWorkbook workbook = new SXSSFWorkbook(REPORT_ROW_WINDOW);
          ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-      workbook.setCompressTempFiles(true);
       Sheet sheet = workbook.createSheet("Заказы");
       createHeader(sheet);
       setColumnWidths(sheet);
@@ -58,7 +60,7 @@ public class ReportService {
         row.createCell(2).setCellValue(order.getStatus() == null ? "-" : order.getStatus().name());
         row.createCell(3).setCellValue(order.getCreatedAt() == null ? "-" : REPORT_DATE_FORMATTER.format(order.getCreatedAt()));
         row.createCell(4).setCellValue(order.getTotalAmount() == null ? 0d : order.getTotalAmount().doubleValue());
-        row.createCell(5).setCellValue(order.getItemCount() == null ? 0 : order.getItemCount());
+        row.createCell(5).setCellValue(order.getItemCount() == null ? 0d : order.getItemCount().doubleValue());
         row.createCell(6).setCellValue(order.getDeliveryAddressText() == null ? "-" : order.getDeliveryAddressText());
         row.createCell(7).setCellValue(order.getDriverName() == null ? "-" : order.getDriverName());
       }
@@ -66,6 +68,7 @@ public class ReportService {
       workbook.write(outputStream);
       return outputStream.toByteArray();
     } catch (Exception ex) {
+      log.error("Ошибка при формировании отчета", ex);
       throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Не удалось сформировать отчёт");
     }
   }

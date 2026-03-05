@@ -256,7 +256,41 @@ describe('api', () => {
 
   it('maps network TypeError to unavailable backend message', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
-    await expect(api.login('u', 'p')).rejects.toThrow('Сервер недоступен. Убедитесь, что backend запущен.');
+    await expect(api.getProductCategories('u')).rejects.toThrow('Сервер недоступен. Убедитесь, что backend запущен.');
+  });
+
+  it('login retries once and returns payload if backend wakes up', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(jsonResponse({ token: 'jwt', username: 'manager' }));
+
+    const loginPromise = api.login('manager', 'secret');
+    await vi.advanceTimersByTimeAsync(1_600);
+    await expect(loginPromise).resolves.toEqual({ token: 'jwt', username: 'manager' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it('login shows warmup hint when both attempts fail due network', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
+
+    const loginPromise = api.login('manager', 'secret');
+    const assertion = expect(loginPromise).rejects.toThrow('Сервер просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
+    await vi.advanceTimersByTimeAsync(1_600);
+    await assertion;
+
+    vi.useRealTimers();
+  });
+
+  it('login rejects malformed successful response payload', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ ok: true }));
+
+    await expect(api.login('manager', 'secret'))
+      .rejects
+      .toThrow('Сервис авторизации недоступен. Проверьте адрес API и повторите вход.');
   });
 
   it('maps AbortError to timeout message', async () => {
@@ -411,17 +445,20 @@ describe('api', () => {
     ));
 
     await api.approveOrder('token-13', 300);
+    await api.approveAllOrders('token-13');
     await api.assignOrderDriver('token-13', 300, 77);
     await api.markOrderDelivered('token-13', 300);
 
-    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock).toHaveBeenCalledTimes(4);
     expect(new URL(fetchMock.mock.calls[0][0], 'http://localhost').pathname).toBe('/api/orders/300/approve');
     expect(fetchMock.mock.calls[0][1].method).toBe('POST');
-    expect(new URL(fetchMock.mock.calls[1][0], 'http://localhost').pathname).toBe('/api/orders/300/assign-driver');
+    expect(new URL(fetchMock.mock.calls[1][0], 'http://localhost').pathname).toBe('/api/orders/approve-all');
     expect(fetchMock.mock.calls[1][1].method).toBe('POST');
-    expect(fetchMock.mock.calls[1][1].body).toBe(JSON.stringify({ driverId: 77 }));
-    expect(new URL(fetchMock.mock.calls[2][0], 'http://localhost').pathname).toBe('/api/orders/300/deliver');
+    expect(new URL(fetchMock.mock.calls[2][0], 'http://localhost').pathname).toBe('/api/orders/300/assign-driver');
     expect(fetchMock.mock.calls[2][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[2][1].body).toBe(JSON.stringify({ driverId: 77 }));
+    expect(new URL(fetchMock.mock.calls[3][0], 'http://localhost').pathname).toBe('/api/orders/300/deliver');
+    expect(fetchMock.mock.calls[3][1].method).toBe('POST');
   });
 
   it('builds auto-assign preview and approve endpoints', async () => {

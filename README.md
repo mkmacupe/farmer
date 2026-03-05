@@ -74,7 +74,7 @@
 3.  **Frontend:** Развернут как статический сайт (Static Site) на Render.com (или Cloudflare Pages).
 4.  **Домен:** Привязан кастомный домен `farmer.indevs.in` с автоматическим SSL.
 
-Подробная инструкция по деплою находится в файле `DEPLOY_NOW.md`.
+Подробная инструкция по деплою находится в файле `docs/deploy/free-deploy-render-cloudflare.md`.
 
 ---
 
@@ -104,8 +104,14 @@
 5. Откройте `http://localhost:5173`.
 
 ### 🔑 Демо-пользователи
-При первом запуске база данных автоматически заполняется тестовыми товарами и пользователями (пароль для всех: `admin123`):
-*   `mogilevkhim`, `babushkina` (Директора)
-*   `manager` (Менеджер)
-*   `logistician` (Логист)
-*   `driver1`, `driver2`, `driver3` (Водители)
+При первом запуске база данных автоматически заполняется тестовыми товарами и пользователями:
+*   `mogilevkhim` / `MhvK8r2pQ1`
+*   `mogilevlift` / `MlvT4n7xR2`
+*   `babushkina` / `BbkP6m9sL3`
+*   `manager` / `MgrD5v8cN4`
+*   `logistician` / `LogS7q1wE5`
+*   `driver1` / `Drv1A9k2Z6`
+*   `driver2` / `Drv2B8m3Y7`
+*   `driver3` / `Drv3C7n4X8`
+
+Примечание для Render Free: backend может «просыпаться» 10–20 секунд после простоя, первый вход может потребовать повторной попытки.
