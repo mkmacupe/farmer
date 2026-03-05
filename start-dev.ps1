@@ -448,8 +448,8 @@ function Start-Backend {
     }
 
     $requiredBaseImages = @(
-      "maven:3.9-eclipse-temurin-25",
-      "eclipse-temurin:25-jre"
+      "maven:3.9-eclipse-temurin-21",
+      "eclipse-temurin:21-jre"
     )
     foreach ($image in $requiredBaseImages) {
       if (Test-DockerImageLocal -ImageName $image) {
