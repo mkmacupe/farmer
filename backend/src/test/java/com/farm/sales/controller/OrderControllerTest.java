@@ -157,6 +157,8 @@ class OrderControllerTest {
             "Driver One",
             2,
             12.1,
+            10.5,
+            0.05,
             List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 4.5))
         ))
     );
