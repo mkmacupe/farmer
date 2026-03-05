@@ -380,7 +380,7 @@ export default memo(function OrdersTable({
       </DialogActions>
     </Dialog>
   );
-  const filterContainerSx = {
+  const filterContainerSx = useMemo(() => ({
     p: 2,
     borderBottom: isMobile ? "none" : "1px solid",
     borderColor: "divider",
@@ -390,7 +390,7 @@ export default memo(function OrdersTable({
     zIndex: 2,
     borderRadius: isMobile ? 2 : 0,
     border: isMobile ? "1px solid" : "none",
-  };
+  }), [isMobile]);
 
   if (loading) {
     return <OrderTableSkeleton rows={5} />;

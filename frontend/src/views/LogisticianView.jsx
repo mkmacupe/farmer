@@ -243,7 +243,6 @@ export default function LogisticianView({ token, activeSection }) {
   };
 
   const handleAutoAssign = async () => {
-    const mapModulePromise = import('../components/RoutePlanMap.jsx').catch(() => null);
     setActionLoading(true);
     try {
       const result = await previewAutoAssignOrders(token);
@@ -259,7 +258,6 @@ export default function LogisticianView({ token, activeSection }) {
           `оценка пути ${result.estimatedTotalDistanceKm} км`,
           'info'
         );
-        mapModulePromise.then(() => undefined);
       }
     } catch (err) {
       showMessage(err.message || 'Не удалось выполнить автоназначение', 'error');
