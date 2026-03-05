@@ -9,6 +9,8 @@ public record ProductResponse(
     String description,
     String photoUrl,
     BigDecimal price,
-    Integer stockQuantity
+    Integer stockQuantity,
+    Double weightKg,
+    Double volumeM3
 ) {
 }

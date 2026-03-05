@@ -81,7 +81,9 @@ public class ProductService {
         normalizeNullable(request.description()),
         normalizedPhotoUrl,
         request.price(),
-        request.stockQuantity()
+        request.stockQuantity(),
+        request.weightKg(),
+        request.volumeM3()
     );
     Product saved;
     try {
@@ -115,6 +117,9 @@ public class ProductService {
     product.setPhotoUrl(normalizedPhotoUrl);
     product.setPrice(request.price());
     product.setStockQuantity(request.stockQuantity());
+    product.setWeightKg(request.weightKg());
+    product.setVolumeM3(request.volumeM3());
+    
     Product saved;
     try {
       saved = productRepository.save(product);
@@ -161,7 +166,9 @@ public class ProductService {
         product.getDescription(),
         product.getPhotoUrl(),
         product.getPrice(),
-        product.getStockQuantity()
+        product.getStockQuantity(),
+        product.getWeightKg(),
+        product.getVolumeM3()
     );
   }
 

@@ -91,10 +91,17 @@ public class DashboardService {
     if (value instanceof java.sql.Date sd) {
       return sd.toLocalDate();
     }
+    if (value instanceof java.sql.Timestamp ts) {
+      return ts.toLocalDateTime().toLocalDate();
+    }
     if (value instanceof java.util.Date d) {
       return new java.sql.Date(d.getTime()).toLocalDate();
     }
-    return LocalDate.parse(value.toString());
+    try {
+      return LocalDate.parse(value.toString());
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   private long longOrZero(Long value) {

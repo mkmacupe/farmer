@@ -29,6 +29,12 @@ public record ProductRequest(
     BigDecimal price,
     @NotNull(message = "Количество обязательно")
     @Min(value = 0, message = "Количество должно быть неотрицательным")
-    Integer stockQuantity
+    Integer stockQuantity,
+    @NotNull(message = "Вес обязателен")
+    @DecimalMin(value = "0.001", message = "Вес должен быть больше нуля")
+    Double weightKg,
+    @NotNull(message = "Объем обязателен")
+    @DecimalMin(value = "0.000001", message = "Объем должен быть больше нуля")
+    Double volumeM3
 ) {
 }
