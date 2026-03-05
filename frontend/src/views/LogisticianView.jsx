@@ -510,28 +510,7 @@ export default function LogisticianView({ token, activeSection }) {
                 </Grid>
               </Grid>
 
-              <Suspense
-                fallback={
-                  <Paper
-                    variant="outlined"
-                    sx={{
-                      height: { xs: 210, md: 250 },
-                      borderRadius: 2,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 1.25
-                    }}
-                  >
-                    <CircularProgress size={18} />
-                    <Typography variant="body2" color="text.secondary">
-                      Загружаем карту маршрутов...
-                    </Typography>
-                  </Paper>
-                }
-              >
-                <RoutePlanMap plan={routePlan} />
-              </Suspense>
+              <RoutePlanMap plan={routePlan} />
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>

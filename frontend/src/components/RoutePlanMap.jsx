@@ -337,4 +337,4 @@ function RoutePlanMap({ plan }) {
   );
 }
 
-export default memo(RoutePlanMap);
+export default RoutePlanMap;

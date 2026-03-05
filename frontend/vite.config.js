@@ -90,20 +90,15 @@ export default defineConfig(({ mode }) => {
       rollupOptions: {
         output: {
           manualChunks(id) {
-            const n = id.replace(/\\/g, "/");
-            if (!n.includes("/node_modules/")) {
-              return undefined;
+            if (id.includes("node_modules")) {
+              if (id.includes("@mui") || id.includes("@emotion")) {
+                return "mui";
+              }
+              if (id.includes("leaflet")) {
+                return "leaflet";
+              }
+              return "vendor";
             }
-            if (n.includes("/react/") || n.includes("/react-dom/")) {
-              return "react-core";
-            }
-            if (n.includes("/leaflet/") || n.includes("/react-leaflet/")) {
-              return "leaflet-maps";
-            }
-            if (n.includes("/@mui/") || n.includes("/@emotion/")) {
-              return "mui-ui";
-            }
-            return "vendor";
           },
         },
       },
