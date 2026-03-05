@@ -43,7 +43,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import RouteOutlinedIcon from '@mui/icons-material/RouteOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 
-const RoutePlanMap = lazy(() => import('../components/RoutePlanMap.jsx'));
+import RoutePlanMap from '../components/RoutePlanMap.jsx';
 
 function statusLabel(status) {
   const labels = {
