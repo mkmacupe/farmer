@@ -88,6 +88,7 @@ public class OrderService {
   private final StockMovementService stockMovementService;
   private final OrderTimelineService orderTimelineService;
   private final NotificationStreamService notificationStreamService;
+  private final RoadRoutingService roadRoutingService;
 
   @Autowired
   public OrderService(OrderRepository orderRepository,
@@ -98,7 +99,8 @@ public class OrderService {
                       AuditTrailPublisher auditTrailPublisher,
                       StockMovementService stockMovementService,
                       OrderTimelineService orderTimelineService,
-                      NotificationStreamService notificationStreamService) {
+                      NotificationStreamService notificationStreamService,
+                      RoadRoutingService roadRoutingService) {
     this.orderRepository = orderRepository;
     this.orderItemRepository = orderItemRepository;
     this.productRepository = productRepository;
@@ -108,6 +110,7 @@ public class OrderService {
     this.stockMovementService = stockMovementService;
     this.orderTimelineService = orderTimelineService;
     this.notificationStreamService = notificationStreamService;
+    this.roadRoutingService = roadRoutingService;
   }
 
   public OrderService(OrderRepository orderRepository,
@@ -117,7 +120,8 @@ public class OrderService {
                       AuditTrailPublisher auditTrailPublisher,
                       StockMovementService stockMovementService,
                       OrderTimelineService orderTimelineService,
-                      NotificationStreamService notificationStreamService) {
+                      NotificationStreamService notificationStreamService,
+                      RoadRoutingService roadRoutingService) {
     this(
         orderRepository,
         null,
@@ -127,7 +131,8 @@ public class OrderService {
         auditTrailPublisher,
         stockMovementService,
         orderTimelineService,
-        notificationStreamService
+        notificationStreamService,
+        roadRoutingService
     );
   }
 
@@ -528,7 +533,7 @@ public class OrderService {
       for (AutoAssignApproveItemRequest item : entry.getValue()) {
         Order order = approvedOrdersById.get(item.orderId());
         Coordinate targetPoint = coordinateOrFallback(order, MOGILEV_SHARED_DEPOT);
-        double legDistance = haversineKm(previousPoint, targetPoint);
+        double legDistance = distanceKm(previousPoint, targetPoint);
         previousPoint = targetPoint;
 
         Order saved = assignDriverInternal(order, logistician, driver);
@@ -871,7 +876,8 @@ public class OrderService {
     List<DeliveryPoint> remainingPoints = new ArrayList<>(deliveryPoints);
     
     // Сортируем точки по удаленности от склада для более логичной загрузки (ближайшие сначала)
-    remainingPoints.sort(Comparator.comparingDouble(p -> haversineKm(MOGILEV_SHARED_DEPOT, p.coordinate())));
+    Map<DeliveryPoint, Double> depotDistances = distancesByPoint(MOGILEV_SHARED_DEPOT, remainingPoints);
+    remainingPoints.sort(Comparator.comparingDouble(point -> depotDistances.getOrDefault(point, 0.0)));
 
     for (int driverIdx = 0; driverIdx < drivers.size(); driverIdx++) {
       double currentWeight = 0.0;
@@ -955,11 +961,12 @@ public class OrderService {
     while (!remaining.isEmpty()) {
       int bestPos = 0;
       int bestPointIdx = remaining.get(0);
-      double bestDist = haversineKm(previousPoint, points.get(bestPointIdx).coordinate());
+      Map<Integer, Double> candidateDistances = distancesByPointIndex(previousPoint, remaining, points);
+      double bestDist = candidateDistances.getOrDefault(bestPointIdx, haversineKm(previousPoint, points.get(bestPointIdx).coordinate()));
 
       for (int i = 1; i < remaining.size(); i++) {
         int candIdx = remaining.get(i);
-        double candDist = haversineKm(previousPoint, points.get(candIdx).coordinate());
+        double candDist = candidateDistances.getOrDefault(candIdx, haversineKm(previousPoint, points.get(candIdx).coordinate()));
         if (candDist < bestDist) {
           bestPos = i;
           bestPointIdx = candIdx;
@@ -986,6 +993,69 @@ public class OrderService {
   }
 
   private record DeliveryPoint(Coordinate coordinate, List<Integer> orderIndexes, double totalWeightKg, double totalVolumeM3) {}
+
+  private Map<DeliveryPoint, Double> distancesByPoint(Coordinate source, List<DeliveryPoint> points) {
+    if (points.isEmpty()) {
+      return Map.of();
+    }
+    List<Coordinate> coordinates = points.stream()
+        .map(DeliveryPoint::coordinate)
+        .toList();
+    List<Double> distances = distancesKm(source, coordinates);
+    Map<DeliveryPoint, Double> byPoint = new HashMap<>();
+    for (int index = 0; index < points.size(); index++) {
+      byPoint.put(points.get(index), distances.get(index));
+    }
+    return byPoint;
+  }
+
+  private Map<Integer, Double> distancesByPointIndex(Coordinate source,
+                                                     List<Integer> pointIndexes,
+                                                     List<DeliveryPoint> points) {
+    if (pointIndexes.isEmpty()) {
+      return Map.of();
+    }
+    List<Coordinate> coordinates = pointIndexes.stream()
+        .map(index -> points.get(index).coordinate())
+        .toList();
+    List<Double> distances = distancesKm(source, coordinates);
+    Map<Integer, Double> byPointIndex = new HashMap<>();
+    for (int index = 0; index < pointIndexes.size(); index++) {
+      byPointIndex.put(pointIndexes.get(index), distances.get(index));
+    }
+    return byPointIndex;
+  }
+
+  private List<Double> distancesKm(Coordinate source, List<Coordinate> destinations) {
+    if (destinations.isEmpty()) {
+      return List.of();
+    }
+    try {
+      return roadRoutingService.drivingDistancesKm(
+          new RoadRoutingService.RouteCoordinate(source.latitude(), source.longitude()),
+          destinations.stream()
+              .map(destination -> new RoadRoutingService.RouteCoordinate(destination.latitude(), destination.longitude()))
+              .toList()
+      );
+    } catch (RuntimeException exception) {
+      log.warn("Road distance matrix unavailable, falling back to haversine: {}", exception.getMessage());
+      return destinations.stream()
+          .map(destination -> haversineKm(source, destination))
+          .toList();
+    }
+  }
+
+  private double distanceKm(Coordinate from, Coordinate to) {
+    try {
+      return roadRoutingService.drivingDistanceKm(
+          new RoadRoutingService.RouteCoordinate(from.latitude(), from.longitude()),
+          new RoadRoutingService.RouteCoordinate(to.latitude(), to.longitude())
+      );
+    } catch (RuntimeException exception) {
+      log.warn("Road routing unavailable for leg calculation, falling back to haversine: {}", exception.getMessage());
+      return haversineKm(from, to);
+    }
+  }
 
   private double haversineKm(Coordinate from, Coordinate to) {
     double deltaLatitude = Math.toRadians(to.latitude() - from.latitude());

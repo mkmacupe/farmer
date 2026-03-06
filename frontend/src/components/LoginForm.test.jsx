@@ -1,6 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import LoginForm from './LoginForm.jsx';
+import { vi } from 'vitest';
 
 describe('LoginForm', () => {
   it('requires username and password before submit', async () => {
@@ -85,9 +86,18 @@ describe('LoginForm', () => {
     expect(screen.getByRole('button', { name: /вход/i })).toBeDisabled();
   });
 
-  it('shows warmup hint while loading', () => {
+  it('shows warmup hint only after 5 seconds of loading', async () => {
+    vi.useFakeTimers();
     render(<LoginForm onLogin={() => {}} loading error="" />);
+
+    expect(screen.queryByText(/если backend был в спящем режиме/i)).toBeNull();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5000);
+    });
+
     expect(screen.getByText(/если backend был в спящем режиме/i)).toBeInTheDocument();
+    vi.useRealTimers();
   });
 
 });

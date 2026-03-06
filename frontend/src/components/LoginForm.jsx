@@ -1,4 +1,4 @@
-import { memo, useState } from 'react';
+import { memo, useEffect, useState } from 'react';
 import './LoginForm.css';
 
 const DEMO_ACCOUNTS = [
@@ -15,8 +15,24 @@ const DEMO_ACCOUNTS = [
 function LoginForm({ onLogin, loading, error, loadingMessage }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showLoadingHint, setShowLoadingHint] = useState(false);
 
   const canSubmit = username.trim().length > 0 && password.length > 0;
+
+  useEffect(() => {
+    if (!loading) {
+      setShowLoadingHint(false);
+      return undefined;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setShowLoadingHint(true);
+    }, 5000);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [loading]);
 
   const applyDemo = (account) => {
     setUsername(account.username);
@@ -70,7 +86,7 @@ function LoginForm({ onLogin, loading, error, loadingMessage }) {
             <button type="submit" disabled={loading || !canSubmit}>
               {loading ? 'Вход…' : 'Войти'}
             </button>
-            {loading ? (
+            {loading && showLoadingHint ? (
               <p className="login-hint" role="status" aria-live="polite">
                 {loadingMessage || 'Подключаем сервер. Если backend был в спящем режиме, это может занять до 30 секунд.'}
               </p>

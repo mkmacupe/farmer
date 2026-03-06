@@ -43,6 +43,14 @@ app:
     user-agent: ${APP_GEO_USER_AGENT:FarmSalesCourseProject/1.0}
     connect-timeout-ms: ${APP_GEO_CONNECT_TIMEOUT_MS:3000}
     read-timeout-ms: ${APP_GEO_READ_TIMEOUT_MS:5000}
+  routing:
+    osrm-base-url: ${APP_ROUTING_OSRM_BASE_URL:https://router.project-osrm.org}
+    user-agent: ${APP_ROUTING_USER_AGENT:FarmSalesCourseProject/1.0}
+    connect-timeout-ms: ${APP_ROUTING_CONNECT_TIMEOUT_MS:3000}
+    read-timeout-ms: ${APP_ROUTING_READ_TIMEOUT_MS:6000}
+    cache-ttl-ms: ${APP_ROUTING_CACHE_TTL_MS:900000}
+    cache-max-entries: ${APP_ROUTING_CACHE_MAX_ENTRIES:10000}
+    max-table-coordinates: ${APP_ROUTING_MAX_TABLE_COORDINATES:50}
 
 management:
   endpoints:

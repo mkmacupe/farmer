@@ -50,6 +50,7 @@ class OrderServiceTest {
   private StockMovementService stockMovementService;
   private OrderTimelineService orderTimelineService;
   private NotificationStreamService notificationStreamService;
+  private RoadRoutingService roadRoutingService;
   private OrderService orderService;
 
   @BeforeEach
@@ -62,6 +63,20 @@ class OrderServiceTest {
     stockMovementService = org.mockito.Mockito.mock(StockMovementService.class);
     orderTimelineService = org.mockito.Mockito.mock(OrderTimelineService.class);
     notificationStreamService = org.mockito.Mockito.mock(NotificationStreamService.class);
+    roadRoutingService = org.mockito.Mockito.mock(RoadRoutingService.class);
+    when(roadRoutingService.drivingDistancesKm(any(), any())).thenAnswer(invocation -> {
+      RoadRoutingService.RouteCoordinate source = invocation.getArgument(0);
+      @SuppressWarnings("unchecked")
+      List<RoadRoutingService.RouteCoordinate> destinations = invocation.getArgument(1);
+      return destinations.stream()
+          .map(destination -> testDistance(source, destination))
+          .toList();
+    });
+    when(roadRoutingService.drivingDistanceKm(any(), any())).thenAnswer(invocation -> {
+      RoadRoutingService.RouteCoordinate from = invocation.getArgument(0);
+      RoadRoutingService.RouteCoordinate to = invocation.getArgument(1);
+      return testDistance(from, to);
+    });
     orderService = new OrderService(
         orderRepository,
         productRepository,
@@ -70,7 +85,8 @@ class OrderServiceTest {
         auditTrailPublisher,
         stockMovementService,
         orderTimelineService,
-        notificationStreamService
+        notificationStreamService,
+        roadRoutingService
     );
   }
 
@@ -640,5 +656,11 @@ class OrderServiceTest {
         new BigDecimal("10.00"),
         List.of()
     );
+  }
+
+  private double testDistance(RoadRoutingService.RouteCoordinate from, RoadRoutingService.RouteCoordinate to) {
+    double latitudeDelta = from.latitude() - to.latitude();
+    double longitudeDelta = from.longitude() - to.longitude();
+    return Math.sqrt(latitudeDelta * latitudeDelta + longitudeDelta * longitudeDelta) * 111.0;
   }
 }

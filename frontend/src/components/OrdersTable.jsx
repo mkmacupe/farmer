@@ -472,10 +472,14 @@ export default memo(function OrdersTable({
         />
 
         <Stack
-          direction="row"
+          direction={{ xs: "column", sm: "row" }}
           spacing={1.5}
-          alignItems="center"
-          sx={{ ml: { md: "auto" } }}
+          alignItems={{ xs: "stretch", sm: "center" }}
+          sx={{
+            ml: { md: "auto" },
+            width: { xs: "100%", md: "auto" },
+            minWidth: 0,
+          }}
         >
           <TextField
             select
@@ -486,7 +490,10 @@ export default memo(function OrdersTable({
             SelectProps={{
               inputProps: { "aria-label": "Фильтр по статусу заказа" },
             }}
-            sx={{ minWidth: { xs: "100%", sm: 190 } }}
+            sx={{
+              minWidth: { xs: "100%", sm: 190 },
+              flexShrink: 0,
+            }}
           >
             <MenuItem value="">
               <Chip
@@ -508,29 +515,54 @@ export default memo(function OrdersTable({
               </MenuItem>
             ))}
           </TextField>
-          <Typography
-            variant="caption"
-            color="text.secondary"
-            whiteSpace="nowrap"
+          <Stack
+            direction="row"
+            spacing={1}
+            alignItems="center"
+            justifyContent={{ xs: "space-between", sm: "flex-start" }}
+            sx={{
+              width: { xs: "100%", sm: "auto" },
+              minWidth: 0,
+              flexWrap: "wrap",
+              rowGap: 0.75,
+            }}
           >
-            {filteredOrders.length} из {orders.length}
-          </Typography>
-          {hasRenderLimit && (
-            <Typography variant="caption" color="warning.main" whiteSpace="nowrap">
-              Показаны первые {renderLimit}
-            </Typography>
-          )}
-          {hasActiveFilters && (
-            <Button
-              size="small"
-              variant="outlined"
-              onClick={clearFilters}
-              startIcon={<ClearIcon fontSize="small" />}
-              sx={{ whiteSpace: "nowrap" }}
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                whiteSpace: { xs: "normal", sm: "nowrap" },
+                minWidth: 0,
+                overflowWrap: "anywhere",
+              }}
             >
-              Сбросить
-            </Button>
-          )}
+              {filteredOrders.length} из {orders.length}
+            </Typography>
+            {hasRenderLimit && (
+              <Typography
+                variant="caption"
+                color="warning.main"
+                sx={{
+                  whiteSpace: { xs: "normal", sm: "nowrap" },
+                  minWidth: 0,
+                  overflowWrap: "anywhere",
+                }}
+              >
+                Показаны первые {renderLimit}
+              </Typography>
+            )}
+            {hasActiveFilters && (
+              <Button
+                size="small"
+                variant="outlined"
+                onClick={clearFilters}
+                startIcon={<ClearIcon fontSize="small" />}
+                sx={{ whiteSpace: "nowrap", ml: { sm: 0.5 } }}
+              >
+                Сбросить
+              </Button>
+            )}
+          </Stack>
         </Stack>
       </Stack>
     </Box>

@@ -1,146 +1,290 @@
-# 🌾 Farm Sales: Автоматизация отдела сбыта фермерского хозяйства
+<div align="center">
 
+# Farm Sales
+
+### Автоматизация отдела сбыта фермерского хозяйства
+
+Многоролевая B2B-система, которая проводит заказ через полный цикл:
+**директор магазина → менеджер → логист → водитель**.
+
+[![Backend Tests](https://github.com/mkmacupe/farmer/actions/workflows/backend-tests.yml/badge.svg)](https://github.com/mkmacupe/farmer/actions/workflows/backend-tests.yml)
+[![Frontend Tests](https://github.com/mkmacupe/farmer/actions/workflows/frontend-tests.yml/badge.svg)](https://github.com/mkmacupe/farmer/actions/workflows/frontend-tests.yml)
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=java)
-![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4.3-green?logo=spring)
-![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-blue?logo=postgresql)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
-![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite)
+![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4.3-6DB33F?logo=springboot&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=0b2239)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
 
-**Farm Sales** — это полноценная многоролевая B2B-система для управления продажами, логистикой и доставкой фермерской продукции. Приложение охватывает полный цикл: от формирования заказа директором магазина до доставки товара водителем.
+[Живое демо](https://farmer.indevs.in) ·
+[Технический обзор](docs/PROJECT_OVERVIEW.md) ·
+[Сценарий защиты](docs/defense/demo-scenario.md) ·
+[Транспортная задача](docs/defense/transport-task.md)
 
-🌐 **Живое демо:** [farmer.indevs.in](https://farmer.indevs.in)
+</div>
 
----
+> [!IMPORTANT]
+> Для защиты проект можно вернуть в эталонное состояние через `demo reset`.
+> Это позволяет всегда показывать преподавателю одинаковый и предсказуемый сценарий.
 
-## 🎯 Ключевые возможности
+## Содержание
 
-*   **Многоролевой доступ (RBAC):** Изолированные рабочие пространства для Директора, Менеджера, Логиста и Водителя.
-*   **Умная логистика:** Автоматическое распределение заказов между водителями на основе гео-координат (алгоритмы кластеризации и поиска кратчайшего пути).
-*   **Интеграция с картами:** Геокодирование адресов через Nominatim (OpenStreetMap) и построение маршрутов доставки.
-*   **Realtime-уведомления:** Мгновенное обновление статусов заказов через Server-Sent Events (SSE).
-*   **Аналитика и аудит:** Дашборды с графиками продаж, аудит действий пользователей и отслеживание движений на складе.
+- [Что это за проект](#что-это-за-проект)
+- [Почему проект выглядит законченным](#почему-проект-выглядит-законченным)
+- [Как работает система](#как-работает-система)
+- [Транспортная задача](#транспортная-задача)
+- [Архитектура](#архитектура)
+- [Стек](#стек)
+- [Быстрый старт](#быстрый-старт)
+- [Demo reset](#demo-reset)
+- [Демо-аккаунты](#демо-аккаунты)
+- [Тестирование](#тестирование)
+- [Структура проекта](#структура-проекта)
+- [Документация](#документация)
+- [Деплой](#деплой)
 
----
+## Что это за проект
 
-## 👥 Ролевая модель и процессы
+`Farm Sales` — это курсовой проект в формате прикладной информационной системы, а не просто набор CRUD-экранов.
 
-Система построена вокруг четырех главных ролей, каждая из которых двигает заказ по его жизненному циклу:
+Система покрывает реальный бизнес-процесс:
 
-1.  👨‍💼 **Директор магазина (`DIRECTOR`)**
-    *   Управляет списком своих торговых точек (с автоопределением координат).
-    *   Собирает корзину из каталога, оформляет заявки.
-    *   *Статус заказа:* `CREATED` (Создан)
-2.  👩‍💻 **Менеджер продаж (`MANAGER`)**
-    *   Проверяет остатки на складе, одобряет заявки.
-    *   Регистрирует новых клиентов (директоров).
-    *   Следит за дашбордом выручки и популярными категориями.
-    *   *Статус заказа:* `APPROVED` (Одобрен)
-3.  🗺️ **Логист (`LOGISTICIAN`)**
-    *   Видит все одобренные заказы на карте.
-    *   Использует **"Транспортную задачу"** для автоматического распределения точек между машинами или назначает водителей вручную.
-    *   *Статус заказа:* `ASSIGNED` (Назначен)
-4.  🚚 **Водитель (`DRIVER`)**
-    *   Видит свой индивидуальный маршрутный лист (от базы до последней точки).
-    *   Открывает навигатор (OSM) для каждого этапа.
-    *   Отмечает прибытие и разгрузку.
-    *   *Статус заказа:* `DELIVERED` (Доставлен)
+1. директор магазина оформляет заявку на поставку;
+2. менеджер проверяет и одобряет заказ;
+3. логист распределяет заказы по водителям;
+4. водитель завершает доставку;
+5. менеджер получает аналитику, аудит и Excel-отчёты.
 
----
+## Почему проект выглядит законченным
 
-## 🛠️ Технический стек
+| Сильная сторона | Что реализовано |
+|---|---|
+| Полный цикл заказа | `CREATED → APPROVED → ASSIGNED → DELIVERED` |
+| Ролевая модель | `DIRECTOR`, `MANAGER`, `LOGISTICIAN`, `DRIVER` |
+| Практическая ценность | Геокодирование, логистика, отчёты, аудит, SSE |
+| Защита без хаоса | `demo reset`, публичное демо, готовые сценарии показа |
 
-**Backend (`/backend`)**
-*   **Язык и фреймворк:** Java 21, Spring Boot 3.4
-*   **База данных:** PostgreSQL 17 (настроена через Neon.tech)
-*   **Миграции:** Flyway
-*   **Безопасность:** Spring Security, JWT (HMAC-SHA256)
-*   **Документация API:** Springdoc OpenAPI (Swagger UI)
+## Как работает система
 
-**Frontend (`/frontend`)**
-*   **Язык и фреймворк:** JavaScript, React 19, Vite 7
-*   **UI Библиотека:** Material UI (MUI)
-*   **Карты:** Leaflet, React-Leaflet
-*   **Тестирование:** Vitest, Playwright (E2E)
+```mermaid
+flowchart LR
+    D["DIRECTOR<br/>оформляет заявку"] --> C["CREATED"]
+    M["MANAGER<br/>одобряет"] --> A["APPROVED"]
+    L["LOGISTICIAN<br/>назначает водителя"] --> S["ASSIGNED"]
+    R["DRIVER<br/>завершает доставку"] --> F["DELIVERED"]
 
----
+    C --> M
+    A --> L
+    S --> R
+```
 
-## 🚀 Деплой (Production)
+Ключевые возможности:
 
-Проект настроен для полностью бесплатного деплоя (Forever Free) с использованием современных облачных сервисов.
-Конфигурация описана в файле `render.yaml`.
+- многоролевой доступ и раздельные рабочие пространства;
+- каталог товаров и оформление заказов;
+- управление адресами магазинов и координатами;
+- автоназначение заказов между водителями;
+- realtime-уведомления через SSE;
+- аудит действий пользователей;
+- Excel-отчёты и аналитика менеджера.
 
-1.  **База данных:** PostgreSQL хостится на [Neon.tech](https://neon.tech/).
-2.  **Backend:** Развернут как Docker-контейнер на [Render.com](https://render.com/).
-3.  **Frontend:** Развернут как статический сайт (Static Site) на Render.com (или Cloudflare Pages).
-4.  **Домен:** Привязан кастомный домен `farmer.indevs.in` с автоматическим SSL.
+## Транспортная задача
 
-Подробная инструкция по деплою находится в файле `docs/deploy/free-deploy-render-cloudflare.md`.
+Логистическая часть проекта реализована в backend и решает учебную транспортную задачу в несколько шагов:
 
----
+1. выбираются все заказы в статусе `APPROVED`;
+2. учитывается текущая загрузка трёх водителей;
+3. заказы группируются по точкам доставки;
+4. точки распределяются по машинам с учётом веса и объёма;
+5. порядок остановок строится по ближайшей точке **по дорогам**, а не по прямой;
+6. логист получает preview-план и может подтвердить его.
 
-## 💻 Локальная разработка (Docker)
+Короткое и отдельное описание вынесено сюда:
 
-Для быстрого запуска проекта локально вам понадобятся **Docker** и **Node.js/npm**.
+- [Транспортная задача для защиты](docs/defense/transport-task.md)
 
-1. Клонируйте репозиторий:
-   ```bash
-   git clone https://github.com/mkmacupe/farmer.git
-   cd farmer
-   ```
-2. Создайте файл окружения (или используйте дефолтный):
-   ```bash
-   cp .env.example .env
-   ```
-3. Запустите базу данных (PostgreSQL) и Backend:
-   ```bash
-   docker compose up --build -d
-   ```
-4. Установите зависимости frontend и запустите Vite:
-   ```bash
-   cd frontend
-   npm install
-   npm run dev
-   ```
-5. Откройте `http://localhost:5173`.
+## Архитектура
 
-Альтернатива для Windows: можно использовать `start-dev.ps1`, он поднимет backend в Docker и frontend локально.
+```mermaid
+flowchart TB
+    UI["Frontend SPA<br/>React + Vite"] --> API["Backend API<br/>Spring Boot"]
+    API --> DB["PostgreSQL"]
+    API --> GEO["Nominatim<br/>геокодирование"]
+    API --> ROUTE["OSRM<br/>дорожные расстояния"]
+    API --> SSE["SSE Notifications"]
+    SSE --> UI
+```
 
-### 🔑 Демо-пользователи
-При первом запуске база данных автоматически заполняется тестовыми товарами и пользователями:
-*   `mogilevkhim` / `MhvK8r2pQ1`
-*   `mogilevlift` / `MlvT4n7xR2`
-*   `babushkina` / `BbkP6m9sL3`
-*   `manager` / `MgrD5v8cN4`
-*   `logistician` / `LogS7q1wE5`
-*   `driver1` / `Drv1A9k2Z6`
-*   `driver2` / `Drv2B8m3Y7`
-*   `driver3` / `Drv3C7n4X8`
+Архитектурный стиль:
 
-Примечание для Render Free: backend может «просыпаться» 10–20 секунд после простоя. Frontend теперь автоматически повторяет авторизацию и ключевые GET-запросы при transient `502/503/504`, поэтому после пробуждения сервис обычно восстанавливается без ручного рефреша страницы.
+- frontend: SPA;
+- backend: модульный монолит;
+- база: PostgreSQL + Flyway;
+- взаимодействие: REST API + JWT + SSE.
 
-### 🎓 Подготовка к защите
+Подробности:
 
-Перед показом преподавателю можно вернуть систему в эталонное демонстрационное состояние:
+- [Runtime architecture](docs/architecture/runtime-architecture.md)
+
+## Стек
+
+### Backend
+
+- Java 21
+- Spring Boot 3.4.3
+- Spring Data JPA + Hibernate 6
+- Spring Security + JWT
+- Flyway
+- PostgreSQL 17
+- Apache POI
+- SSE
+
+### Frontend
+
+- React 19.1.1
+- Vite 7.3.1
+- Material UI 7
+- Leaflet / React-Leaflet
+- Fetch API
+
+### Тестирование
+
+- JUnit 5
+- Mockito
+- Vitest
+- Playwright
+
+## Быстрый старт
+
+### 1. Клонирование
+
+```bash
+git clone https://github.com/mkmacupe/farmer.git
+cd farmer
+```
+
+### 2. Подготовка окружения
+
+```bash
+cp .env.example .env
+```
+
+### 3. Запуск backend и PostgreSQL
+
+```bash
+docker compose up --build -d
+```
+
+### 4. Запуск frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+### 5. Адрес приложения
+
+- frontend: `http://localhost:5173`
+- backend API: `http://localhost:8080/api`
+
+Для Windows можно использовать:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
+```
+
+## Demo reset
+
+Перед защитой или после серии тестов можно вернуть проект в каноническое состояние.
+
+### Локально
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base http://127.0.0.1:8080/api
 ```
 
-Для публичного backend можно передать production URL:
+### На публичном backend
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base https://farm-sales-backend.onrender.com/api
 ```
 
-Reset:
+Reset делает следующее:
 
-*   очищает накопленные заказы, аудит, уведомления и пользовательские изменения;
-*   пересоздаёт demo-пользователей, адреса и каталог;
-*   заново формирует транспортный сценарий с готовыми `APPROVED` заказами для роли логиста.
+- очищает накопленные заказы, аудит и уведомления;
+- пересоздаёт demo-пользователей;
+- восстанавливает каталог и адреса;
+- заново формирует логистический сценарий с `APPROVED` заказами.
 
-Рекомендуемый порядок демонстрации:
+Полный сценарий показа:
 
-1. Директор: профиль, адреса, новая заявка.
-2. Менеджер: сводка, одобрение, отчёт, создание директора.
-3. Логист: назначения и автоназначение.
-4. Водитель: маршрут и завершение доставки.
+- [Demo Scenario For Defense](docs/defense/demo-scenario.md)
+
+## Демо-аккаунты
+
+| Роль | Логин | Пароль |
+|---|---|---|
+| Director | `mogilevkhim` | `MhvK8r2pQ1` |
+| Director | `mogilevlift` | `MlvT4n7xR2` |
+| Director | `babushkina` | `BbkP6m9sL3` |
+| Manager | `manager` | `MgrD5v8cN4` |
+| Logistician | `logistician` | `LogS7q1wE5` |
+| Driver | `driver1` | `Drv1A9k2Z6` |
+| Driver | `driver2` | `Drv2B8m3Y7` |
+| Driver | `driver3` | `Drv3C7n4X8` |
+
+> [!NOTE]
+> На бесплатном Render backend может засыпать после простоя. Во frontend уже добавлены retry-механизмы и корректное восстановление после cold start.
+
+## Тестирование
+
+| Что проверяется | Команда |
+|---|---|
+| Backend tests | `cd backend && mvn test` |
+| Frontend unit tests | `cd frontend && npm run test:run` |
+| Frontend build | `cd frontend && npm run build` |
+| E2E role flows | `cd frontend && npm run test:e2e` |
+| Live API smoke | `cd frontend && npm run test:e2e:live` |
+| Сквозной smoke backend | `powershell -ExecutionPolicy Bypass -File .\scripts\smoke.ps1 -Base http://127.0.0.1:8080/api` |
+
+## Структура проекта
+
+```text
+backend/    Spring Boot API, бизнес-логика, JPA, безопасность, отчёты
+frontend/   React SPA, роли, карты, таблицы, realtime UI
+docs/       архитектура, защита, диаграммы, RBAC, деплой
+scripts/    smoke, demo reset, служебные утилиты
+```
+
+## Документация
+
+| Документ | Назначение |
+|---|---|
+| [docs/PROJECT_OVERVIEW.md](docs/PROJECT_OVERVIEW.md) | общий технический обзор проекта |
+| [docs/architecture/runtime-architecture.md](docs/architecture/runtime-architecture.md) | runtime-архитектура |
+| [docs/security/rbac-matrix.md](docs/security/rbac-matrix.md) | роли и права доступа |
+| [docs/defense/demo-scenario.md](docs/defense/demo-scenario.md) | порядок демонстрации на защите |
+| [docs/defense/transport-task.md](docs/defense/transport-task.md) | краткое объяснение транспортной задачи |
+| [docs/deploy/free-deploy-render-cloudflare.md](docs/deploy/free-deploy-render-cloudflare.md) | деплой на бесплатный хостинг |
+| [docs/postman/farm-sales.postman_collection.json](docs/postman/farm-sales.postman_collection.json) | API-коллекция |
+
+## Деплой
+
+Текущая production-связка:
+
+- backend: Render
+- frontend: публичный домен `farmer.indevs.in`
+- database: PostgreSQL
+
+Конфигурация инфраструктуры:
+
+- [render.yaml](render.yaml)
+- [docs/deploy/free-deploy-render-cloudflare.md](docs/deploy/free-deploy-render-cloudflare.md)
+
+---
+
+Если открыть репозиторий с нуля, то для преподавателя или проверяющего достаточно трёх файлов:
+
+1. [README.md](README.md)
+2. [docs/defense/demo-scenario.md](docs/defense/demo-scenario.md)
+3. [docs/defense/transport-task.md](docs/defense/transport-task.md)
