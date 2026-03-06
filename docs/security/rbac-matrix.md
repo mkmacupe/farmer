@@ -1,8 +1,11 @@
 # RBAC Matrix
 
+Матрица ниже отражает фактические правила из `SecurityConfig`.
+
 | Endpoint | DIRECTOR | MANAGER | LOGISTICIAN | DRIVER | ANONYMOUS |
 |---|---:|---:|---:|---:|---:|
 | `POST /api/auth/login` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `POST /api/auth/demo-login` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `GET /api/products` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /api/products/categories` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `POST /api/products` | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -24,9 +27,9 @@
 | `GET /api/orders/assigned/page` | ❌ | ❌ | ❌ | ✅ | ❌ |
 | `GET /api/orders` | ❌ | ✅ | ✅ | ❌ | ❌ |
 | `GET /api/orders/page` | ❌ | ✅ | ✅ | ❌ | ❌ |
+| `POST /api/orders/approve-all` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `POST /api/orders/{id}/approve` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `POST /api/orders/{id}/assign-driver` | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `POST /api/orders/auto-assign` | ❌ | ❌ | ✅ | ❌ | ❌ |
 | `POST /api/orders/auto-assign/preview` | ❌ | ❌ | ✅ | ❌ | ❌ |
 | `POST /api/orders/auto-assign/approve` | ❌ | ❌ | ✅ | ❌ | ❌ |
 | `POST /api/orders/{id}/deliver` | ❌ | ❌ | ❌ | ✅ | ❌ |
@@ -40,13 +43,18 @@
 | `GET /api/stock-movements` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/reports/orders` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/audit/logs` | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `POST /api/demo/reset` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/notifications/stream` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /actuator/health` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `GET /v3/api-docs` | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `GET /actuator/health/readiness` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `GET /actuator/info` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `GET /v3/api-docs/**` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /swagger-ui.html` | ✅ | ✅ | ✅ | ✅ | ❌ |
+| `GET /swagger-ui/**` | ✅ | ✅ | ✅ | ✅ | ❌ |
 
-Notes:
-- Саморегистрация отключена, учётные записи директоров создаёт менеджер.
-- Помимо RBAC, применяется бизнес-валидация статусов и владения сущностями.
-- `DIRECTOR` видит таймлайн только своих заказов.
-- `DRIVER` видит таймлайн только заказов, назначенных на него.
+## Примечания
+
+- `DIRECTOR` может видеть timeline только своих заказов.
+- `DRIVER` может видеть timeline только заказов, назначенных на него.
+- Права RBAC дополняются бизнес-валидацией статусов, ownership и ограничениями переходов состояний.
+- `POST /api/demo/reset` доступен только при `app.demo.enabled=true` и нужен для подготовки проекта к защите.

@@ -1,14 +1,16 @@
 @startuml
 start
+:Manager resets demo scenario;
 :Director logs in;
-:Updates profile/addresses;
+:Shows profile and addresses;
 :Builds cart from catalog;
 :Creates order (CREATED);
 
 :Manager reviews request;
 if (Approve?) then (yes)
   :Set status APPROVED;
-  :Logistician selects driver;
+  :Generate report/dashboard analytics;
+  :Logistician opens auto-assignment;
   :Set status ASSIGNED;
   :Driver performs delivery;
   :Set status DELIVERED;

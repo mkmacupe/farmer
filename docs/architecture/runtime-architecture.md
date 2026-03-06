@@ -1,48 +1,153 @@
 # Runtime Architecture
 
-## 1. Approach
+## 1. Общая схема выполнения
 
-Project uses a **modular monolith**: one Spring Boot app, one MySQL database, one frontend SPA.
+В runtime проект состоит из трёх основных узлов:
 
-This is intentional for a coursework scope:
-- easier local setup;
-- easier debugging;
-- fewer integration points;
-- less operational overhead.
+- `Frontend SPA` на React/Vite
+- `Backend API` на Spring Boot
+- `PostgreSQL`
 
-## 2. Backend modules
+В production frontend и backend могут быть разнесены по разным хостингам:
 
-- `auth`: login + JWT issuing (`AuthController`, `AuthService`)
-- `catalog`: product CRUD (`ProductController`, `ProductService`)
-- `orders`: order creation, listing by role, status transitions (`OrderController`, `OrderService`)
-- `timeline`: order lifecycle events (`OrderTimelineService`)
-- `inventory`: stock movement history (`StockMovementService`, `StockMovementController`)
-- `reporting`: Excel export (`ReportController`, `ReportService`)
-- `audit`: immutable action history (`AuditController`, `AuditEventListener`)
-- `notifications`: SSE stream (`NotificationController`, `NotificationStreamService`)
+- frontend — Render Static Site или Cloudflare Pages
+- backend — Render Web Service
+- database — PostgreSQL
 
-## 3. Request flow
+## 2. Архитектурный стиль
 
-Typical flow is standard layered architecture:
+Backend реализован как `модульный монолит`.
 
-1. Controller validates input and role access.
-2. Service executes business rules and transaction logic.
-3. Repository persists/reads entities.
-4. DTO response is returned to frontend.
+Это означает:
 
-No microservices, no API gateway, no external tracing/metrics stack.
+- один deployable артефакт;
+- единая кодовая база бизнес-логики;
+- разделение по сервисам и контроллерам, а не по отдельным микросервисам.
 
-## 4. Audit flow
+Для курсового проекта это оптимально, потому что:
 
-Domain services publish `AuditTrailEvent` through `AuditTrailPublisher`.
+- меньше DevOps-сложности;
+- проще тестировать и отлаживать;
+- проще объяснять архитектуру на защите;
+- легче поддерживать транзакции между сущностями заказа, склада, аудита и уведомлений.
 
-`AuditEventListener` resolves actor identity from JWT/security context and writes to `audit_logs`.
+## 3. Модули backend
 
-Tracked actions include:
-- `AUTH_LOGIN_SUCCESS`
-- `AUTH_LOGIN_FAILED`
-- `PRODUCT_CREATED`
-- `PRODUCT_UPDATED`
-- `PRODUCT_DELETED`
-- `ORDER_CREATED`
-- `ORDER_STATUS_CHANGED`
+### Аутентификация
+
+- `AuthController`
+- `AuthService`
+- `SecurityConfig`
+
+Функция: логин, demo-login, выпуск JWT, проверка ролей.
+
+### Каталог и склад
+
+- `ProductController`
+- `ProductService`
+- `StockMovementController`
+- `StockMovementService`
+
+Функция: управление товарами, остатками и историей движений.
+
+### Профиль директора и адреса
+
+- `DirectorProfileController`
+- `DirectorProfileService`
+- `GeoController`
+- `GeocodingService`
+
+Функция: профиль клиента, адреса доставки, геокодирование и reverse-geocoding.
+
+### Заказы и маршрутная логика
+
+- `OrderController`
+- `OrderService`
+- `OrderTimelineService`
+
+Функция: создание заказа, смена статусов, повтор заказа, назначение водителя, автоназначение.
+
+### Аналитика и отчёты
+
+- `DashboardController`
+- `DashboardService`
+- `ReportController`
+- `ReportService`
+
+Функция: агрегаты для панели менеджера, тренды, категории спроса, экспорт Excel.
+
+### Аудит и realtime
+
+- `AuditController`
+- `AuditTrailPublisher`
+- `AuditEventListener`
+- `NotificationController`
+- `NotificationStreamService`
+
+Функция: запись действий в аудит и доставка live-событий в frontend через SSE.
+
+### Управление демонстрационным сценарием
+
+- `DataInitializer`
+- `DemoTransportScenarioInitializer`
+- `DemoScenarioController`
+- `DemoScenarioService`
+
+Функция: начальная инициализация demo-данных и полный reset демонстрационного сценария перед защитой.
+
+## 4. Типовой request flow
+
+Обработка запроса в backend идёт по слоистой схеме:
+
+1. `Controller` принимает HTTP-запрос и валидирует входные данные.
+2. `Security` проверяет JWT и роль пользователя.
+3. `Service` исполняет бизнес-логику и транзакции.
+4. `Repository` обращается к PostgreSQL через JPA/Hibernate.
+5. `DTO` возвращается во frontend.
+
+Для ошибок используется единая точка обработки:
+
+- `ApiExceptionHandler`
+
+## 5. Frontend runtime
+
+Frontend — это SPA с ролевой оболочкой:
+
+- после логина сохраняется JWT и контекст пользователя;
+- загружается нужная рабочая область по роли;
+- API-клиент централизован в `frontend/src/api.js`;
+- для free-хостинга реализованы retry и wake-up механизмы на login и ключевых GET-запросах;
+- realtime события приходят через SSE.
+
+## 6. Cold start и free hosting
+
+Так как backend хостится на бесплатном плане Render, он может засыпать после простоя. Для runtime-устойчивости добавлено:
+
+- readiness endpoint `/actuator/health/readiness`
+- retry логика во frontend API-клиенте
+- понятное состояние ожидания на форме логина
+- повторный опрос после transient `502/503/504`
+
+Это не делает хостинг always-on, но делает приложение пригодным для публичной демонстрации после пробуждения сервиса.
+
+## 7. Демонстрационный reset
+
+Перед защитой или после серии тестов систему можно вернуть к эталонному состоянию.
+
+Reset очищает:
+
+- заказы и позиции заказов;
+- timeline событий;
+- движения склада;
+- realtime уведомления;
+- аудит;
+- адреса;
+- пользователей;
+- товары.
+
+После очистки заново запускается:
+
+- `DataInitializer` — базовые demo-пользователи, адреса и товары;
+- `DemoTransportScenarioInitializer` — готовый пул `APPROVED` заказов для логиста.
+
+В результате демонстрация всегда стартует из одинакового состояния.

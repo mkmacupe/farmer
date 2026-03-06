@@ -28,6 +28,8 @@ class Product {
   -photoUrl: String
   -price: BigDecimal
   -stockQuantity: Integer
+  -weightKg: Double
+  -volumeM3: Double
 }
 
 class Order {
@@ -52,6 +54,33 @@ class OrderItem {
   -lineTotal: BigDecimal
 }
 
+class StockMovement {
+  -id: Long
+  -product: Product
+  -order: Order
+  -movementType: StockMovementType
+  -quantityChange: Integer
+  -reason: String
+  -createdAt: Instant
+}
+
+class OrderTimelineEvent {
+  -id: Long
+  -order: Order
+  -fromStatus: OrderStatus
+  -toStatus: OrderStatus
+  -actorUsername: String
+  -createdAt: Instant
+}
+
+class RealtimeNotification {
+  -id: Long
+  -title: String
+  -message: String
+  -eventType: String
+  -targetRoles: String
+}
+
 enum Role {
   DIRECTOR
   MANAGER
@@ -72,4 +101,8 @@ User "1" -- "many" Order : assignedDriver
 StoreAddress "1" -- "many" Order : deliveryAddress
 Order "1" -- "many" OrderItem : items
 Product "1" -- "many" OrderItem : product
+Product "1" -- "many" StockMovement : affects
+Order "1" -- "many" StockMovement : source
+Order "1" -- "many" OrderTimelineEvent : timeline
+Order "1" -- "many" RealtimeNotification : notifies
 @enduml

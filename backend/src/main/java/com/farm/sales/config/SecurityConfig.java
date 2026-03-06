@@ -68,6 +68,7 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/api/orders/*/approve").hasRole("MANAGER")
             .requestMatchers(HttpMethod.POST, "/api/orders/*/assign-driver").hasRole("LOGISTICIAN")
             .requestMatchers(HttpMethod.POST, "/api/orders/*/deliver").hasRole("DRIVER")
+            .requestMatchers(HttpMethod.POST, "/api/demo/reset").hasRole("MANAGER")
             .requestMatchers(HttpMethod.GET, "/api/orders/*/timeline")
             .hasAnyRole("DIRECTOR", "MANAGER", "LOGISTICIAN", "DRIVER")
             .requestMatchers("/api/director/**").hasRole("DIRECTOR")

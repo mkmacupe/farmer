@@ -74,6 +74,11 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
+    seedDemoScenario();
+  }
+
+  @Transactional
+  public void seedDemoScenario() {
     List<User> directors = resolveDemoDirectors();
     if (directors.size() != DIRECTOR_USERNAMES.size()) {
       log.warn("Пропуск demo-транспортного сида: не удалось найти всех demo-директоров.");

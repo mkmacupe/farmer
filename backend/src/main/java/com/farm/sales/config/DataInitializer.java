@@ -104,6 +104,12 @@ public class DataInitializer implements CommandLineRunner {
     run();
   }
 
+  public void resetDemoSeedState() {
+    synchronized (seedLock) {
+      demoSeeded = false;
+    }
+  }
+
   private void seedProduct(String name, String cat, String price, int stock, String img) {
     Product existing = productRepository.findByNameIgnoreCase(name).orElse(null);
     double weight = parseWeight(name);
