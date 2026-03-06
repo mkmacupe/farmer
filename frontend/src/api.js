@@ -55,7 +55,13 @@ function normalizeFetchError(error) {
   if (error?.code || typeof error?.status === 'number') {
     return error;
   }
-  if (error?.name === 'AbortError') {
+  const normalizedMessage = String(error?.message || '').toLowerCase();
+  if (
+    error?.name === 'AbortError'
+    || normalizedMessage.includes('signal is aborted')
+    || normalizedMessage.includes('aborted without reason')
+    || normalizedMessage.includes('operation was aborted')
+  ) {
     return createApiError(NETWORK_TIMEOUT_MESSAGE, { code: 'NETWORK_TIMEOUT' });
   }
   if (error instanceof TypeError) {
