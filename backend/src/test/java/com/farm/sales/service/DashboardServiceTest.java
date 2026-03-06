@@ -5,6 +5,7 @@ import static org.mockito.Mockito.when;
 
 import com.farm.sales.dto.DashboardCategoryInsightResponse;
 import com.farm.sales.dto.DashboardTrendResponse;
+import com.farm.sales.model.Order;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
 import java.math.BigDecimal;
@@ -64,6 +65,32 @@ class DashboardServiceTest {
     assertThat(summary.ordersByStatus())
         .extracting(status -> status.count())
         .containsOnly(0L);
+  }
+
+  @Test
+  void summaryFallsBackToInMemoryOrdersWhenAggregateQueryFails() {
+    Instant from = Instant.parse("2026-01-01T00:00:00Z");
+    Instant to = Instant.parse("2026-01-31T23:59:59Z");
+    Order delivered = new Order();
+    delivered.setStatus(OrderStatus.DELIVERED);
+    delivered.setTotalAmount(new BigDecimal("120.00"));
+    delivered.setCreatedAt(Instant.parse("2026-01-05T12:00:00Z"));
+
+    Order created = new Order();
+    created.setStatus(OrderStatus.CREATED);
+    created.setTotalAmount(new BigDecimal("80.00"));
+    created.setCreatedAt(Instant.parse("2026-01-06T12:00:00Z"));
+
+    when(orderRepository.summarizeForDashboard(from, to)).thenThrow(new RuntimeException("sql failed"));
+    when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of(delivered, created));
+
+    var summary = dashboardService.getSummary(from, to);
+
+    assertThat(summary.totalOrders()).isEqualTo(2);
+    assertThat(summary.deliveredOrders()).isEqualTo(1);
+    assertThat(summary.totalRevenue()).isEqualByComparingTo("120.00");
+    assertThat(summary.averageCheck()).isEqualByComparingTo("100.00");
   }
 
   @Test

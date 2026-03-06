@@ -24,16 +24,36 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionCallback;
+import org.springframework.transaction.support.TransactionOperations;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class DashboardService {
   private static final Logger log = LoggerFactory.getLogger(DashboardService.class);
   private static final int DASHBOARD_SCAN_LIMIT = 10_000;
   private final OrderRepository orderRepository;
+  private final TransactionOperations fallbackReadTransaction;
 
-  public DashboardService(OrderRepository orderRepository) {
+  public DashboardService(OrderRepository orderRepository, PlatformTransactionManager transactionManager) {
     this.orderRepository = orderRepository;
+    TransactionTemplate template = new TransactionTemplate(transactionManager);
+    template.setReadOnly(true);
+    template.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
+    this.fallbackReadTransaction = template;
+  }
+
+  DashboardService(OrderRepository orderRepository) {
+    this.orderRepository = orderRepository;
+    this.fallbackReadTransaction = new TransactionOperations() {
+      @Override
+      public <T> T execute(TransactionCallback<T> action) {
+        return action.doInTransaction(new SimpleTransactionStatus());
+      }
+    };
   }
 
   @Transactional(readOnly = true)
@@ -53,7 +73,7 @@ public class DashboardService {
       return buildSummaryResponse(from, to, totalOrders, totalAllOrders, totalDeliveredRevenue, byStatus);
     } catch (RuntimeException ex) {
       log.warn("Dashboard summary aggregate query failed, falling back to in-memory computation", ex);
-      return buildSummaryFromOrders(from, to, loadOrdersForDashboard(from, to));
+      return buildSummaryFromOrders(from, to, loadOrdersForDashboardWithFallbackTransaction(from, to));
     }
   }
 
@@ -71,7 +91,7 @@ public class DashboardService {
       return new DashboardTrendResponse(from, to, points);
     } catch (RuntimeException ex) {
       log.warn("Dashboard trends query failed, falling back to in-memory computation", ex);
-      return buildTrendsFromOrders(from, to, loadOrdersForDashboard(from, to));
+      return buildTrendsFromOrders(from, to, loadOrdersForDashboardWithFallbackTransaction(from, to));
     }
   }
 
@@ -86,7 +106,7 @@ public class DashboardService {
           .toList();
     } catch (RuntimeException ex) {
       log.warn("Dashboard category query failed, falling back to in-memory computation", ex);
-      return buildCategoriesFromOrders(loadOrdersForDashboard(from, to));
+      return buildCategoriesFromOrders(loadOrdersForDashboardWithFallbackTransaction(from, to));
     }
   }
 
@@ -204,6 +224,10 @@ public class DashboardService {
     return candidates.stream()
         .filter(order -> isInRange(order, from, to))
         .toList();
+  }
+
+  private List<Order> loadOrdersForDashboardWithFallbackTransaction(Instant from, Instant to) {
+    return fallbackReadTransaction.execute(status -> loadOrdersForDashboard(from, to));
   }
 
   private boolean isInRange(Order order, Instant from, Instant to) {
