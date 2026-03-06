@@ -85,4 +85,9 @@ describe('LoginForm', () => {
     expect(screen.getByRole('button', { name: /вход/i })).toBeDisabled();
   });
 
+  it('shows warmup hint while loading', () => {
+    render(<LoginForm onLogin={() => {}} loading error="" />);
+    expect(screen.getByText(/если backend был в спящем режиме/i)).toBeInTheDocument();
+  });
+
 });

@@ -18,22 +18,6 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface OrderRepository extends JpaRepository<Order, Long> {
-  interface DashboardSummaryAggregate {
-    Number getTotalOrders();
-
-    BigDecimal getTotalAmount();
-
-    BigDecimal getDeliveredRevenue();
-
-    Number getCreatedCount();
-
-    Number getApprovedCount();
-
-    Number getAssignedCount();
-
-    Number getDeliveredCount();
-  }
-
   interface ReportRow {
     Long getOrderId();
 
@@ -56,22 +40,6 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
     Long getDriverId();
 
     Number getTotal();
-  }
-
-  interface DailyTrendRow {
-    Object getDay();
-
-    Number getTotalOrders();
-
-    BigDecimal getTotalAmount();
-
-    Number getDeliveredCount();
-  }
-
-  interface CategoryUnitsRow {
-    String getCategory();
-
-    Number getTotalUnits();
   }
 
   @Override
@@ -162,15 +130,18 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       join o.customer c
       left join o.assignedDriver d
       left join o.items oi
-      where (:fromInstant is null or o.createdAt >= :fromInstant)
-        and (:toInstant is null or o.createdAt <= :toInstant)
-        and (:status is null or o.status = :status)
+      where (:applyFromFilter = false or o.createdAt >= :fromInstant)
+        and (:applyToFilter = false or o.createdAt <= :toInstant)
+        and (:applyStatusFilter = false or o.status = :status)
       group by o.id, c.legalEntityName, c.fullName, o.status, o.createdAt, o.totalAmount, o.deliveryAddressText, d.fullName
       order by o.createdAt desc
       """)
   List<ReportRow> findReportRows(@Param("fromInstant") Instant fromInstant,
                                  @Param("toInstant") Instant toInstant,
-                                 @Param("status") OrderStatus status);
+                                 @Param("status") OrderStatus status,
+                                 @Param("applyFromFilter") boolean applyFromFilter,
+                                 @Param("applyToFilter") boolean applyToFilter,
+                                 @Param("applyStatusFilter") boolean applyStatusFilter);
 
   @Query("""
       select o.id as orderId,
@@ -185,57 +156,17 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       join o.customer c
       left join o.assignedDriver d
       left join o.items oi
-      where (:fromInstant is null or o.createdAt >= :fromInstant)
-        and (:toInstant is null or o.createdAt <= :toInstant)
-        and (:status is null or o.status = :status)
+      where (:applyFromFilter = false or o.createdAt >= :fromInstant)
+        and (:applyToFilter = false or o.createdAt <= :toInstant)
+        and (:applyStatusFilter = false or o.status = :status)
       group by o.id, c.legalEntityName, c.fullName, o.status, o.createdAt, o.totalAmount, o.deliveryAddressText, d.fullName
       order by o.createdAt desc
       """)
   List<ReportRow> findReportRows(@Param("fromInstant") Instant fromInstant,
                                  @Param("toInstant") Instant toInstant,
                                  @Param("status") OrderStatus status,
+                                 @Param("applyFromFilter") boolean applyFromFilter,
+                                 @Param("applyToFilter") boolean applyToFilter,
+                                 @Param("applyStatusFilter") boolean applyStatusFilter,
                                  Pageable pageable);
-
-  @Query("""
-      select count(o) as totalOrders,
-             coalesce(sum(o.totalAmount), 0) as totalAmount,
-             coalesce(sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then o.totalAmount end), 0) as deliveredRevenue,
-             sum(case when o.status = com.farm.sales.model.OrderStatus.CREATED then 1L else 0L end) as createdCount,
-             sum(case when o.status = com.farm.sales.model.OrderStatus.APPROVED then 1L else 0L end) as approvedCount,
-             sum(case when o.status = com.farm.sales.model.OrderStatus.ASSIGNED then 1L else 0L end) as assignedCount,
-             sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then 1L else 0L end) as deliveredCount
-      from Order o
-      where (:fromInstant is null or o.createdAt >= :fromInstant)
-        and (:toInstant is null or o.createdAt <= :toInstant)
-      """)
-  DashboardSummaryAggregate summarizeForDashboard(@Param("fromInstant") Instant fromInstant,
-                                                  @Param("toInstant") Instant toInstant);
-
-  @Query("""
-      select cast(o.createdAt as date) as day,
-             count(o) as totalOrders,
-             coalesce(sum(o.totalAmount), 0) as totalAmount,
-             sum(case when o.status = com.farm.sales.model.OrderStatus.DELIVERED then 1L else 0L end) as deliveredCount
-      from Order o
-      where (:fromInstant is null or o.createdAt >= :fromInstant)
-        and (:toInstant is null or o.createdAt <= :toInstant)
-      group by cast(o.createdAt as date)
-      order by cast(o.createdAt as date) asc
-      """)
-  List<DailyTrendRow> findDailyTrends(@Param("fromInstant") Instant fromInstant,
-                                      @Param("toInstant") Instant toInstant);
-
-  @Query("""
-      select p.category as category,
-             coalesce(sum(oi.quantity), 0L) as totalUnits
-      from Order o
-      join o.items oi
-      join oi.product p
-      where (:fromInstant is null or o.createdAt >= :fromInstant)
-        and (:toInstant is null or o.createdAt <= :toInstant)
-      group by p.category
-      order by totalUnits desc
-      """)
-  List<CategoryUnitsRow> findCategoryUnits(@Param("fromInstant") Instant fromInstant,
-                                           @Param("toInstant") Instant toInstant);
 }

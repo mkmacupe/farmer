@@ -29,12 +29,98 @@ const resolveApiBase = () => {
 };
 
 const API_BASE = resolveApiBase();
-const LOGIN_TIMEOUT_MS = 65_000;
-const LOGIN_RETRY_DELAY_MS = 1_500;
+const LOGIN_TIMEOUT_MS = 10_000;
 const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
 const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
+const WARMING_UP_MESSAGE = 'Сервер всё ещё просыпается после простоя. Подождите 10–20 секунд и повторите вход.';
+const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
+const DEFAULT_RETRY_POLICY = Object.freeze({
+  attempts: 2,
+  baseDelayMs: 1_200,
+  maxDelayMs: 4_000
+});
+const AUTH_RETRY_POLICY = Object.freeze({
+  attempts: 4,
+  baseDelayMs: 1_500,
+  maxDelayMs: 6_000
+});
 
-async function apiFetch(url, options = {}) {
+function createApiError(message, details = {}) {
+  const error = new Error(message);
+  Object.assign(error, details);
+  return error;
+}
+
+function normalizeFetchError(error) {
+  if (error?.code || typeof error?.status === 'number') {
+    return error;
+  }
+  if (error?.name === 'AbortError') {
+    return createApiError(NETWORK_TIMEOUT_MESSAGE, { code: 'NETWORK_TIMEOUT' });
+  }
+  if (error instanceof TypeError) {
+    return createApiError(NETWORK_UNAVAILABLE_MESSAGE, { code: 'NETWORK_UNAVAILABLE' });
+  }
+  return error;
+}
+
+function resolveRetryPolicy(method, retryPolicy) {
+  if (retryPolicy === false) {
+    return null;
+  }
+  if (retryPolicy && typeof retryPolicy === 'object') {
+    return retryPolicy;
+  }
+
+  const normalizedMethod = String(method || 'GET').toUpperCase();
+  if (normalizedMethod === 'GET' || normalizedMethod === 'HEAD') {
+    return DEFAULT_RETRY_POLICY;
+  }
+  return null;
+}
+
+function shouldRetryResponse(response) {
+  return RETRYABLE_RESPONSE_STATUSES.has(response?.status);
+}
+
+function shouldRetryError(error) {
+  return (
+    error?.code === 'NETWORK_TIMEOUT'
+    || error?.code === 'NETWORK_UNAVAILABLE'
+    || RETRYABLE_RESPONSE_STATUSES.has(error?.status)
+  );
+}
+
+function parseRetryAfterMs(response) {
+  const retryAfterHeader = response?.headers?.get?.('retry-after');
+  if (!retryAfterHeader) {
+    return null;
+  }
+
+  const numericSeconds = Number(retryAfterHeader);
+  if (Number.isFinite(numericSeconds) && numericSeconds >= 0) {
+    return numericSeconds * 1_000;
+  }
+
+  const retryAt = Date.parse(retryAfterHeader);
+  if (Number.isNaN(retryAt)) {
+    return null;
+  }
+
+  return Math.max(0, retryAt - Date.now());
+}
+
+function getRetryDelayMs(policy, attemptIndex, response) {
+  const retryAfterMs = parseRetryAfterMs(response);
+  if (Number.isFinite(retryAfterMs)) {
+    return Math.min(policy.maxDelayMs, Math.max(0, retryAfterMs));
+  }
+
+  const baseDelay = policy.baseDelayMs * (attemptIndex + 1);
+  return Math.min(policy.maxDelayMs, baseDelay);
+}
+
+async function apiFetchOnce(url, options = {}) {
   const { timeoutMs = 15000, ...rest } = options;
   if (!timeoutMs || timeoutMs <= 0) {
     return globalThis.fetch(url, rest);
@@ -53,20 +139,38 @@ async function apiFetch(url, options = {}) {
   try {
     return await globalThis.fetch(url, { ...rest, signal: controller.signal });
   } catch (error) {
-    if (error?.name === 'AbortError') {
-      throw new Error(NETWORK_TIMEOUT_MESSAGE);
-    }
-    if (error instanceof TypeError) {
-      throw new Error(NETWORK_UNAVAILABLE_MESSAGE);
-    }
-    throw error;
+    throw normalizeFetchError(error);
   } finally {
     window.clearTimeout(timeoutId);
   }
 }
 
-function isRetryableNetworkError(error) {
-  return error?.message === NETWORK_TIMEOUT_MESSAGE || error?.message === NETWORK_UNAVAILABLE_MESSAGE;
+async function apiFetch(url, options = {}) {
+  const { retryPolicy, ...rest } = options;
+  const policy = resolveRetryPolicy(rest.method, retryPolicy);
+  const attempts = Math.max(1, policy?.attempts ?? 1);
+
+  for (let attemptIndex = 0; attemptIndex < attempts; attemptIndex += 1) {
+    try {
+      const response = await apiFetchOnce(url, rest);
+      const hasNextAttempt = attemptIndex + 1 < attempts;
+      if (!hasNextAttempt || !shouldRetryResponse(response)) {
+        return response;
+      }
+
+      await waitMs(getRetryDelayMs(policy, attemptIndex, response));
+    } catch (error) {
+      const normalizedError = normalizeFetchError(error);
+      const hasNextAttempt = attemptIndex + 1 < attempts;
+      if (!hasNextAttempt || !shouldRetryError(normalizedError)) {
+        throw normalizedError;
+      }
+
+      await waitMs(getRetryDelayMs(policy, attemptIndex));
+    }
+  }
+
+  return apiFetchOnce(url, rest);
 }
 
 function isAuthPayload(payload) {
@@ -154,10 +258,11 @@ function authHeaders(token) {
 }
 
 export async function login(username, password) {
-  const makeAttempt = async () => {
+  try {
     const response = await apiFetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       timeoutMs: LOGIN_TIMEOUT_MS,
+      retryPolicy: AUTH_RETRY_POLICY,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ username, password })
     });
@@ -166,34 +271,30 @@ export async function login(username, password) {
       throw new Error('Сервис авторизации недоступен. Проверьте адрес API и повторите вход.');
     }
     return payload;
-  };
-
-  try {
-    return await makeAttempt();
   } catch (error) {
-    if (!isRetryableNetworkError(error)) {
-      throw error;
-    }
-  }
-
-  await waitMs(LOGIN_RETRY_DELAY_MS);
-  try {
-    return await makeAttempt();
-  } catch (error) {
-    if (isRetryableNetworkError(error)) {
-      throw new Error('Сервер просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
+    if (shouldRetryError(error)) {
+      throw new Error(WARMING_UP_MESSAGE);
     }
     throw error;
   }
 }
 
 export async function demoLogin(username, password) {
-  const response = await apiFetch(`${API_BASE}/auth/demo-login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, password })
-  });
-  return handleResponse(response);
+  try {
+    const response = await apiFetch(`${API_BASE}/auth/demo-login`, {
+      method: 'POST',
+      timeoutMs: LOGIN_TIMEOUT_MS,
+      retryPolicy: AUTH_RETRY_POLICY,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    return await handleResponse(response);
+  } catch (error) {
+    if (shouldRetryError(error)) {
+      throw new Error(WARMING_UP_MESSAGE);
+    }
+    throw error;
+  }
 }
 
 function normalizeProductsPage(payload, fallbackPage = 0, fallbackSize = 24) {

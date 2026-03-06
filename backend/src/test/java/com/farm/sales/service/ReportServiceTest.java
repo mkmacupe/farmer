@@ -61,6 +61,9 @@ class ReportServiceTest {
         eq(Instant.parse("2026-02-01T00:00:00Z")),
         eq(Instant.parse("2026-02-10T00:00:00Z")),
         eq(OrderStatus.DELIVERED),
+        eq(true),
+        eq(true),
+        eq(true),
         any(org.springframework.data.domain.Pageable.class)
     )).thenReturn(List.of(row));
 
@@ -99,6 +102,9 @@ class ReportServiceTest {
         isNull(),
         isNull(),
         isNull(),
+        eq(false),
+        eq(false),
+        eq(false),
         any(org.springframework.data.domain.Pageable.class)
     ))
         .thenReturn(List.of(row));
@@ -109,6 +115,9 @@ class ReportServiceTest {
         isNull(),
         isNull(),
         isNull(),
+        eq(false),
+        eq(false),
+        eq(false),
         any(org.springframework.data.domain.Pageable.class)
     );
     try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(payload))) {
@@ -137,6 +146,9 @@ class ReportServiceTest {
         isNull(),
         isNull(),
         isNull(),
+        eq(false),
+        eq(false),
+        eq(false),
         any(org.springframework.data.domain.Pageable.class)
     ))
         .thenReturn(List.of());

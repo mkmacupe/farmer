@@ -6,7 +6,7 @@ services:
     rootDir: backend
     dockerfilePath: ./Dockerfile
     autoDeploy: true
-    healthCheckPath: /actuator/health
+    healthCheckPath: /actuator/health/readiness
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod

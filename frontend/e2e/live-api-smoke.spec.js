@@ -16,8 +16,8 @@ test.describe('Live API Smoke', () => {
 
     await expect(
       page.getByRole('heading', {
-        name: /(панель менеджера|закупки без лишних шагов|логистика и назначения|мои доставки)/i
-      })
+        name: /(сводка|панель менеджера|закупки без лишних шагов|логистика и назначения|назначения|мои доставки)/i
+      }).first()
     ).toBeVisible({ timeout: 20_000 });
 
     await expect(page.getByText(/сервер недоступен/i)).toHaveCount(0);

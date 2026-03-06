@@ -37,8 +37,19 @@ public class ReportService {
   @Transactional(readOnly = true)
   public byte[] buildOrdersReport(Instant from, Instant to, String statusValue) {
     OrderStatus status = parseStatus(statusValue);
+    boolean applyFromFilter = from != null;
+    boolean applyToFilter = to != null;
+    boolean applyStatusFilter = status != null;
 
-    List<OrderRepository.ReportRow> orders = orderRepository.findReportRows(from, to, status, PageRequest.of(0, MAX_REPORT_ROWS + 1));
+    List<OrderRepository.ReportRow> orders = orderRepository.findReportRows(
+        from,
+        to,
+        status,
+        applyFromFilter,
+        applyToFilter,
+        applyStatusFilter,
+        PageRequest.of(0, MAX_REPORT_ROWS + 1)
+    );
     if (orders.size() > MAX_REPORT_ROWS) {
       throw new ResponseStatusException(
           HttpStatus.BAD_REQUEST,

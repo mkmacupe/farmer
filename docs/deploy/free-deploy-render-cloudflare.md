@@ -32,7 +32,7 @@ C:\Progra~1\Git\cmd\git.exe push -u origin main
 Проверка:
 
 ```text
-https://farm-sales-backend.onrender.com/actuator/health
+https://farm-sales-backend.onrender.com/actuator/health/readiness
 ```
 
 ## 3) Деплой frontend на Cloudflare Pages (вариант B)
@@ -60,7 +60,8 @@ https://farm-sales-backend.onrender.com/actuator/health
 
 ## 5) Важные ограничения free-варианта
 
-- Render Free backend может засыпать после простоя (первый запрос после сна медленный).
+- Render Free backend может засыпать после простоя, но frontend уже умеет автоматически пережидать cold start и повторять transient `502/503/504` запросы на входе и при загрузке данных.
+- Для Render health check лучше использовать readiness endpoint `/actuator/health/readiness`, а не общий `/actuator/health`.
 - В `dev` профиле используется H2-файл; на free Render файловая система непостоянная.
   После рестарта/пересборки demo-данные могут сбрасываться.
 - Если нужен backend без засыпания и реально 24/7, free-вариант не подходит: потребуется always-on тариф или другой always-on хостинг.

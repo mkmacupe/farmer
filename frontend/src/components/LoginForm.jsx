@@ -12,7 +12,7 @@ const DEMO_ACCOUNTS = [
   { label: 'driver3', username: 'driver3', password: 'Drv3C7n4X8' }
 ];
 
-function LoginForm({ onLogin, loading, error }) {
+function LoginForm({ onLogin, loading, error, loadingMessage }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -70,6 +70,11 @@ function LoginForm({ onLogin, loading, error }) {
             <button type="submit" disabled={loading || !canSubmit}>
               {loading ? 'Вход…' : 'Войти'}
             </button>
+            {loading ? (
+              <p className="login-hint" role="status" aria-live="polite">
+                {loadingMessage || 'Подключаем сервер. Если backend был в спящем режиме, это может занять до 30 секунд.'}
+              </p>
+            ) : null}
           </form>
 
           <div className="login-divider" aria-hidden="true" />

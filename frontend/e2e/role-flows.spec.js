@@ -4,9 +4,9 @@ import { installApiMock, loginAs } from './helpers/mockApi.js';
 async function waitForWorkspaceReady(page) {
   const loadingPlaceholder = page.getByText(/загружаем рабочее пространство/i);
   try {
-    await expect(loadingPlaceholder).toBeHidden({ timeout: 15_000 });
+    await expect(loadingPlaceholder).toBeHidden({ timeout: 30_000 });
   } catch (e) {}
-  await expect(page.getByRole('button', { name: /выйти/i }).first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByRole('button', { name: /выйти/i }).first()).toBeVisible({ timeout: 30_000 });
 }
 
 async function selectMuiOption(page, labelRegex, optionTextRegex) {
@@ -132,7 +132,7 @@ test.describe('Logistician Flows', () => {
   });
 
   test('can assign driver to approved order', async ({ page }) => {
-    await expect(page.getByRole('heading').filter({ hasText: /логистика/i }).first()).toBeVisible();
+    await expect(page.getByRole('heading').filter({ hasText: /логистика|назначения/i }).first()).toBeVisible();
     
     const driverSelect = page.getByTestId('driver-select-302').locator('.MuiSelect-select');
     await driverSelect.click();

@@ -273,13 +273,40 @@ describe('api', () => {
     vi.useRealTimers();
   });
 
-  it('login shows warmup hint when both attempts fail due network', async () => {
+  it('retries transient 503 responses for GET requests and succeeds without manual refresh', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(textResponse('Service unavailable', { status: 503 }))
+      .mockResolvedValueOnce(jsonResponse(['Молочная продукция']));
+
+    const categoriesPromise = api.getProductCategories('token-retry-get');
+    await vi.advanceTimersByTimeAsync(1_300);
+
+    await expect(categoriesPromise).resolves.toEqual(['Молочная продукция']);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it('login shows warmup hint when backend stays unavailable across all retry attempts', async () => {
     vi.useFakeTimers();
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 
     const loginPromise = api.login('manager', 'secret');
-    const assertion = expect(loginPromise).rejects.toThrow('Сервер просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
-    await vi.advanceTimersByTimeAsync(1_600);
+    const assertion = expect(loginPromise).rejects.toThrow('Сервер всё ещё просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
+    await vi.advanceTimersByTimeAsync(9_500);
+    await assertion;
+
+    vi.useRealTimers();
+  });
+
+  it('demoLogin maps persistent transient server errors to the warmup hint', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(textResponse('Service unavailable', { status: 503 }));
+
+    const demoLoginPromise = api.demoLogin('manager', 'secret');
+    const assertion = expect(demoLoginPromise).rejects.toThrow('Сервер всё ещё просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
+    await vi.advanceTimersByTimeAsync(9_500);
     await assertion;
 
     vi.useRealTimers();
@@ -330,7 +357,7 @@ describe('api', () => {
     }));
 
     const promise = expect(
-      api.getProductCategories('token-timeout', { timeoutMs: 50 })
+      api.getProductCategories('token-timeout', { timeoutMs: 50, retryPolicy: false })
     ).rejects.toThrow('Истекло время ожидания ответа от сервера.');
     await vi.advanceTimersByTimeAsync(60);
     await promise;
@@ -348,7 +375,10 @@ describe('api', () => {
       }, { once: true });
     }));
 
-    const promise = api.getProductCategories('token-signal', { signal: externalController.signal });
+    const promise = api.getProductCategories('token-signal', {
+      signal: externalController.signal,
+      retryPolicy: false
+    });
     externalController.abort();
     await expect(promise).rejects.toThrow('Истекло время ожидания ответа от сервера.');
   });
@@ -361,7 +391,10 @@ describe('api', () => {
       signal: options.signal
     })));
 
-    await expect(api.getProductCategories('token-signal-aborted', { signal: externalController.signal }))
+    await expect(api.getProductCategories('token-signal-aborted', {
+      signal: externalController.signal,
+      retryPolicy: false
+    }))
       .rejects.toThrow('Истекло время ожидания ответа от сервера.');
   });
 
@@ -500,7 +533,7 @@ describe('api', () => {
       status: 503,
       headers: { 'content-type': 'text/plain; charset=utf-8' }
     }));
-    await expect(api.getDrivers('token-16')).rejects.toThrow('Ошибка запроса (503)');
+    await expect(api.getProductCategories('token-16', { retryPolicy: false })).rejects.toThrow('Ошибка запроса (503)');
   });
 
   it('returns text payload for successful non-json response', async () => {
