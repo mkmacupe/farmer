@@ -114,10 +114,13 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
+      const passwordCandidates = resolveQuickLoginPasswords(fallbackPassword);
       try {
-        const response = await demoLogin(username);
-        await applyAuthResponse(response);
-        return;
+        if (passwordCandidates.length > 0) {
+          const response = await demoLogin(username, passwordCandidates[0]);
+          await applyAuthResponse(response);
+          return;
+        }
       } catch (error) {
         const message = String(error?.message || "").toLowerCase();
         if (message.includes("демо-вход отключ")) {
@@ -125,8 +128,6 @@ export default function App() {
         }
         // Fallback keeps compatibility with older backend versions without demo-login endpoint.
       }
-
-      const passwordCandidates = resolveQuickLoginPasswords(fallbackPassword);
       let lastError = null;
 
       for (let index = 0; index < passwordCandidates.length; index += 1) {

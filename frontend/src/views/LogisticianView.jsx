@@ -136,16 +136,17 @@ export default function LogisticianView({ token, activeSection }) {
   }, [orders, ordersTotalItems]);
   const latestNotifications = useMemo(() => notifications.slice(0, 4), [notifications]);
   const routePlanAssignments = useMemo(() => {
-    if (!routePlan?.routes) {
+    if (!routePlan || !Array.isArray(routePlan.routes)) {
       return [];
     }
-    return routePlan.routes.flatMap((route) =>
-      route.points.map((point) => ({
+    return routePlan.routes.flatMap((route) => {
+      if (!route || !Array.isArray(route.points)) return [];
+      return route.points.map((point) => ({
         orderId: point.orderId,
         driverId: route.driverId,
         stopSequence: point.stopSequence
-      }))
-    );
+      }));
+    });
   }, [routePlan]);
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
 
@@ -199,6 +200,7 @@ export default function LogisticianView({ token, activeSection }) {
       onNotification: (payload) => {
         setNotifications((prev) => [payload, ...prev].slice(0, 10));
         showMessage(`Новое событие: ${payload.title || 'Уведомление'}`, 'info');
+        void loadOrders();
       }
     });
     return () => unsubscribe();
@@ -324,6 +326,7 @@ export default function LogisticianView({ token, activeSection }) {
             onChange={(e) => setDriverSelection((prev) => ({ ...prev, [order.id]: e.target.value }))}
             fullWidth
             disabled={actionLoading}
+            data-testid={`driver-select-${order.id}`}
             SelectProps={{
               displayEmpty: true,
               inputProps: {
@@ -398,6 +401,7 @@ export default function LogisticianView({ token, activeSection }) {
                 variant="contained"
                 onClick={handleAutoAssign}
                 disabled={loading || actionLoading || pendingAssignmentCount === 0}
+                data-testid="auto-assign-button"
               >
                 Транспортная задача
               </Button>
@@ -445,19 +449,22 @@ export default function LogisticianView({ token, activeSection }) {
                 <NotificationsIcon color="action" /> Последние уведомления
               </Typography>
               <Stack spacing={1}>
-                {latestNotifications.map((notif) => (
-                  <Alert
-                    key={`${notif.createdAt || 'event'}-${notif.title || 'Событие'}-${notif.orderId || 'na'}`}
-                    severity="info"
-                    icon={false}
-                    sx={{ py: 0 }}
-                  >
-                    <Typography variant="subtitle2" component="span" fontWeight="bold">
-                      {notif.title || 'Событие'}: 
-                    </Typography>
-                    {' '}{notif.message} — <Typography variant="caption" color="text.secondary">{formatDateTime(notif.createdAt)}</Typography>
-                  </Alert>
-                ))}
+                {latestNotifications.map((notif, idx) => {
+                  if (!notif) return null;
+                  return (
+                    <Alert
+                      key={`${notif.createdAt || 'event'}-${notif.title || 'Событие'}-${notif.orderId || idx}`}
+                      severity="info"
+                      icon={false}
+                      sx={{ py: 0 }}
+                    >
+                      <Typography variant="subtitle2" component="span" fontWeight="bold">
+                        {notif.title || 'Событие'}: 
+                      </Typography>
+                      {' '}{notif.message} — <Typography variant="caption" color="text.secondary">{formatDateTime(notif.createdAt)}</Typography>
+                    </Alert>
+                  );
+                })}
               </Stack>
             </Paper>
           )}
@@ -477,7 +484,7 @@ export default function LogisticianView({ token, activeSection }) {
           }
         }}
       >
-        <DialogTitle>Предпросмотр транспортной задачи</DialogTitle>
+        <DialogTitle data-testid="auto-assign-dialog-title">Предпросмотр транспортной задачи</DialogTitle>
         <DialogContent dividers sx={{ overflow: 'hidden', py: 1.5 }}>
           {routePlan ? (
             <Stack spacing={1.5}>
@@ -601,7 +608,7 @@ export default function LogisticianView({ token, activeSection }) {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleRejectRoutePlan} disabled={actionLoading}>
+          <Button onClick={handleRejectRoutePlan} disabled={actionLoading} data-testid="reject-route-plan-button">
             Отклонить
           </Button>
           <Button

@@ -87,7 +87,7 @@ public class AuthService {
     return new AuthResponse(token, user.getUsername(), user.getFullName(), user.getRole().name());
   }
 
-  public AuthResponse demoLogin(String username, boolean demoEnabled) {
+  public AuthResponse demoLogin(String username, String password, boolean demoEnabled) {
     if (!demoEnabled) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Демо-вход отключён");
     }
@@ -102,7 +102,17 @@ public class AuthService {
       dataInitializer.seedDemoData();
       user = userRepository.findByUsername(normalizedUsername).orElse(null);
     }
-    if (user == null) {
+
+    String passwordHash = user != null ? user.getPasswordHash() : dummyPasswordHash;
+    boolean passwordMatches = passwordEncoder.matches(password, passwordHash);
+    if (user == null || !passwordMatches) {
+      auditTrailPublisher.publishWithActor(
+          "AUTH_DEMO_LOGIN_FAILED",
+          "AUTH",
+          normalizedUsername,
+          "reason=invalid_credentials",
+          new AuditActor(normalizedUsername, null, null)
+      );
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль");
     }
 

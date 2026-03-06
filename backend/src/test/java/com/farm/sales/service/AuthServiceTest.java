@@ -109,13 +109,15 @@ class AuthServiceTest {
     user.setUsername("manager");
     user.setFullName("Manager");
     user.setRole(Role.MANAGER);
+    user.setPasswordHash("stored-hash");
 
     when(userRepository.findByUsername("manager")).thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("MgrD5v8cN4", "stored-hash")).thenReturn(true);
     Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
     when(jwt.getTokenValue()).thenReturn("demo-token");
     when(jwtEncoder.encode(any())).thenReturn(jwt);
 
-    AuthResponse response = authService.demoLogin("manager", true);
+    AuthResponse response = authService.demoLogin("manager", "MgrD5v8cN4", true);
 
     assertThat(response.token()).isEqualTo("demo-token");
     assertThat(response.role()).isEqualTo("MANAGER");
@@ -123,7 +125,7 @@ class AuthServiceTest {
 
   @Test
   void demoLoginFailsWhenDemoModeDisabled() {
-    assertThatThrownBy(() -> authService.demoLogin("manager", false))
+    assertThatThrownBy(() -> authService.demoLogin("manager", "secret", false))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(error -> {
           ResponseStatusException ex = (ResponseStatusException) error;
@@ -134,8 +136,9 @@ class AuthServiceTest {
   @Test
   void demoLoginFailsForUnknownOrNotAllowedUser() {
     when(userRepository.findByUsername("intruder")).thenReturn(Optional.empty());
+    when(passwordEncoder.matches("secret", "dummy-hash")).thenReturn(false);
 
-    assertThatThrownBy(() -> authService.demoLogin("intruder", true))
+    assertThatThrownBy(() -> authService.demoLogin("intruder", "secret", true))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(error -> {
           ResponseStatusException ex = (ResponseStatusException) error;

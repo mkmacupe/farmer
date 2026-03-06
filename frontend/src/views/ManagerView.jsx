@@ -794,10 +794,12 @@ export default function ManagerView({ token, activeSection }) {
       onNotification: (payload) => {
         setNotifications((prev) => [payload, ...prev].slice(0, 20));
         showMessage(`Новое событие: ${payload.title || "Уведомление"}`, "info");
+        const sectionId = activeSection || "manager-dashboard";
+        void loadForSection(sectionId);
       },
     });
     return () => unsubscribe();
-  }, [token]);
+  }, [token, activeSection]);
 
   const handleApproveRef = useRef(null);
   handleApproveRef.current = async (orderId) => {

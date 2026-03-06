@@ -145,14 +145,7 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
   List<DriverLoadAggregate> countByAssignedDriverIdsAndStatus(@Param("driverIds") Collection<Long> driverIds,
                                                                @Param("status") OrderStatus status);
 
-  @Query("""
-      select o from Order o
-      where o.assignedDriver.id = :driverId
-        and o.status = com.farm.sales.model.OrderStatus.ASSIGNED
-      order by o.assignedAt desc, o.id desc
-      limit 1
-      """)
-  Optional<Order> findLastActiveOrderByDriver(@Param("driverId") Long driverId);
+  Optional<Order> findFirstByAssignedDriverIdAndStatusOrderByAssignedAtDescIdDesc(Long driverId, OrderStatus status);
 
   boolean existsByDeliveryAddressId(Long deliveryAddressId);
 

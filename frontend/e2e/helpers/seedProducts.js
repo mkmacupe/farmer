@@ -22,19 +22,19 @@ const DATA_INITIALIZER_PATH = path.resolve(
 );
 
 const PRODUCT_REGEX =
-  /createOrUpdateProduct\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*image\("([^"]+)"\)\s*,\s*"([^"]+)"\s*,\s*(\d+)\s*\);/gs;
+  /seedProduct\(\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*"([^"]+)"\s*,\s*(\d+)\s*,\s*"([^"]+)"\s*\);/gs;
 
 export function loadDemoProductsFromDataInitializer() {
   const source = fs.readFileSync(DATA_INITIALIZER_PATH, 'utf-8');
 
   const allProducts = [];
   for (const match of source.matchAll(PRODUCT_REGEX)) {
-    const [, name, category, description, imageFile, priceRaw, stockQuantityRaw] = match;
+    const [, name, category, priceRaw, stockQuantityRaw, imageFile] = match;
     allProducts.push({
       id: allProducts.length + 1,
       name,
       category,
-      description,
+      description: name, // In DataInitializer, name is used for description too in new Product()
       photoUrl: `/images/products/${imageFile}`,
       price: Number.parseFloat(priceRaw),
       stockQuantity: Number.parseInt(stockQuantityRaw, 10)

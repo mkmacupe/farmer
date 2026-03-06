@@ -5,14 +5,12 @@ import { visualizer } from "rollup-plugin-visualizer";
 const loopbackHosts = ["127.0.0.1", "localhost", "::1"];
 
 const ensureNoProxyForLocalhost = () => {
-  const hasProxy =
-    process.env.HTTP_PROXY ||
-    process.env.HTTPS_PROXY ||
-    process.env.http_proxy ||
-    process.env.https_proxy;
-  if (!hasProxy) {
-    return;
-  }
+  // Completely unset proxy variables for this process to prevent Node/Vite 
+  // from trying to tunnel local traffic through an external proxy (e.g. V2Ray/VPN).
+  process.env.HTTP_PROXY = "";
+  process.env.HTTPS_PROXY = "";
+  process.env.http_proxy = "";
+  process.env.https_proxy = "";
 
   const existing = (process.env.NO_PROXY || process.env.no_proxy || "")
     .split(",")
@@ -72,7 +70,6 @@ export default defineConfig(({ mode }) => {
         "@emotion/react",
         "@emotion/styled",
       ],
-      exclude: ["leaflet"],
     },
     esbuild: {
       drop: mode === "production" ? ["console", "debugger"] : [],

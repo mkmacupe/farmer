@@ -790,7 +790,10 @@ public class OrderService {
       
       // Логика: если у водителя есть активные заказы, начинаем от последнего из них.
       // Если нет - от склада (или кластерного сида).
-      Coordinate startCoordinate = orderRepository.findLastActiveOrderByDriver(driver.getId())
+      Coordinate startCoordinate = orderRepository.findFirstByAssignedDriverIdAndStatusOrderByAssignedAtDescIdDesc(
+              driver.getId(),
+              OrderStatus.ASSIGNED
+          )
           .map(lastOrder -> coordinateOrFallback(lastOrder, fallbackCoordinate))
           .orElseGet(() -> resolveDriverClusterSeed(driver, fallbackCoordinate));
           
@@ -873,10 +876,19 @@ public class OrderService {
     for (int driverIdx = 0; driverIdx < drivers.size(); driverIdx++) {
       double currentWeight = 0.0;
       double currentVolume = 0.0;
+      int currentAssignedOrders = 0;
+      int driverCapacity = Math.max(0, drivers.get(driverIdx).capacity());
       
       java.util.Iterator<DeliveryPoint> it = remainingPoints.iterator();
       while (it.hasNext()) {
         DeliveryPoint point = it.next();
+        int pointOrders = point.orderIndexes().size();
+        if ((driverCapacity == 0 || currentAssignedOrders + pointOrders > driverCapacity)
+            || currentWeight + point.totalWeightKg() > VEHICLE_MAX_WEIGHT_KG
+            || currentVolume + point.totalVolumeM3() > VEHICLE_MAX_VOLUME_M3) {
+          continue;
+        }
+
         if (currentWeight + point.totalWeightKg() <= VEHICLE_MAX_WEIGHT_KG &&
             currentVolume + point.totalVolumeM3() <= VEHICLE_MAX_VOLUME_M3) {
           
@@ -884,6 +896,7 @@ public class OrderService {
           assignments.add(new TransportAssignment(pointIdxInOriginalList, driverIdx));
           currentWeight += point.totalWeightKg();
           currentVolume += point.totalVolumeM3();
+          currentAssignedOrders += pointOrders;
           it.remove();
         }
       }

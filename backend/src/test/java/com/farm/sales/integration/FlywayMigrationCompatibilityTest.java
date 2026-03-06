@@ -9,9 +9,9 @@ import org.junit.jupiter.api.Test;
 class FlywayMigrationCompatibilityTest {
 
   @Test
-  void migrationsApplyOnH2InMySqlMode() {
+  void migrationsApplyOnH2InPostgreSqlMode() {
     String dbName = "farm_sales_migration_" + System.nanoTime();
-    String url = "jdbc:h2:mem:" + dbName + ";MODE=MySQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE";
+    String url = "jdbc:h2:mem:" + dbName + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE";
 
     Flyway flyway = Flyway.configure()
         .dataSource(url, "sa", "")

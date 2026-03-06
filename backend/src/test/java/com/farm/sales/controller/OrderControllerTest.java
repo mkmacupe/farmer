@@ -247,18 +247,23 @@ class OrderControllerTest {
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(10L);
     when(orderService.getOrdersForRole(Role.MANAGER, 10L)).thenReturn(List.of(sampleOrder()));
     when(orderService.approveOrder(101L, 10L)).thenReturn(sampleOrder());
+    when(orderService.approveAllOrders(10L)).thenReturn(List.of(sampleOrder()));
     when(orderService.markDelivered(101L, 10L)).thenReturn(sampleOrder());
 
     var allOrders = controller.allOrders(jwt);
     var approved = controller.approve(101L, jwt);
+    var approvedAll = controller.approveAll(jwt);
     var delivered = controller.deliver(101L, jwt);
 
     assertThat(allOrders.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(allOrders.getBody()).hasSize(1);
     assertThat(approved.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(approvedAll.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(approvedAll.getBody()).hasSize(1);
     assertThat(delivered.getStatusCode()).isEqualTo(HttpStatus.OK);
     verify(orderService).getOrdersForRole(Role.MANAGER, 10L);
     verify(orderService).approveOrder(101L, 10L);
+    verify(orderService).approveAllOrders(10L);
     verify(orderService).markDelivered(101L, 10L);
   }
 

@@ -279,13 +279,18 @@ export default function DirectorView({ token, activeSection }) {
     const unsubscribe = subscribeNotifications(token, {
       onNotification: (payload) => {
         setNotifications((prev) => [payload, ...prev].slice(0, 12));
+        if (payload?.orderId != null) {
+          void loadOrders().catch((err) => {
+            setError(err.message || "Не удалось обновить заказы");
+          });
+        }
       },
     });
     return () => {
       controller.abort();
       unsubscribe();
     };
-  }, [load, token]);
+  }, [load, loadOrders, token]);
 
   useEffect(() => {
     if (!shouldLoadAddresses) {
@@ -1031,6 +1036,7 @@ export default function DirectorView({ token, activeSection }) {
                 onClick={handleProfileSave}
                 disabled={loading}
                 startIcon={<SaveIcon />}
+                data-testid="profile-save-button"
               >
                 Сохранить профиль
               </Button>

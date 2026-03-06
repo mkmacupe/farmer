@@ -187,11 +187,11 @@ export async function login(username, password) {
   }
 }
 
-export async function demoLogin(username) {
+export async function demoLogin(username, password) {
   const response = await apiFetch(`${API_BASE}/auth/demo-login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username })
+    body: JSON.stringify({ username, password })
   });
   return handleResponse(response);
 }

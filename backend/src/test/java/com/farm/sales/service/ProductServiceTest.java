@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.ArgumentCaptor;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
@@ -80,7 +79,9 @@ class ProductServiceTest {
         "Свежее молоко",
         "/images/products/milk.webp",
         new BigDecimal("10.00"),
-        5
+        5,
+        1.0,
+        0.0012
     );
     assertThatThrownBy(() -> productService.update(55L, request))
         .isInstanceOf(ResponseStatusException.class)
@@ -98,7 +99,9 @@ class ProductServiceTest {
         "Свежее молоко",
         "/images/products/milk.webp",
         new BigDecimal("10.00"),
-        5
+        5,
+        1.0,
+        0.0012
     );
     when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/milk.webp")).thenReturn(false);
     when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
@@ -114,6 +117,8 @@ class ProductServiceTest {
     assertThat(response.category()).isEqualTo("Молочная продукция");
     assertThat(response.price()).isEqualByComparingTo("10.00");
     assertThat(response.stockQuantity()).isEqualTo(5);
+    assertThat(response.weightKg()).isEqualTo(1.0);
+    assertThat(response.volumeM3()).isEqualTo(0.0012);
     verify(productRepository).existsByPhotoUrlIgnoreCase("/images/products/milk.webp");
   }
 
@@ -125,7 +130,9 @@ class ProductServiceTest {
         "Свежее молоко",
         "https://example.com/milk.jpg",
         new BigDecimal("10.00"),
-        5
+        5,
+        1.0,
+        0.0012
     );
 
     assertThatThrownBy(() -> productService.create(request))
@@ -147,7 +154,9 @@ class ProductServiceTest {
         "Свежее молоко",
         "/images/products/milk.webp",
         new BigDecimal("10.00"),
-        5
+        5,
+        1.0,
+        0.0012
     );
     when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/milk.webp")).thenReturn(true);
 
@@ -170,7 +179,9 @@ class ProductServiceTest {
         "Свежее молоко",
         "/images/products/milk.webp",
         new BigDecimal("10.00"),
-        5
+        5,
+        1.0,
+        0.0012
     );
     existing.setId(55L);
     when(productRepository.findById(55L)).thenReturn(Optional.of(existing));
@@ -183,7 +194,9 @@ class ProductServiceTest {
         "Свежее молоко",
         "/images/products/cheese.webp",
         new BigDecimal("10.00"),
-        5
+        5,
+        1.0,
+        0.0012
     );
 
     assertThatThrownBy(() -> productService.update(55L, request))
@@ -199,9 +212,9 @@ class ProductServiceTest {
 
   @Test
   void getPageReturnsMetadataAndItems() {
-    Product productA = new Product("Молоко 1 л", "Молочная продукция", "Свежее молоко", "/images/products/milk.webp", new BigDecimal("45.00"), 10);
+    Product productA = new Product("Молоко 1 л", "Молочная продукция", "Свежее молоко", "/images/products/milk.webp", new BigDecimal("45.00"), 10, 1.0, 0.0012);
     productA.setId(1L);
-    Product productB = new Product("Кефир 1 л", "Молочная продукция", "Кефир 2,5%", "/images/products/kefir.webp", new BigDecimal("38.00"), 8);
+    Product productB = new Product("Кефир 1 л", "Молочная продукция", "Кефир 2,5%", "/images/products/kefir.webp", new BigDecimal("38.00"), 8, 1.0, 0.0012);
     productB.setId(2L);
 
     when(productRepository.search(any(), any(), any())).thenReturn(List.of(productA, productB));
@@ -268,7 +281,9 @@ class ProductServiceTest {
         null,
         "/images/products/water.webp",
         new BigDecimal("1.20"),
-        0
+        0,
+        1.0,
+        0.0012
     );
     when(productRepository.existsByPhotoUrlIgnoreCase("/images/products/water.webp")).thenReturn(false);
     when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
@@ -291,7 +306,9 @@ class ProductServiceTest {
         null,
         "   ",
         new BigDecimal("1.20"),
-        1
+        1,
+        1.0,
+        0.0012
     );
 
     assertThatThrownBy(() -> productService.create(request))
@@ -305,7 +322,7 @@ class ProductServiceTest {
 
   @Test
   void updateRecordsInboundMovementWhenStockIncreases() {
-    Product existing = new Product("Мёд", "Мёд", "old", "/images/products/honey.webp", new BigDecimal("9.00"), 10);
+    Product existing = new Product("Мёд", "Мёд", "old", "/images/products/honey.webp", new BigDecimal("9.00"), 10, 1.0, 0.001);
     existing.setId(4L);
     when(productRepository.findById(4L)).thenReturn(Optional.of(existing));
     when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/honey.webp", 4L)).thenReturn(false);
@@ -317,7 +334,9 @@ class ProductServiceTest {
         "  свежий ",
         "/images/products/honey.webp",
         new BigDecimal("10.50"),
-        14
+        14,
+        1.0,
+        0.001
     );
 
     ProductResponse response = productService.update(4L, request);
@@ -328,7 +347,7 @@ class ProductServiceTest {
 
   @Test
   void updateRecordsAdjustmentWhenStockDecreases() {
-    Product existing = new Product("Сыр", "Молочная продукция", "old", "/images/products/cheese.webp", new BigDecimal("10.00"), 20);
+    Product existing = new Product("Сыр", "Молочная продукция", "old", "/images/products/cheese.webp", new BigDecimal("10.00"), 20, 0.5, 0.0006);
     existing.setId(8L);
     when(productRepository.findById(8L)).thenReturn(Optional.of(existing));
     when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/cheese.webp", 8L)).thenReturn(false);
@@ -340,7 +359,9 @@ class ProductServiceTest {
         "",
         "/images/products/cheese.webp",
         new BigDecimal("10.00"),
-        15
+        15,
+        0.5,
+        0.0006
     );
 
     ProductResponse response = productService.update(8L, request);
@@ -351,7 +372,7 @@ class ProductServiceTest {
 
   @Test
   void updateDoesNotRecordMovementWhenStockUnchanged() {
-    Product existing = new Product("Кефир", "Молочная продукция", "desc", "/images/products/kefir.webp", new BigDecimal("3.00"), 9);
+    Product existing = new Product("Кефир", "Молочная продукция", "desc", "/images/products/kefir.webp", new BigDecimal("3.00"), 9, 1.0, 0.0012);
     existing.setId(9L);
     when(productRepository.findById(9L)).thenReturn(Optional.of(existing));
     when(productRepository.existsByPhotoUrlIgnoreCaseAndIdNot("/images/products/kefir.webp", 9L)).thenReturn(false);
@@ -363,7 +384,9 @@ class ProductServiceTest {
         "desc",
         "/images/products/kefir.webp",
         new BigDecimal("3.00"),
-        9
+        9,
+        1.0,
+        0.0012
     ));
 
     verify(stockMovementService, never()).record(eq(existing), eq(null), any(), anyInt(), eq("PRODUCT_UPDATED"));

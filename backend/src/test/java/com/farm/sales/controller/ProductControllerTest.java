@@ -33,7 +33,9 @@ class ProductControllerTest {
         "Свежее молоко",
         "/images/products/milk.webp",
         new BigDecimal("45.00"),
-        10
+        10,
+        1.0,
+        0.0012
     );
     ProductResponse response = new ProductResponse(
         1L,
@@ -42,7 +44,9 @@ class ProductControllerTest {
         "Свежее молоко",
         "/images/products/milk.webp",
         new BigDecimal("45.00"),
-        10
+        10,
+        1.0,
+        0.0012
     );
     when(productService.create(request)).thenReturn(response);
 
@@ -72,7 +76,9 @@ class ProductControllerTest {
                 "Свежее молоко",
                 "/images/products/milk.webp",
                 new BigDecimal("45.00"),
-                10
+                10,
+                1.0,
+                0.0012
             )
         ),
         0,
@@ -100,7 +106,9 @@ class ProductControllerTest {
         "Фермерский сыр",
         "/images/products/cheese.webp",
         new BigDecimal("13.42"),
-        60
+        60,
+        0.5,
+        0.0006
     );
     ProductResponse updated = new ProductResponse(
         2L,
@@ -109,7 +117,9 @@ class ProductControllerTest {
         "Фермерский сыр",
         "/images/products/cheese.webp",
         new BigDecimal("13.42"),
-        60
+        60,
+        0.5,
+        0.0006
     );
     when(productService.update(2L, request)).thenReturn(updated);
 

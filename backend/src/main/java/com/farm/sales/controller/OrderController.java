@@ -105,6 +105,11 @@ public class OrderController {
     return ResponseEntity.ok(orderService.approveOrder(id, jwtClaimsReader.requireUserId(jwt)));
   }
 
+  @PostMapping("/approve-all")
+  public ResponseEntity<List<OrderResponse>> approveAll(@AuthenticationPrincipal Jwt jwt) {
+    return ResponseEntity.ok(orderService.approveAllOrders(jwtClaimsReader.requireUserId(jwt)));
+  }
+
   @PostMapping("/{id}/assign-driver")
   public ResponseEntity<OrderResponse> assignDriver(@PathVariable Long id,
                                                     @AuthenticationPrincipal Jwt jwt,

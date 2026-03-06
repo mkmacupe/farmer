@@ -13,7 +13,6 @@ import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -43,20 +42,17 @@ public class DataInitializer implements CommandLineRunner {
   private final ProductRepository productRepository;
   private final StoreAddressRepository storeAddressRepository;
   private final PasswordEncoder passwordEncoder;
-  private final String demoPassword;
   private final Object seedLock = new Object();
   private volatile boolean demoSeeded;
 
   public DataInitializer(UserRepository userRepository,
                          ProductRepository productRepository,
                          StoreAddressRepository storeAddressRepository,
-                         PasswordEncoder passwordEncoder,
-                         @Value("${app.demo.password:}") String demoPassword) {
+                         PasswordEncoder passwordEncoder) {
     this.userRepository = userRepository;
     this.productRepository = productRepository;
     this.storeAddressRepository = storeAddressRepository;
     this.passwordEncoder = passwordEncoder;
-    this.demoPassword = demoPassword;
   }
 
   @Override
@@ -103,6 +99,10 @@ public class DataInitializer implements CommandLineRunner {
 
       demoSeeded = true;
     }
+  }
+
+  public void seedDemoData() {
+    run();
   }
 
   private void seedProduct(String name, String cat, String price, int stock, String img) {

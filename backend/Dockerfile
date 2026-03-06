@@ -1,9 +1,11 @@
 FROM maven:3.9-eclipse-temurin-21 AS build
 WORKDIR /app
+# Pre-download dependencies to leverage Docker cache
 COPY pom.xml .
-RUN mvn -q -DskipTests dependency:go-offline
+RUN mvn dependency:go-offline -B
+
 COPY src ./src
-RUN mvn -q -DskipTests package
+RUN mvn package -DskipTests -B
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app

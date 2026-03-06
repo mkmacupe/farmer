@@ -38,13 +38,15 @@ function toDateKey(value) {
 export async function installApiMock(page, options = {}) {
   const state = {
     nextOrderId: 400,
+    nextAddressId: 20,
+    nextProductId: 100,
     products: [
       {
         id: 1,
         name: 'Молоко 1 л',
         category: 'Молочная продукция',
         description: 'Свежее молоко',
-        photoUrl: 'https://example.com/milk.jpg',
+        photoUrl: '/images/products/milk.webp',
         price: 45.0,
         stockQuantity: 30
       }
@@ -198,6 +200,7 @@ export async function installApiMock(page, options = {}) {
     if (path.endsWith('/api/auth/demo-login') && method === 'POST') {
       const payload = JSON.parse(request.postData() || '{}');
       const username = String(payload.username || '').trim().toLowerCase();
+      const password = String(payload.password || '');
       const roles = {
         director: 'DIRECTOR',
         manager: 'MANAGER',
@@ -209,11 +212,11 @@ export async function installApiMock(page, options = {}) {
         mogilevlift: 'DIRECTOR',
         babushkina: 'DIRECTOR'
       };
-      if (!roles[username]) {
+      if (!roles[username] || !password) {
         await route.fulfill({
           status: 401,
           contentType: 'application/json',
-          body: JSON.stringify({ message: 'Invalid demo user' })
+          body: JSON.stringify({ message: 'Invalid demo credentials' })
         });
         return;
       }
@@ -252,7 +255,22 @@ export async function installApiMock(page, options = {}) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify(state.products)
+        body: JSON.stringify(toPage(url, state.products))
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/products') && method === 'POST') {
+      const payload = JSON.parse(request.postData() || '{}');
+      const created = {
+        id: state.nextProductId++,
+        ...payload
+      };
+      state.products.push(created);
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(created)
       });
       return;
     }
@@ -261,13 +279,18 @@ export async function installApiMock(page, options = {}) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          id: 11,
-          username: 'director',
-          fullName: 'Director User',
-          phone: '+380500000001',
-          legalEntityName: 'Fresh Retail LLC'
-        })
+        body: JSON.stringify(state.directors[0])
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/director/profile') && method === 'PATCH') {
+      const payload = JSON.parse(request.postData() || '{}');
+      state.directors[0] = { ...state.directors[0], ...payload };
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(state.directors[0])
       });
       return;
     }
@@ -277,6 +300,34 @@ export async function installApiMock(page, options = {}) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(state.addresses)
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/director/addresses') && method === 'POST') {
+      const payload = JSON.parse(request.postData() || '{}');
+      const created = {
+        id: state.nextAddressId++,
+        ...payload
+      };
+      state.addresses.push(created);
+      await route.fulfill({
+        status: 201,
+        contentType: 'application/json',
+        body: JSON.stringify(created)
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/geo/reverse') && method === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          displayName: 'Test Address Line 123',
+          latitude: url.searchParams.get('lat'),
+          longitude: url.searchParams.get('lon')
+        })
       });
       return;
     }
@@ -310,37 +361,6 @@ export async function installApiMock(page, options = {}) {
         status: 200,
         contentType: 'application/json',
         body: JSON.stringify(toPage(url, state.orders))
-      });
-      return;
-    }
-
-    if (path.endsWith('/api/orders/my') && method === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(tokenUser === 'director'
-          ? state.orders.filter((order) => order.customerId === 11)
-          : [])
-      });
-      return;
-    }
-
-    if (path.endsWith('/api/orders/assigned') && method === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(tokenUser === 'driver1'
-          ? state.orders.filter((order) => order.assignedDriverId === 31)
-          : [])
-      });
-      return;
-    }
-
-    if (path.endsWith('/api/orders') && method === 'GET') {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify(state.orders)
       });
       return;
     }
@@ -446,6 +466,43 @@ export async function installApiMock(page, options = {}) {
             createdAt: nowIso(options.fixedNow)
           }]
           : [])
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/orders/auto-assign/preview') && method === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plannedOrders: 1,
+          unplannedOrders: 0,
+          totalApprovedOrders: 1,
+          estimatedTotalDistanceKm: 12.5,
+          depotLabel: 'Base',
+          depotLatitude: 50.45,
+          depotLongitude: 30.5,
+          routes: [
+            {
+              driverId: 31,
+              driverName: 'Driver One',
+              assignedOrders: 1,
+              estimatedRouteDistanceKm: 12.5,
+              totalWeightKg: 100,
+              totalVolumeM3: 1,
+              points: [{ orderId: 302, latitude: 50.4501, longitude: 30.5234, stopSequence: 1, deliveryAddress: 'Kyiv' }]
+            }
+          ]
+        })
+      });
+      return;
+    }
+
+    if (path.endsWith('/api/orders/auto-assign/approve') && method === 'POST') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ assignedOrders: 1, totalApprovedOrders: 1, estimatedTotalDistanceKm: 12.5 })
       });
       return;
     }

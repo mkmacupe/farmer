@@ -109,10 +109,10 @@ describe('api', () => {
     expect(options.body).toBe(JSON.stringify({ username: 'manager', password: 'secret' }));
   });
 
-  it('demoLogin sends POST request with username only', async () => {
+  it('demoLogin sends POST request with username and password', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse({ token: 'jwt-demo' }));
 
-    const result = await api.demoLogin('manager');
+    const result = await api.demoLogin('manager', 'secret');
 
     expect(result).toEqual({ token: 'jwt-demo' });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -121,7 +121,7 @@ describe('api', () => {
     expect(parsed.pathname).toBe('/api/auth/demo-login');
     expect(options.method).toBe('POST');
     expect(options.headers['Content-Type']).toBe('application/json');
-    expect(options.body).toBe(JSON.stringify({ username: 'manager' }));
+    expect(options.body).toBe(JSON.stringify({ username: 'manager', password: 'secret' }));
   });
 
   it('getProductsPage builds query parameters and auth header', async () => {

@@ -9,9 +9,10 @@ spring:
   profiles:
     default: dev
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/farm_sales?createDatabaseIfNotExist=true&serverTimezone=UTC}
-    username: ${SPRING_DATASOURCE_USERNAME:root}
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/farm_sales}
+    username: ${SPRING_DATASOURCE_USERNAME:sales}
     password: ${SPRING_DATASOURCE_PASSWORD:}
+    driver-class-name: ${SPRING_DATASOURCE_DRIVER_CLASS_NAME:org.postgresql.Driver}
   jpa:
     hibernate:
       ddl-auto: validate
@@ -34,10 +35,9 @@ app:
     issuer: farm-sales
     expiration-minutes: 60
   cors:
-    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174,http://127.0.0.1:4173,http://localhost:4173}
+    allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5174,http://localhost:5174,http://127.0.0.1:4173,http://localhost:4173,https://*.onrender.com,https://*.pages.dev}
   demo:
     enabled: ${APP_DEMO_ENABLED:false}
-    password: ${APP_DEMO_PASSWORD:1}
   geo:
     nominatim-base-url: ${APP_GEO_NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
     user-agent: ${APP_GEO_USER_AGENT:FarmSalesCourseProject/1.0}

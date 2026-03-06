@@ -38,15 +38,15 @@ class AuthControllerTest {
 
   @Test
   void demoLoginDelegatesToServiceAndReturnsOk() {
-    DemoLoginRequest request = new DemoLoginRequest("manager");
+    DemoLoginRequest request = new DemoLoginRequest("manager", "secret123");
     AuthResponse response = new AuthResponse("token", "manager", "Manager", "MANAGER");
-    when(authService.demoLogin("manager", true)).thenReturn(response);
+    when(authService.demoLogin("manager", "secret123", true)).thenReturn(response);
 
     var httpResponse = controller.demoLogin(request);
 
     assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(httpResponse.getBody()).isEqualTo(response);
-    verify(authService).demoLogin("manager", true);
+    verify(authService).demoLogin("manager", "secret123", true);
   }
 
 }

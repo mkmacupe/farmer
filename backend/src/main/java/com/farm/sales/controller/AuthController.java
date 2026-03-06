@@ -31,6 +31,6 @@ public class AuthController {
 
   @PostMapping("/demo-login")
   public ResponseEntity<AuthResponse> demoLogin(@Valid @RequestBody DemoLoginRequest request) {
-    return ResponseEntity.ok(authService.demoLogin(request.username(), demoEnabled));
+    return ResponseEntity.ok(authService.demoLogin(request.username(), request.password(), demoEnabled));
   }
 }

@@ -3,8 +3,8 @@
 ![Java](https://img.shields.io/badge/Java-21-orange?logo=java)
 ![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.4.3-green?logo=spring)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-blue?logo=postgresql)
-![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)
-![Vite](https://img.shields.io/badge/Vite-5-646CFF?logo=vite)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)
+![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite)
 
 **Farm Sales** — это полноценная многоролевая B2B-система для управления продажами, логистикой и доставкой фермерской продукции. Приложение охватывает полный цикл: от формирования заказа директором магазина до доставки товара водителем.
 
@@ -57,7 +57,7 @@
 *   **Документация API:** Springdoc OpenAPI (Swagger UI)
 
 **Frontend (`/frontend`)**
-*   **Язык и фреймворк:** JavaScript, React 18, Vite 5
+*   **Язык и фреймворк:** JavaScript, React 19, Vite 7
 *   **UI Библиотека:** Material UI (MUI)
 *   **Карты:** Leaflet, React-Leaflet
 *   **Тестирование:** Vitest, Playwright (E2E)
@@ -80,7 +80,7 @@
 
 ## 💻 Локальная разработка (Docker)
 
-Для быстрого запуска проекта локально вам понадобится только **Docker**.
+Для быстрого запуска проекта локально вам понадобятся **Docker** и **Node.js/npm**.
 
 1. Клонируйте репозиторий:
    ```bash
@@ -95,13 +95,15 @@
    ```bash
    docker compose up --build -d
    ```
-4. Запустите Frontend:
+4. Установите зависимости frontend и запустите Vite:
    ```bash
    cd frontend
    npm install
    npm run dev
    ```
 5. Откройте `http://localhost:5173`.
+
+Альтернатива для Windows: можно использовать `start-dev.ps1`, он поднимет backend в Docker и frontend локально.
 
 ### 🔑 Демо-пользователи
 При первом запуске база данных автоматически заполняется тестовыми товарами и пользователями:

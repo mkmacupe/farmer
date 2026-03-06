@@ -24,8 +24,7 @@ C:\Progra~1\Git\cmd\git.exe push -u origin main
    `https://dashboard.render.com/blueprint/new?repo=https://github.com/<YOUR_USER>/<YOUR_REPO>`
 2. Нажмите `Apply`.
 3. В переменных сервиса `farm-sales-backend` задайте:
-   - `APP_DEMO_PASSWORD` (базовый пароль демо-пользователей; фактический формат: `<APP_DEMO_PASSWORD>:<username>`)
-   - `APP_CORS_ALLOWED_ORIGINS` (пока временно): `https://farm-sales-frontend.onrender.com`
+   - `APP_CORS_ALLOWED_ORIGINS=https://farmer.indevs.in,https://farm-sales-frontend.onrender.com,https://*.onrender.com`
 4. В переменных сервиса `farm-sales-frontend` задайте:
    - `VITE_API_BASE=https://farm-sales-backend.onrender.com/api`
 5. Дождитесь статуса `Live` у обоих сервисов.
@@ -64,3 +63,4 @@ https://farm-sales-backend.onrender.com/actuator/health
 - Render Free backend может засыпать после простоя (первый запрос после сна медленный).
 - В `dev` профиле используется H2-файл; на free Render файловая система непостоянная.
   После рестарта/пересборки demo-данные могут сбрасываться.
+- Если нужен backend без засыпания и реально 24/7, free-вариант не подходит: потребуется always-on тариф или другой always-on хостинг.

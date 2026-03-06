@@ -197,6 +197,7 @@ export default function DriverView({ token, activeSection }) {
     const unsubscribe = subscribeNotifications(token, {
       onNotification: (payload) => {
         showMessage(`Новое событие: ${payload.title || 'Уведомление'}`, 'info');
+        void load();
       }
     });
     return () => unsubscribe();

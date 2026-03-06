@@ -10,7 +10,7 @@ services:
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -20,14 +20,14 @@ services:
   backend:
     build: ./backend
     environment:
-      SPRING_PROFILES_ACTIVE: dev
+      SPRING_PROFILES_ACTIVE: prod
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/farm_sales
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-sales}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD}
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set in .env or environment}
       APP_CORS_ALLOWED_ORIGINS: ${APP_CORS_ALLOWED_ORIGINS:-http://127.0.0.1:5173,http://localhost:5173}
       APP_DEMO_ENABLED: ${APP_DEMO_ENABLED:-true}
-      APP_DEMO_PASSWORD: ${DEMO_PASSWORD:?DEMO_PASSWORD must be set in .env or environment}
     ports:
       - "${API_PORT:-8080}:8080"
     depends_on:
@@ -36,4 +36,4 @@ services:
     restart: unless-stopped
 
 volumes:
-  db_data:
+  postgres_data:
