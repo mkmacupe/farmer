@@ -53,6 +53,7 @@ class DataInitializerTest {
   void runCreatesDemoDataWhenEntitiesMissing() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
 
     AtomicLong userIds = new AtomicLong(100);
@@ -84,6 +85,7 @@ class DataInitializerTest {
   void seedDemoDataCallsRun() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
     when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
       User u = invocation.getArgument(0);
@@ -94,5 +96,30 @@ class DataInitializerTest {
     dataInitializer.seedDemoData();
 
     verify(userRepository, atLeast(1)).findByUsername(anyString());
+  }
+
+  @Test
+  void runFallsBackToNullPhotoWhenImageAlreadyTaken() {
+    when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
+    when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(true);
+    when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
+
+    AtomicLong userIds = new AtomicLong(100);
+    when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+      User user = invocation.getArgument(0);
+      if (user.getId() == null) {
+        user.setId(userIds.incrementAndGet());
+      }
+      return user;
+    });
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(storeAddressRepository.save(any(StoreAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    dataInitializer.run();
+
+    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+    verify(productRepository, atLeast(20)).save(productCaptor.capture());
+    assertThat(productCaptor.getAllValues()).allMatch(product -> product.getPhotoUrl() == null);
   }
 }

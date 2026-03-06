@@ -15,7 +15,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -110,17 +109,18 @@ public class DataInitializer implements CommandLineRunner {
     double weight = parseWeight(name);
     double volume = parseVolume(name);
     String photoUrl = PRODUCT_IMAGE_BASE + img;
+    boolean photoTakenByAnotherProduct = photoUrl != null && productRepository.existsByPhotoUrlIgnoreCase(photoUrl);
+    String normalizedPhotoUrl = photoTakenByAnotherProduct ? null : photoUrl;
 
     if (existing == null) {
-      Product p = new Product(name, cat, name, photoUrl, new BigDecimal(price), stock, weight, volume);
-      try {
-        productRepository.save(p);
-      } catch (DataIntegrityViolationException e) {
-        p.setPhotoUrl(null); // Fallback if unique constraint hits
-        productRepository.save(p);
-      }
+      Product p = new Product(name, cat, name, normalizedPhotoUrl, new BigDecimal(price), stock, weight, volume);
+      productRepository.save(p);
     } else {
       boolean changed = false;
+      if (existing.getPhotoUrl() == null && normalizedPhotoUrl != null) {
+        existing.setPhotoUrl(normalizedPhotoUrl);
+        changed = true;
+      }
       if (existing.getWeightKg() == null || Math.abs(existing.getWeightKg() - weight) > 0.001) {
         existing.setWeightKg(weight);
         changed = true;
