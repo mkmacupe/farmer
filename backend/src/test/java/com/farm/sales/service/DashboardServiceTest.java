@@ -6,7 +6,9 @@ import static org.mockito.Mockito.when;
 import com.farm.sales.dto.DashboardCategoryInsightResponse;
 import com.farm.sales.dto.DashboardTrendResponse;
 import com.farm.sales.model.Order;
+import com.farm.sales.model.OrderItem;
 import com.farm.sales.model.OrderStatus;
+import com.farm.sales.model.Product;
 import com.farm.sales.repository.OrderRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -29,16 +31,11 @@ class DashboardServiceTest {
   void summaryCalculatesRevenueAverageAndStatuses() {
     Instant from = Instant.parse("2026-01-01T00:00:00Z");
     Instant to = Instant.parse("2026-01-31T23:59:59Z");
-
-    OrderRepository.DashboardSummaryAggregate aggregate = org.mockito.Mockito.mock(OrderRepository.DashboardSummaryAggregate.class);
-    when(aggregate.getTotalOrders()).thenReturn(3L);
-    when(aggregate.getTotalAmount()).thenReturn(new BigDecimal("220.00"));
-    when(aggregate.getDeliveredRevenue()).thenReturn(new BigDecimal("170.00"));
-    when(aggregate.getCreatedCount()).thenReturn(1L);
-    when(aggregate.getApprovedCount()).thenReturn(0L);
-    when(aggregate.getAssignedCount()).thenReturn(0L);
-    when(aggregate.getDeliveredCount()).thenReturn(2L);
-    when(orderRepository.summarizeForDashboard(from, to)).thenReturn(aggregate);
+    Order deliveredA = order(OrderStatus.DELIVERED, "120.00", "2026-01-05T12:00:00Z");
+    Order deliveredB = order(OrderStatus.DELIVERED, "50.00", "2026-01-06T12:00:00Z");
+    Order created = order(OrderStatus.CREATED, "50.00", "2026-01-07T12:00:00Z");
+    when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of(deliveredA, deliveredB, created));
 
     var summary = dashboardService.getSummary(from, to);
 
@@ -54,7 +51,8 @@ class DashboardServiceTest {
 
   @Test
   void summaryHandlesNullAggregateAndZeroTotals() {
-    when(orderRepository.summarizeForDashboard(null, null)).thenReturn(null);
+    when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of());
 
     var summary = dashboardService.getSummary(null, null);
 
@@ -71,17 +69,8 @@ class DashboardServiceTest {
   void summaryFallsBackToInMemoryOrdersWhenAggregateQueryFails() {
     Instant from = Instant.parse("2026-01-01T00:00:00Z");
     Instant to = Instant.parse("2026-01-31T23:59:59Z");
-    Order delivered = new Order();
-    delivered.setStatus(OrderStatus.DELIVERED);
-    delivered.setTotalAmount(new BigDecimal("120.00"));
-    delivered.setCreatedAt(Instant.parse("2026-01-05T12:00:00Z"));
-
-    Order created = new Order();
-    created.setStatus(OrderStatus.CREATED);
-    created.setTotalAmount(new BigDecimal("80.00"));
-    created.setCreatedAt(Instant.parse("2026-01-06T12:00:00Z"));
-
-    when(orderRepository.summarizeForDashboard(from, to)).thenThrow(new RuntimeException("sql failed"));
+    Order delivered = order(OrderStatus.DELIVERED, "120.00", "2026-01-05T12:00:00Z");
+    Order created = order(OrderStatus.CREATED, "80.00", "2026-01-06T12:00:00Z");
     when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
         .thenReturn(List.of(delivered, created));
 
@@ -97,18 +86,16 @@ class DashboardServiceTest {
   void trendsMapsRows() {
     Instant from = Instant.parse("2026-01-01T00:00:00Z");
     Instant to = Instant.parse("2026-01-02T23:59:59Z");
-    OrderRepository.DailyTrendRow row = org.mockito.Mockito.mock(OrderRepository.DailyTrendRow.class);
-    when(row.getDay()).thenReturn(LocalDate.of(2026, 1, 1));
-    when(row.getTotalOrders()).thenReturn(3L);
-    when(row.getTotalAmount()).thenReturn(new BigDecimal("120.555"));
-    when(row.getDeliveredCount()).thenReturn(1L);
-    when(orderRepository.findDailyTrends(from, to)).thenReturn(List.of(row));
+    Order delivered = order(OrderStatus.DELIVERED, "100.555", "2026-01-01T10:00:00Z");
+    Order created = order(OrderStatus.CREATED, "20.00", "2026-01-01T11:00:00Z");
+    when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of(delivered, created));
 
     DashboardTrendResponse trends = dashboardService.getTrends(from, to);
 
     assertThat(trends.points()).hasSize(1);
     assertThat(trends.points().get(0).date()).isEqualTo(LocalDate.of(2026, 1, 1));
-    assertThat(trends.points().get(0).orders()).isEqualTo(3);
+    assertThat(trends.points().get(0).orders()).isEqualTo(2);
     assertThat(trends.points().get(0).delivered()).isEqualTo(1);
     assertThat(trends.points().get(0).revenue()).isEqualByComparingTo("120.56");
   }
@@ -117,15 +104,28 @@ class DashboardServiceTest {
   void categoryInsightsMapsRows() {
     Instant from = Instant.parse("2026-01-01T00:00:00Z");
     Instant to = Instant.parse("2026-01-02T23:59:59Z");
-    OrderRepository.CategoryUnitsRow row = org.mockito.Mockito.mock(OrderRepository.CategoryUnitsRow.class);
-    when(row.getCategory()).thenReturn("Овощи");
-    when(row.getTotalUnits()).thenReturn(15L);
-    when(orderRepository.findCategoryUnits(from, to)).thenReturn(List.of(row));
+    Product product = new Product();
+    product.setCategory("Овощи");
+    OrderItem item = new OrderItem();
+    item.setProduct(product);
+    item.setQuantity(15);
+    Order order = order(OrderStatus.DELIVERED, "100.00", "2026-01-01T10:00:00Z");
+    order.setItems(List.of(item));
+    when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
+        .thenReturn(List.of(order));
 
     List<DashboardCategoryInsightResponse> insights = dashboardService.getCategoryInsights(from, to);
 
     assertThat(insights).hasSize(1);
     assertThat(insights.get(0).category()).isEqualTo("Овощи");
     assertThat(insights.get(0).units()).isEqualTo(15L);
+  }
+
+  private Order order(OrderStatus status, String totalAmount, String createdAt) {
+    Order order = new Order();
+    order.setStatus(status);
+    order.setTotalAmount(new BigDecimal(totalAmount));
+    order.setCreatedAt(Instant.parse(createdAt));
+    return order;
   }
 }

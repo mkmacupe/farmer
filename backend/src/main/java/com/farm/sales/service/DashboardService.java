@@ -22,94 +22,33 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.SimpleTransactionStatus;
-import org.springframework.transaction.support.TransactionCallback;
-import org.springframework.transaction.support.TransactionOperations;
-import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class DashboardService {
   private static final Logger log = LoggerFactory.getLogger(DashboardService.class);
   private static final int DASHBOARD_SCAN_LIMIT = 10_000;
   private final OrderRepository orderRepository;
-  private final TransactionOperations fallbackReadTransaction;
 
-  @Autowired
-  public DashboardService(OrderRepository orderRepository, PlatformTransactionManager transactionManager) {
+  public DashboardService(OrderRepository orderRepository) {
     this.orderRepository = orderRepository;
-    TransactionTemplate template = new TransactionTemplate(transactionManager);
-    template.setReadOnly(true);
-    template.setPropagationBehavior(TransactionTemplate.PROPAGATION_REQUIRES_NEW);
-    this.fallbackReadTransaction = template;
-  }
-
-  DashboardService(OrderRepository orderRepository) {
-    this.orderRepository = orderRepository;
-    this.fallbackReadTransaction = new TransactionOperations() {
-      @Override
-      public <T> T execute(TransactionCallback<T> action) {
-        return action.doInTransaction(new SimpleTransactionStatus());
-      }
-    };
   }
 
   @Transactional(readOnly = true)
   public DashboardSummaryResponse getSummary(Instant from, Instant to) {
-    try {
-      OrderRepository.DashboardSummaryAggregate aggregate = orderRepository.summarizeForDashboard(from, to);
-      long totalOrders = longOrZero(aggregate == null ? null : aggregate.getTotalOrders());
-      BigDecimal totalAllOrders = decimalOrZero(aggregate == null ? null : aggregate.getTotalAmount());
-      BigDecimal totalDeliveredRevenue = decimalOrZero(aggregate == null ? null : aggregate.getDeliveredRevenue());
-
-      EnumMap<OrderStatus, Long> byStatus = new EnumMap<>(OrderStatus.class);
-      byStatus.put(OrderStatus.CREATED, longOrZero(aggregate == null ? null : aggregate.getCreatedCount()));
-      byStatus.put(OrderStatus.APPROVED, longOrZero(aggregate == null ? null : aggregate.getApprovedCount()));
-      byStatus.put(OrderStatus.ASSIGNED, longOrZero(aggregate == null ? null : aggregate.getAssignedCount()));
-      byStatus.put(OrderStatus.DELIVERED, longOrZero(aggregate == null ? null : aggregate.getDeliveredCount()));
-
-      return buildSummaryResponse(from, to, totalOrders, totalAllOrders, totalDeliveredRevenue, byStatus);
-    } catch (RuntimeException ex) {
-      log.warn("Dashboard summary aggregate query failed, falling back to in-memory computation", ex);
-      return buildSummaryFromOrders(from, to, loadOrdersForDashboardWithFallbackTransaction(from, to));
-    }
+    return buildSummaryFromOrders(from, to, loadOrdersForDashboard(from, to));
   }
 
   @Transactional(readOnly = true)
   public DashboardTrendResponse getTrends(Instant from, Instant to) {
-    try {
-      List<DashboardTrendPointResponse> points = orderRepository.findDailyTrends(from, to).stream()
-          .map(row -> new DashboardTrendPointResponse(
-              toLocalDate(row.getDay()),
-              intOrZero(row.getTotalOrders()),
-              decimalOrZero(row.getTotalAmount()).setScale(2, RoundingMode.HALF_UP),
-              intOrZero(row.getDeliveredCount())
-          ))
-          .toList();
-      return new DashboardTrendResponse(from, to, points);
-    } catch (RuntimeException ex) {
-      log.warn("Dashboard trends query failed, falling back to in-memory computation", ex);
-      return buildTrendsFromOrders(from, to, loadOrdersForDashboardWithFallbackTransaction(from, to));
-    }
+    return buildTrendsFromOrders(from, to, loadOrdersForDashboard(from, to));
   }
 
   @Transactional(readOnly = true)
   public List<DashboardCategoryInsightResponse> getCategoryInsights(Instant from, Instant to) {
-    try {
-      return orderRepository.findCategoryUnits(from, to).stream()
-          .map(row -> new DashboardCategoryInsightResponse(
-              row.getCategory(),
-              longOrZero(row.getTotalUnits())
-          ))
-          .toList();
-    } catch (RuntimeException ex) {
-      log.warn("Dashboard category query failed, falling back to in-memory computation", ex);
-      return buildCategoriesFromOrders(loadOrdersForDashboardWithFallbackTransaction(from, to));
-    }
+    return buildCategoriesFromOrders(loadOrdersForDashboard(from, to));
   }
 
   private DashboardSummaryResponse buildSummaryFromOrders(Instant from, Instant to, List<Order> orders) {
@@ -228,10 +167,6 @@ public class DashboardService {
         .toList();
   }
 
-  private List<Order> loadOrdersForDashboardWithFallbackTransaction(Instant from, Instant to) {
-    return fallbackReadTransaction.execute(status -> loadOrdersForDashboard(from, to));
-  }
-
   private boolean isInRange(Order order, Instant from, Instant to) {
     if (order == null || order.getCreatedAt() == null) {
       return false;
@@ -244,37 +179,6 @@ public class DashboardService {
       return false;
     }
     return true;
-  }
-
-  private LocalDate toLocalDate(Object value) {
-    if (value == null) {
-      return null;
-    }
-    if (value instanceof java.time.LocalDate ld) {
-      return ld;
-    }
-    if (value instanceof java.sql.Date sd) {
-      return sd.toLocalDate();
-    }
-    if (value instanceof java.sql.Timestamp ts) {
-      return ts.toLocalDateTime().toLocalDate();
-    }
-    if (value instanceof java.util.Date d) {
-      return new java.sql.Date(d.getTime()).toLocalDate();
-    }
-    try {
-      return LocalDate.parse(value.toString());
-    } catch (Exception e) {
-      return null;
-    }
-  }
-
-  private long longOrZero(Number value) {
-    return value == null ? 0L : value.longValue();
-  }
-
-  private int intOrZero(Number value) {
-    return value == null ? 0 : value.intValue();
   }
 
   private BigDecimal decimalOrZero(BigDecimal value) {
