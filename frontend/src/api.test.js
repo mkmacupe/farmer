@@ -332,6 +332,13 @@ describe('api', () => {
     await expect(api.getProductCategories('token-abort-message')).rejects.toThrow('Истекло время ожидания ответа от сервера.');
   });
 
+  it('maps abort-like browser error even when it has a code property', async () => {
+    const abortLikeError = new Error('signal is aborted without reason');
+    abortLikeError.code = 20;
+    vi.spyOn(globalThis, 'fetch').mockRejectedValue(abortLikeError);
+    await expect(api.getProductCategories('token-abort-code')).rejects.toThrow('Истекло время ожидания ответа от сервера.');
+  });
+
   it('allows request options for getProductCategories and can call without auth token', async () => {
     const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]));
     await api.getProductCategories(undefined, {

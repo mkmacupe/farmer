@@ -52,9 +52,6 @@ function createApiError(message, details = {}) {
 }
 
 function normalizeFetchError(error) {
-  if (error?.code || typeof error?.status === 'number') {
-    return error;
-  }
   const normalizedMessage = String(error?.message || '').toLowerCase();
   if (
     error?.name === 'AbortError'
@@ -63,6 +60,9 @@ function normalizeFetchError(error) {
     || normalizedMessage.includes('operation was aborted')
   ) {
     return createApiError(NETWORK_TIMEOUT_MESSAGE, { code: 'NETWORK_TIMEOUT' });
+  }
+  if (error?.code || typeof error?.status === 'number') {
+    return error;
   }
   if (error instanceof TypeError) {
     return createApiError(NETWORK_UNAVAILABLE_MESSAGE, { code: 'NETWORK_UNAVAILABLE' });
