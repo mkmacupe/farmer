@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -38,6 +39,7 @@ public class DashboardService {
   private final OrderRepository orderRepository;
   private final TransactionOperations fallbackReadTransaction;
 
+  @Autowired
   public DashboardService(OrderRepository orderRepository, PlatformTransactionManager transactionManager) {
     this.orderRepository = orderRepository;
     TransactionTemplate template = new TransactionTemplate(transactionManager);
