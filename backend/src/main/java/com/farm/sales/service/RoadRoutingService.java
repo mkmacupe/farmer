@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -24,6 +25,7 @@ public class RoadRoutingService {
   private final int maxTableCoordinates;
   private final Map<String, CacheEntry<Double>> distanceCache = new ConcurrentHashMap<>();
 
+  @Autowired
   public RoadRoutingService(
       @Value("${app.routing.osrm-base-url:https://router.project-osrm.org}") String baseUrl,
       @Value("${app.routing.user-agent:FarmSalesCourseProject/1.0}") String userAgent,
