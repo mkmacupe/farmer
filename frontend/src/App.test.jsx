@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App.jsx';
 import { clearAuth, loadAuth, saveAuth } from './authStorage.js';
-import { demoLogin, login } from './api.js';
+import { demoLogin, login, primeBackendWarmup } from './api.js';
 
 vi.mock('./authStorage.js', () => ({
   loadAuth: vi.fn(),
@@ -11,7 +11,8 @@ vi.mock('./authStorage.js', () => ({
 
 vi.mock('./api.js', () => ({
   demoLogin: vi.fn(),
-  login: vi.fn()
+  login: vi.fn(),
+  primeBackendWarmup: vi.fn(() => Promise.resolve(true))
 }));
 
 vi.mock('./AuthenticatedApp.jsx', () => ({
@@ -47,6 +48,7 @@ describe('App', () => {
       fullName: 'Driver One',
       role: 'DRIVER'
     });
+    primeBackendWarmup.mockResolvedValue(true);
   });
 
   it('shows login form for anonymous user', () => {

@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { demoLogin, login } from "./api.js";
+import { demoLogin, login, primeBackendWarmup } from "./api.js";
 import { clearAuth, loadAuth, saveAuth } from "./authStorage.js";
 import LoginForm from "./components/LoginForm.jsx";
 
@@ -70,6 +70,12 @@ export default function App() {
   useEffect(() => {
     if (auth) {
       saveAuth(auth);
+    }
+  }, [auth]);
+
+  useEffect(() => {
+    if (!auth) {
+      void primeBackendWarmup();
     }
   }, [auth]);
 

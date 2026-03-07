@@ -29,7 +29,10 @@ const resolveApiBase = () => {
 };
 
 const API_BASE = resolveApiBase();
-const LOGIN_TIMEOUT_MS = 10_000;
+const LOGIN_TIMEOUT_MS = 20_000;
+const READINESS_TIMEOUT_MS = 8_000;
+const READINESS_MAX_ATTEMPTS = 8;
+const READINESS_RETRY_DELAY_MS = 2_500;
 const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
 const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
 const WARMING_UP_MESSAGE = 'Сервер всё ещё просыпается после простоя. Подождите 10–20 секунд и повторите вход.';
@@ -44,6 +47,7 @@ const AUTH_RETRY_POLICY = Object.freeze({
   baseDelayMs: 1_500,
   maxDelayMs: 6_000
 });
+let backendWarmupPromise = null;
 
 function createApiError(message, details = {}) {
   const error = new Error(message);
@@ -83,6 +87,77 @@ function resolveRetryPolicy(method, retryPolicy) {
     return DEFAULT_RETRY_POLICY;
   }
   return null;
+}
+
+function resolveBackendOrigin() {
+  if (/^https?:\/\//i.test(API_BASE)) {
+    return normalizeApiBase(API_BASE).replace(/\/api$/i, '');
+  }
+
+  const target = import.meta.env.VITE_PROXY_API_TARGET?.trim();
+  if (target) {
+    return normalizeApiBase(target).replace(/\/api$/i, '');
+  }
+
+  const host = import.meta.env.VITE_PROXY_API_HOST?.trim();
+  const port = import.meta.env.VITE_PROXY_API_PORT?.trim();
+  if (host && port) {
+    return `http://${host}:${port}`;
+  }
+
+  if (typeof window !== 'undefined' && window.location?.origin) {
+    return window.location.origin;
+  }
+
+  return '';
+}
+
+async function checkBackendReadiness() {
+  const backendOrigin = resolveBackendOrigin();
+  if (!backendOrigin) {
+    return false;
+  }
+
+  try {
+    const response = await apiFetchOnce(`${backendOrigin}/actuator/health/readiness`, {
+      timeoutMs: READINESS_TIMEOUT_MS
+    });
+    if (!response.ok) {
+      return false;
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    if (!contentType.includes('application/json')) {
+      return false;
+    }
+
+    const payload = await response.json();
+    return payload?.status === 'UP';
+  } catch {
+    return false;
+  }
+}
+
+export function primeBackendWarmup() {
+  if (backendWarmupPromise) {
+    return backendWarmupPromise;
+  }
+
+  backendWarmupPromise = (async () => {
+    for (let attempt = 0; attempt < READINESS_MAX_ATTEMPTS; attempt += 1) {
+      if (await checkBackendReadiness()) {
+        return true;
+      }
+      if (attempt + 1 < READINESS_MAX_ATTEMPTS) {
+        await waitMs(READINESS_RETRY_DELAY_MS);
+      }
+    }
+    return false;
+  })().finally(() => {
+    backendWarmupPromise = null;
+  });
+
+  return backendWarmupPromise;
 }
 
 function shouldRetryResponse(response) {
