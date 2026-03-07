@@ -88,6 +88,7 @@ public class DemoScenarioService {
     entityManager.clear();
 
     dataInitializer.resetDemoSeedState();
+    demoTransportScenarioInitializer.resetSeedState();
     dataInitializer.seedDemoData();
     demoTransportScenarioInitializer.seedDemoScenario();
 

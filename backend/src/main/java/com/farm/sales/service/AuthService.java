@@ -6,11 +6,13 @@ import com.farm.sales.config.JwtProperties;
 import com.farm.sales.dto.AuthRequest;
 import com.farm.sales.dto.AuthResponse;
 import com.farm.sales.config.DataInitializer;
+import com.farm.sales.config.DemoTransportScenarioInitializer;
 import com.farm.sales.model.User;
 import com.farm.sales.repository.UserRepository;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +46,8 @@ public class AuthService {
   private final String dummyPasswordHash;
   @Autowired(required = false)
   private DataInitializer dataInitializer;
+  @Autowired(required = false)
+  private DemoTransportScenarioInitializer demoTransportScenarioInitializer;
 
   public AuthService(UserRepository userRepository,
                      PasswordEncoder passwordEncoder,
@@ -59,8 +63,8 @@ public class AuthService {
   }
 
   public AuthResponse login(AuthRequest request) {
-    User user = userRepository.findByUsername(request.username())
-        .orElse(null);
+    String normalizedUsername = normalizeUsername(request.username());
+    User user = findUserWithLazyDemoSeed(normalizedUsername);
 
     // Normalize execution time by always checking a hash.
     String passwordHash = user != null ? user.getPasswordHash() : dummyPasswordHash;
@@ -69,9 +73,9 @@ public class AuthService {
       auditTrailPublisher.publishWithActor(
           "AUTH_LOGIN_FAILED",
           "AUTH",
-          request.username(),
+          normalizedUsername,
           "reason=invalid_credentials",
-          new AuditActor(request.username(), null, null)
+          new AuditActor(normalizedUsername, null, null)
       );
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль");
     }
@@ -97,11 +101,7 @@ public class AuthService {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль");
     }
 
-    User user = userRepository.findByUsername(normalizedUsername).orElse(null);
-    if (user == null && dataInitializer != null) {
-      dataInitializer.seedDemoData();
-      user = userRepository.findByUsername(normalizedUsername).orElse(null);
-    }
+    User user = findUserWithLazyDemoSeed(normalizedUsername);
 
     String passwordHash = user != null ? user.getPasswordHash() : dummyPasswordHash;
     boolean passwordMatches = passwordEncoder.matches(password, passwordHash);
@@ -140,6 +140,28 @@ public class AuthService {
 
     JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
     return jwtEncoder.encode(JwtEncoderParameters.from(header, claims)).getTokenValue();
+  }
+
+  private User findUserWithLazyDemoSeed(String username) {
+    User user = userRepository.findByUsername(username).orElse(null);
+    if (user != null || dataInitializer == null) {
+      return user;
+    }
+
+    String normalizedDemoUsername = username.toLowerCase(Locale.ROOT);
+    if (!DEMO_USERNAMES.contains(normalizedDemoUsername)) {
+      return null;
+    }
+
+    dataInitializer.seedDemoData();
+    if (demoTransportScenarioInitializer != null) {
+      demoTransportScenarioInitializer.seedDemoScenario();
+    }
+    return userRepository.findByUsername(username).orElse(null);
+  }
+
+  private String normalizeUsername(String username) {
+    return username == null ? "" : username.trim();
   }
 
 }

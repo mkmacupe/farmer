@@ -8,6 +8,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.farm.sales.audit.AuditTrailPublisher;
+import com.farm.sales.config.DataInitializer;
+import com.farm.sales.config.DemoTransportScenarioInitializer;
 import com.farm.sales.config.JwtProperties;
 import com.farm.sales.dto.AuthRequest;
 import com.farm.sales.dto.AuthResponse;
@@ -21,6 +23,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 class AuthServiceTest {
@@ -29,6 +32,8 @@ class AuthServiceTest {
   private JwtEncoder jwtEncoder;
   private JwtProperties jwtProperties;
   private AuditTrailPublisher auditTrailPublisher;
+  private DataInitializer dataInitializer;
+  private DemoTransportScenarioInitializer demoTransportScenarioInitializer;
   private AuthService authService;
 
   @BeforeEach
@@ -37,6 +42,8 @@ class AuthServiceTest {
     passwordEncoder = org.mockito.Mockito.mock(PasswordEncoder.class);
     jwtEncoder = org.mockito.Mockito.mock(JwtEncoder.class);
     auditTrailPublisher = org.mockito.Mockito.mock(AuditTrailPublisher.class);
+    dataInitializer = org.mockito.Mockito.mock(DataInitializer.class);
+    demoTransportScenarioInitializer = org.mockito.Mockito.mock(DemoTransportScenarioInitializer.class);
     jwtProperties = new JwtProperties();
     jwtProperties.setIssuer("farm-sales");
     jwtProperties.setExpirationMinutes(60);
@@ -44,6 +51,8 @@ class AuthServiceTest {
 
     when(passwordEncoder.encode(anyString())).thenReturn("dummy-hash");
     authService = new AuthService(userRepository, passwordEncoder, jwtEncoder, jwtProperties, auditTrailPublisher);
+    ReflectionTestUtils.setField(authService, "dataInitializer", dataInitializer);
+    ReflectionTestUtils.setField(authService, "demoTransportScenarioInitializer", demoTransportScenarioInitializer);
   }
 
   @Test
@@ -144,6 +153,30 @@ class AuthServiceTest {
           ResponseStatusException ex = (ResponseStatusException) error;
           assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         });
+  }
+
+  @Test
+  void loginSeedsDemoUsersOnDemandWhenStartupSeedIsDisabled() {
+    User user = new User();
+    user.setId(7L);
+    user.setUsername("manager");
+    user.setFullName("Manager");
+    user.setRole(Role.MANAGER);
+    user.setPasswordHash("stored-hash");
+
+    when(userRepository.findByUsername("manager"))
+        .thenReturn(Optional.empty())
+        .thenReturn(Optional.of(user));
+    when(passwordEncoder.matches("MgrD5v8cN4", "stored-hash")).thenReturn(true);
+    Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
+    when(jwt.getTokenValue()).thenReturn("lazy-seed-token");
+    when(jwtEncoder.encode(any())).thenReturn(jwt);
+
+    AuthResponse response = authService.login(new AuthRequest("manager", "MgrD5v8cN4"));
+
+    assertThat(response.token()).isEqualTo("lazy-seed-token");
+    verify(dataInitializer).seedDemoData();
+    verify(demoTransportScenarioInitializer).seedDemoScenario();
   }
 
 }

@@ -293,8 +293,8 @@ describe('api', () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 
     const loginPromise = api.login('manager', 'secret');
-    const assertion = expect(loginPromise).rejects.toThrow('Сервер всё ещё просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
-    await vi.advanceTimersByTimeAsync(9_500);
+    const assertion = expect(loginPromise).rejects.toThrow('Сервер не проснулся за 6 минут. Повторите вход чуть позже.');
+    await vi.advanceTimersByTimeAsync(360_500);
     await assertion;
 
     vi.useRealTimers();
@@ -305,9 +305,29 @@ describe('api', () => {
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(textResponse('Service unavailable', { status: 503 }));
 
     const demoLoginPromise = api.demoLogin('manager', 'secret');
-    const assertion = expect(demoLoginPromise).rejects.toThrow('Сервер всё ещё просыпается после простоя. Подождите 10–20 секунд и повторите вход.');
-    await vi.advanceTimersByTimeAsync(9_500);
+    const assertion = expect(demoLoginPromise).rejects.toThrow('Сервер не проснулся за 6 минут. Повторите вход чуть позже.');
+    await vi.advanceTimersByTimeAsync(360_500);
     await assertion;
+
+    vi.useRealTimers();
+  });
+
+  it('login keeps waiting for readiness and succeeds without manual retry', async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.spyOn(globalThis, 'fetch')
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(jsonResponse({ status: 'DOWN' }))
+      .mockResolvedValueOnce(jsonResponse({ status: 'UP' }))
+      .mockResolvedValueOnce(jsonResponse({ token: 'jwt', username: 'manager' }));
+
+    const loginPromise = api.login('manager', 'secret');
+    await vi.advanceTimersByTimeAsync(40_000);
+
+    await expect(loginPromise).resolves.toEqual({ token: 'jwt', username: 'manager' });
+    expect(fetchMock).toHaveBeenCalledTimes(7);
 
     vi.useRealTimers();
   });

@@ -6,7 +6,7 @@ import {
   useMemo,
   useState,
 } from "react";
-import { demoLogin, login, primeBackendWarmup } from "./api.js";
+import { demoLogin, LOGIN_LOADING_MESSAGE, login, primeBackendWarmup } from "./api.js";
 import { clearAuth, loadAuth, saveAuth } from "./authStorage.js";
 import LoginForm from "./components/LoginForm.jsx";
 
@@ -172,6 +172,7 @@ export default function App() {
         onLogin={handleLogin}
         onQuickLogin={handleQuickLogin}
         loading={loading}
+        loadingMessage={LOGIN_LOADING_MESSAGE}
         error={error}
       />
     );

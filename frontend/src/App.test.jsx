@@ -11,6 +11,7 @@ vi.mock('./authStorage.js', () => ({
 
 vi.mock('./api.js', () => ({
   demoLogin: vi.fn(),
+  LOGIN_LOADING_MESSAGE: 'Подключаем сервер...',
   login: vi.fn(),
   primeBackendWarmup: vi.fn(() => Promise.resolve(true))
 }));

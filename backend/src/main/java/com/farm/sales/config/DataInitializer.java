@@ -13,6 +13,7 @@ import java.util.Locale;
 import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
@@ -42,6 +43,8 @@ public class DataInitializer implements CommandLineRunner {
   private final StoreAddressRepository storeAddressRepository;
   private final PasswordEncoder passwordEncoder;
   private final Object seedLock = new Object();
+  @Value("${app.demo.seed-on-startup:true}")
+  private boolean seedOnStartup = true;
   private volatile boolean demoSeeded;
 
   public DataInitializer(UserRepository userRepository,
@@ -57,6 +60,19 @@ public class DataInitializer implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
+    if (!seedOnStartup) {
+      log.info("Startup demo seed skipped: app.demo.seed-on-startup=false");
+      return;
+    }
+    ensureDemoDataSeeded();
+  }
+
+  @Transactional
+  public void seedDemoData() {
+    ensureDemoDataSeeded();
+  }
+
+  private void ensureDemoDataSeeded() {
     if (demoSeeded) return;
     synchronized (seedLock) {
       if (demoSeeded) return;
@@ -98,10 +114,6 @@ public class DataInitializer implements CommandLineRunner {
 
       demoSeeded = true;
     }
-  }
-
-  public void seedDemoData() {
-    run();
   }
 
   public void resetDemoSeedState() {

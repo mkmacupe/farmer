@@ -17,6 +17,7 @@ import java.util.Comparator;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
@@ -60,6 +61,10 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private final ProductRepository productRepository;
   private final StoreAddressRepository storeAddressRepository;
   private final OrderRepository orderRepository;
+  private final Object seedLock = new Object();
+  @Value("${app.demo.seed-on-startup:true}")
+  private boolean seedOnStartup = true;
+  private volatile boolean scenarioSeeded;
 
   public DemoTransportScenarioInitializer(UserRepository userRepository,
                                           ProductRepository productRepository,
@@ -74,37 +79,57 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
+    if (!seedOnStartup) {
+      log.info("Startup demo transport seed skipped: app.demo.seed-on-startup=false");
+      return;
+    }
     seedDemoScenario();
   }
 
   @Transactional
   public void seedDemoScenario() {
-    List<User> directors = resolveDemoDirectors();
-    if (directors.size() != DIRECTOR_USERNAMES.size()) {
-      log.warn("Пропуск demo-транспортного сида: не удалось найти всех demo-директоров.");
+    if (scenarioSeeded) {
       return;
     }
+    synchronized (seedLock) {
+      if (scenarioSeeded) {
+        return;
+      }
+      List<User> directors = resolveDemoDirectors();
+      if (directors.size() != DIRECTOR_USERNAMES.size()) {
+        log.warn("Пропуск demo-транспортного сида: не удалось найти всех demo-директоров.");
+        return;
+      }
 
-    User manager = userRepository.findByUsername("manager").orElse(null);
-    if (manager == null) {
-      log.warn("Пропуск demo-транспортного сида: не найден пользователь manager.");
-      return;
-    }
+      User manager = userRepository.findByUsername("manager").orElse(null);
+      if (manager == null) {
+        log.warn("Пропуск demo-транспортного сида: не найден пользователь manager.");
+        return;
+      }
 
-    List<Product> products = productRepository.findAll().stream()
-        .filter(product -> product.getPrice() != null)
-        .sorted(Comparator.comparing(Product::getId, Comparator.nullsLast(Long::compareTo)))
-        .toList();
-    if (products.isEmpty()) {
-      log.warn("Пропуск demo-транспортного сида: в каталоге нет товаров с ценой.");
-      return;
-    }
+      List<Product> products = productRepository.findAll().stream()
+          .filter(product -> product.getPrice() != null)
+          .sorted(Comparator.comparing(Product::getId, Comparator.nullsLast(Long::compareTo)))
+          .toList();
+      if (products.isEmpty()) {
+        log.warn("Пропуск demo-транспортного сида: в каталоге нет товаров с ценой.");
+        return;
+      }
 
-    if (orderRepository.count() > 0) {
-      log.info("Demo transport scenario skipped: orders already exist, destructive reseed disabled.");
-      return;
+      if (orderRepository.count() > 0) {
+        log.info("Demo transport scenario skipped: orders already exist, destructive reseed disabled.");
+        scenarioSeeded = true;
+        return;
+      }
+      seedOrdersForMogilev(directors, manager, products);
+      scenarioSeeded = true;
     }
-    seedOrdersForMogilev(directors, manager, products);
+  }
+
+  public void resetSeedState() {
+    synchronized (seedLock) {
+      scenarioSeeded = false;
+    }
   }
 
   private List<User> resolveDemoDirectors() {

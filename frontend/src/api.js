@@ -30,12 +30,14 @@ const resolveApiBase = () => {
 
 const API_BASE = resolveApiBase();
 const LOGIN_TIMEOUT_MS = 20_000;
-const READINESS_TIMEOUT_MS = 8_000;
-const READINESS_MAX_ATTEMPTS = 8;
-const READINESS_RETRY_DELAY_MS = 2_500;
+const READINESS_TIMEOUT_MS = 12_000;
+const READINESS_RETRY_DELAY_MS = 5_000;
+const BACKGROUND_WARMUP_MAX_WAIT_MS = 4 * 60_000;
+const AUTH_WARMUP_MAX_WAIT_MS = 6 * 60_000;
 const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
 const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
-const WARMING_UP_MESSAGE = 'Сервер всё ещё просыпается после простоя. Подождите 10–20 секунд и повторите вход.';
+export const LOGIN_LOADING_MESSAGE = 'Подключаем сервер. Если backend был в спящем режиме на Render Free, вход продолжится автоматически и может занять до 5 минут.';
+const WARMING_UP_TIMEOUT_MESSAGE = 'Сервер не проснулся за 6 минут. Повторите вход чуть позже.';
 const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
 const DEFAULT_RETRY_POLICY = Object.freeze({
   attempts: 2,
@@ -138,26 +140,46 @@ async function checkBackendReadiness() {
   }
 }
 
+async function waitForBackendReadinessUntil(deadlineAt) {
+  while (Date.now() < deadlineAt) {
+    if (await checkBackendReadiness()) {
+      return true;
+    }
+
+    const remainingMs = deadlineAt - Date.now();
+    if (remainingMs <= 0) {
+      return false;
+    }
+    await waitMs(Math.min(READINESS_RETRY_DELAY_MS, remainingMs));
+  }
+  return false;
+}
+
 export function primeBackendWarmup() {
   if (backendWarmupPromise) {
     return backendWarmupPromise;
   }
 
-  backendWarmupPromise = (async () => {
-    for (let attempt = 0; attempt < READINESS_MAX_ATTEMPTS; attempt += 1) {
-      if (await checkBackendReadiness()) {
-        return true;
-      }
-      if (attempt + 1 < READINESS_MAX_ATTEMPTS) {
-        await waitMs(READINESS_RETRY_DELAY_MS);
-      }
-    }
-    return false;
-  })().finally(() => {
+  const deadlineAt = Date.now() + BACKGROUND_WARMUP_MAX_WAIT_MS;
+  backendWarmupPromise = waitForBackendReadinessUntil(deadlineAt).finally(() => {
     backendWarmupPromise = null;
   });
 
   return backendWarmupPromise;
+}
+
+async function waitForBackendWarmup(deadlineAt) {
+  if (backendWarmupPromise) {
+    try {
+      if (await backendWarmupPromise) {
+        return true;
+      }
+    } catch {
+      // Fallback to a dedicated warmup loop below.
+    }
+  }
+
+  return waitForBackendReadinessUntil(deadlineAt);
 }
 
 function shouldRetryResponse(response) {
@@ -208,7 +230,7 @@ async function apiFetchOnce(url, options = {}) {
   }
 
   const controller = new AbortController();
-  const timeoutId = window.setTimeout(() => controller.abort(), timeoutMs);
+  const timeoutId = globalThis.setTimeout(() => controller.abort(), timeoutMs);
   if (rest.signal) {
     if (rest.signal.aborted) {
       controller.abort();
@@ -222,7 +244,7 @@ async function apiFetchOnce(url, options = {}) {
   } catch (error) {
     throw normalizeFetchError(error);
   } finally {
-    window.clearTimeout(timeoutId);
+    globalThis.clearTimeout(timeoutId);
   }
 }
 
@@ -260,7 +282,7 @@ function isAuthPayload(payload) {
 
 function waitMs(duration) {
   return new Promise((resolve) => {
-    window.setTimeout(resolve, duration);
+    globalThis.setTimeout(resolve, duration);
   });
 }
 
@@ -338,44 +360,46 @@ function authHeaders(token) {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-export async function login(username, password) {
-  try {
-    const response = await apiFetch(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      timeoutMs: LOGIN_TIMEOUT_MS,
-      retryPolicy: AUTH_RETRY_POLICY,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    const payload = await handleResponse(response);
-    if (!isAuthPayload(payload)) {
-      throw new Error('Сервис авторизации недоступен. Проверьте адрес API и повторите вход.');
+async function authenticateWithWarmup(path, username, password, validatePayload = true) {
+  const deadlineAt = Date.now() + AUTH_WARMUP_MAX_WAIT_MS;
+
+  while (true) {
+    try {
+      const response = await apiFetch(`${API_BASE}/auth/${path}`, {
+        method: 'POST',
+        timeoutMs: LOGIN_TIMEOUT_MS,
+        retryPolicy: AUTH_RETRY_POLICY,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      });
+      const payload = await handleResponse(response);
+      if (validatePayload && !isAuthPayload(payload)) {
+        throw new Error('Сервис авторизации недоступен. Проверьте адрес API и повторите вход.');
+      }
+      return payload;
+    } catch (error) {
+      if (shouldRetryError(error)) {
+        if (Date.now() >= deadlineAt) {
+          throw new Error(WARMING_UP_TIMEOUT_MESSAGE);
+        }
+
+        const backendReady = await waitForBackendWarmup(deadlineAt);
+        if (!backendReady) {
+          throw new Error(WARMING_UP_TIMEOUT_MESSAGE);
+        }
+        continue;
+      }
+      throw error;
     }
-    return payload;
-  } catch (error) {
-    if (shouldRetryError(error)) {
-      throw new Error(WARMING_UP_MESSAGE);
-    }
-    throw error;
   }
 }
 
+export async function login(username, password) {
+  return authenticateWithWarmup('login', username, password, true);
+}
+
 export async function demoLogin(username, password) {
-  try {
-    const response = await apiFetch(`${API_BASE}/auth/demo-login`, {
-      method: 'POST',
-      timeoutMs: LOGIN_TIMEOUT_MS,
-      retryPolicy: AUTH_RETRY_POLICY,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
-    });
-    return await handleResponse(response);
-  } catch (error) {
-    if (shouldRetryError(error)) {
-      throw new Error(WARMING_UP_MESSAGE);
-    }
-    throw error;
-  }
+  return authenticateWithWarmup('demo-login', username, password, false);
 }
 
 function normalizeProductsPage(payload, fallbackPage = 0, fallbackSize = 24) {
