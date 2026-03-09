@@ -213,8 +213,8 @@ Reset делает следующее:
 
 - очищает накопленные заказы, аудит и уведомления;
 - пересоздаёт demo-пользователей;
-- восстанавливает каталог и адреса;
-- заново формирует логистический сценарий с `APPROVED` заказами.
+- восстанавливает каталог товаров;
+- оставляет пустое стартовое состояние для защиты: `0` заказов и `0` точек доставки.
 
 Полный сценарий показа:
 
@@ -224,9 +224,9 @@ Reset делает следующее:
 
 | Роль | Логин | Пароль |
 |---|---|---|
-| Director | `mogilevkhim` | `MhvK8r2pQ1` |
-| Director | `mogilevlift` | `MlvT4n7xR2` |
-| Director | `babushkina` | `BbkP6m9sL3` |
+| Director | `berezka` | `BrzK8r2pQ1` |
+| Director | `kvartal` | `KvtT4n7xR2` |
+| Director | `yantar` | `YntP6m9sL3` |
 | Manager | `manager` | `MgrD5v8cN4` |
 | Logistician | `logistician` | `LogS7q1wE5` |
 | Driver | `driver1` | `Drv1A9k2Z6` |

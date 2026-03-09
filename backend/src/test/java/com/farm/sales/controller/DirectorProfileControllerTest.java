@@ -36,10 +36,10 @@ class DirectorProfileControllerTest {
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(42L);
     ProfileResponse response = new ProfileResponse(
         42L,
-        "mogilevkhim",
-        "Олег Курилин",
+        "berezka",
+        "Ирина Соколова",
         "+375291948265",
-        "ОАО \"Могилевхимволокно\""
+        "Магазин \"Берёзка\""
     );
     when(directorProfileService.getProfile(42L)).thenReturn(response);
 
@@ -81,7 +81,8 @@ class DirectorProfileControllerTest {
             "Основной склад",
             "Могилёв, ул. Челюскинцев 105",
             new BigDecimal("53.8654"),
-            new BigDecimal("30.2905")
+            new BigDecimal("30.2905"),
+            true
         )
     );
     when(directorProfileService.getAddresses(11L)).thenReturn(response);
@@ -108,7 +109,8 @@ class DirectorProfileControllerTest {
         "Центральный магазин",
         "Могилёв, ул. Академика Павлова 3",
         new BigDecimal("53.9342"),
-        new BigDecimal("30.2941")
+        new BigDecimal("30.2941"),
+        true
     );
     when(directorProfileService.createAddress(15L, request)).thenReturn(response);
 
@@ -134,7 +136,8 @@ class DirectorProfileControllerTest {
         "Точка отгрузки",
         "Могилёв, пр-т Мира 42",
         new BigDecimal("53.8948"),
-        new BigDecimal("30.3312")
+        new BigDecimal("30.3312"),
+        true
     );
     when(directorProfileService.updateAddress(15L, 6L, request)).thenReturn(response);
 

@@ -7,6 +7,7 @@ public record StoreAddressResponse(
     String label,
     String addressLine,
     BigDecimal latitude,
-    BigDecimal longitude
+    BigDecimal longitude,
+    boolean deletable
 ) {
 }

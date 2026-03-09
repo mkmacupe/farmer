@@ -9,7 +9,6 @@ import static org.mockito.Mockito.when;
 
 import com.farm.sales.audit.AuditTrailPublisher;
 import com.farm.sales.config.DataInitializer;
-import com.farm.sales.config.DemoTransportScenarioInitializer;
 import com.farm.sales.config.JwtProperties;
 import com.farm.sales.dto.AuthRequest;
 import com.farm.sales.dto.AuthResponse;
@@ -33,7 +32,6 @@ class AuthServiceTest {
   private JwtProperties jwtProperties;
   private AuditTrailPublisher auditTrailPublisher;
   private DataInitializer dataInitializer;
-  private DemoTransportScenarioInitializer demoTransportScenarioInitializer;
   private AuthService authService;
 
   @BeforeEach
@@ -43,7 +41,6 @@ class AuthServiceTest {
     jwtEncoder = org.mockito.Mockito.mock(JwtEncoder.class);
     auditTrailPublisher = org.mockito.Mockito.mock(AuditTrailPublisher.class);
     dataInitializer = org.mockito.Mockito.mock(DataInitializer.class);
-    demoTransportScenarioInitializer = org.mockito.Mockito.mock(DemoTransportScenarioInitializer.class);
     jwtProperties = new JwtProperties();
     jwtProperties.setIssuer("farm-sales");
     jwtProperties.setExpirationMinutes(60);
@@ -52,7 +49,6 @@ class AuthServiceTest {
     when(passwordEncoder.encode(anyString())).thenReturn("dummy-hash");
     authService = new AuthService(userRepository, passwordEncoder, jwtEncoder, jwtProperties, auditTrailPublisher);
     ReflectionTestUtils.setField(authService, "dataInitializer", dataInitializer);
-    ReflectionTestUtils.setField(authService, "demoTransportScenarioInitializer", demoTransportScenarioInitializer);
   }
 
   @Test
@@ -176,7 +172,6 @@ class AuthServiceTest {
 
     assertThat(response.token()).isEqualTo("lazy-seed-token");
     verify(dataInitializer).seedDemoData();
-    verify(demoTransportScenarioInitializer).seedDemoScenario();
   }
 
 }

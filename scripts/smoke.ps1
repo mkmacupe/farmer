@@ -6,9 +6,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
  $DemoUserPasswords = @{
-  "mogilevkhim" = "MhvK8r2pQ1"
-  "mogilevlift" = "MlvT4n7xR2"
-  "babushkina" = "BbkP6m9sL3"
+  "berezka" = "BrzK8r2pQ1"
+  "kvartal" = "KvtT4n7xR2"
+  "yantar" = "YntP6m9sL3"
   "manager" = "MgrD5v8cN4"
   "logistician" = "LogS7q1wE5"
   "driver1" = "Drv1A9k2Z6"
@@ -108,7 +108,7 @@ function Normalize-Collection {
   return @($Payload)
 }
 
-$director = Login -Username "mogilevkhim"
+$director = Login -Username "berezka"
 $manager = Login -Username "manager"
 $logistician = Login -Username "logistician"
 $driver = Login -Username "driver1"

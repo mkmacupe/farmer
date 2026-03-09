@@ -78,6 +78,8 @@ public class OrderService {
   
   private static final double VEHICLE_MAX_WEIGHT_KG = 1500.0;
   private static final double VEHICLE_MAX_VOLUME_M3 = 12.0;
+  private static final double DEFAULT_PRODUCT_WEIGHT_KG = 1.0;
+  private static final double DEFAULT_PRODUCT_VOLUME_M3 = 0.001;
 
   private final OrderRepository orderRepository;
   private final OrderItemRepository orderItemRepository;
@@ -862,9 +864,10 @@ public class OrderService {
       double volume = 0.0;
       for (int idx : orderIdxs) {
         Order order = orders.get(idx);
-        for (OrderItem item : order.getItems()) {
-          weight += item.getProduct().getWeightKg() * item.getQuantity();
-          volume += item.getProduct().getVolumeM3() * item.getQuantity();
+        List<OrderItem> orderItems = order.getItems() == null ? List.of() : order.getItems();
+        for (OrderItem item : orderItems) {
+          weight += estimateItemWeightKg(item);
+          volume += estimateItemVolumeM3(item);
         }
       }
       deliveryPoints.add(new DeliveryPoint(entry.getKey(), orderIdxs, weight, volume));
@@ -1075,6 +1078,36 @@ public class OrderService {
     return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
   }
 
+  private double estimateItemWeightKg(OrderItem item) {
+    if (item == null) {
+      return 0.0;
+    }
+    int quantity = item.getQuantity() == null ? 0 : Math.max(0, item.getQuantity());
+    if (quantity == 0) {
+      return 0.0;
+    }
+    Product product = item.getProduct();
+    double weightKg = product == null || product.getWeightKg() == null || product.getWeightKg() <= 0
+        ? DEFAULT_PRODUCT_WEIGHT_KG
+        : product.getWeightKg();
+    return weightKg * quantity;
+  }
+
+  private double estimateItemVolumeM3(OrderItem item) {
+    if (item == null) {
+      return 0.0;
+    }
+    int quantity = item.getQuantity() == null ? 0 : Math.max(0, item.getQuantity());
+    if (quantity == 0) {
+      return 0.0;
+    }
+    Product product = item.getProduct();
+    double volumeM3 = product == null || product.getVolumeM3() == null || product.getVolumeM3() <= 0
+        ? DEFAULT_PRODUCT_VOLUME_M3
+        : product.getVolumeM3();
+    return volumeM3 * quantity;
+  }
+
   private User requireUserRole(Long userId, Role role, String missingMessage) {
     User user = userRepository.findById(userId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, missingMessage));
@@ -1143,6 +1176,7 @@ public class OrderService {
         order.getId(),
         order.getCustomer().getId(),
         order.getCustomer().getFullName(),
+        order.getCustomer().getLegalEntityName(),
         order.getDeliveryAddress() == null ? null : order.getDeliveryAddress().getId(),
         order.getDeliveryAddressText(),
         order.getDeliveryLatitude(),

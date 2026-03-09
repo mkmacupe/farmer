@@ -14,6 +14,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -118,6 +119,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
   Optional<Order> findFirstByAssignedDriverIdAndStatusOrderByAssignedAtDescIdDesc(Long driverId, OrderStatus status);
 
   boolean existsByDeliveryAddressId(Long deliveryAddressId);
+
+  boolean existsByDeliveryAddressIdAndStatusIn(Long deliveryAddressId, Collection<OrderStatus> statuses);
+
+  @Modifying(clearAutomatically = true, flushAutomatically = true)
+  @Query("""
+      update Order o
+      set o.deliveryAddress = null
+      where o.deliveryAddress.id = :deliveryAddressId
+      """)
+  int clearDeliveryAddressReference(@Param("deliveryAddressId") Long deliveryAddressId);
 
   @Query("""
       select o.id as orderId,

@@ -63,10 +63,10 @@ export async function installApiMock(page, options = {}) {
     directors: [
       {
         id: 11,
-        username: 'director',
-        fullName: 'Director User',
+        username: 'berezka',
+        fullName: 'Ирина Соколова',
         phone: '+380500000001',
-        legalEntityName: 'Fresh Retail LLC',
+        legalEntityName: 'Магазин "Берёзка"',
         role: 'DIRECTOR'
       }
     ],
@@ -100,7 +100,7 @@ export async function installApiMock(page, options = {}) {
       {
         id: 301,
         customerId: 11,
-        customerName: 'Director User',
+        customerName: 'Ирина Соколова',
         deliveryAddressId: 10,
         deliveryAddressText: 'Kyiv, Khreshchatyk 1',
         deliveryLatitude: 50.4501,
@@ -119,7 +119,7 @@ export async function installApiMock(page, options = {}) {
       {
         id: 302,
         customerId: 11,
-        customerName: 'Director User',
+        customerName: 'Ирина Соколова',
         deliveryAddressId: 10,
         deliveryAddressText: 'Kyiv, Khreshchatyk 1',
         deliveryLatitude: 50.4501,
@@ -138,7 +138,7 @@ export async function installApiMock(page, options = {}) {
       {
         id: 303,
         customerId: 11,
-        customerName: 'Director User',
+        customerName: 'Ирина Соколова',
         deliveryAddressId: 10,
         deliveryAddressText: 'Kyiv, Khreshchatyk 1',
         deliveryLatitude: 50.4501,
@@ -208,9 +208,9 @@ export async function installApiMock(page, options = {}) {
         driver1: 'DRIVER',
         driver2: 'DRIVER',
         driver3: 'DRIVER',
-        mogilevkhim: 'DIRECTOR',
-        mogilevlift: 'DIRECTOR',
-        babushkina: 'DIRECTOR'
+        berezka: 'DIRECTOR',
+        kvartal: 'DIRECTOR',
+        yantar: 'DIRECTOR'
       };
       if (!roles[username] || !password) {
         await route.fulfill({
@@ -372,7 +372,7 @@ export async function installApiMock(page, options = {}) {
       const created = {
         id: state.nextOrderId++,
         customerId: 11,
-        customerName: 'Director User',
+        customerName: 'Ирина Соколова',
         deliveryAddressId: Number(payload.deliveryAddressId || 10),
         deliveryAddressText: 'Kyiv, Khreshchatyk 1',
         deliveryLatitude: 50.4501,

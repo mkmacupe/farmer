@@ -48,7 +48,7 @@ import Snackbar from "@mui/material/Snackbar";
 import Avatar from "@mui/material/Avatar";
 import Slide from "@mui/material/Slide";
 import useMediaQuery from "@mui/material/useMediaQuery";
-import { useTheme } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 
 import AddIcon from "@mui/icons-material/Add";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -62,7 +62,6 @@ import LocalShipping from "@mui/icons-material/LocalShipping";
 import AttachMoney from "@mui/icons-material/AttachMoney";
 import Receipt from "@mui/icons-material/Receipt";
 import GroupIcon from "@mui/icons-material/Group";
-import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
@@ -92,8 +91,16 @@ const STATUS_LABELS = {
   DELIVERED: "Доставлен",
 };
 
+function formatLocalDateValue(value) {
+  const date = new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function todayDateValue() {
-  return new Date().toISOString().slice(0, 10);
+  return formatLocalDateValue(new Date());
 }
 
 function isMethodNotAllowedError(error) {
@@ -112,6 +119,54 @@ function formatDateTime(value) {
   return parsed.toLocaleString("ru-RU");
 }
 
+function orderStoreName(order) {
+  return order?.storeName || order?.customerName || "Магазин";
+}
+
+function orderDirectorName(order) {
+  return order?.customerName || "Директор магазина";
+}
+
+function orderTotalUnits(items) {
+  return (items || []).reduce(
+    (sum, item) => sum + Number(item?.quantity || 0),
+    0,
+  );
+}
+
+function orderComposition(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return "Состав не указан";
+  }
+  return items
+    .map((item) => `${item.productName || "Товар"} × ${item.quantity || 0}`)
+    .join(", ");
+}
+
+function orderInitials(order) {
+  const source = orderStoreName(order).replace(/["«»]/g, " ");
+  const parts = source
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .slice(0, 2);
+  if (!parts.length) {
+    return "М";
+  }
+  return parts.map((part) => part[0]?.toUpperCase() || "").join("");
+}
+
+function orderAmountBreakdown(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return [];
+  }
+  return items.map((item, index) => ({
+    key: `${item.productId ?? "item"}-${index}`,
+    label: `${item.productName || "Товар"} × ${item.quantity || 0}`,
+    total: `${formatMoney(item.lineTotal)} BYN`,
+  }));
+}
+
 const KanbanCard = memo(function KanbanCard({
   order,
   isMobile,
@@ -121,10 +176,14 @@ const KanbanCard = memo(function KanbanCard({
   onDragEnd,
   onApprove,
   onLoadTimeline,
+  onOpenDetails,
 }) {
+  const theme = useTheme();
   const hasQuickApprove = order.status === "CREATED";
   const columnMeta = KANBAN_COLUMN_BY_ID[order.status];
-  const dragEnabled = !isMobile;
+  const dragEnabled = !isMobile && order.status === "CREATED";
+  const createdAtLabel = formatDateTime(order.createdAt);
+  const amountBreakdown = orderAmountBreakdown(order.items);
   return (
     <Card
       draggable={dragEnabled}
@@ -134,8 +193,16 @@ const KanbanCard = memo(function KanbanCard({
       onDragEnd={dragEnabled ? onDragEnd : undefined}
       sx={{
         border: "1px solid",
-        borderColor: draggingOrderId === order.id ? "primary.main" : "divider",
-        boxShadow: "none",
+        borderColor:
+          draggingOrderId === order.id
+            ? "primary.main"
+            : alpha(theme.palette.divider, 0.9),
+        borderRadius: 3,
+        boxShadow:
+          draggingOrderId === order.id
+            ? `0 16px 36px ${alpha(theme.palette.primary.main, 0.16)}`
+            : `0 14px 32px ${alpha(theme.palette.common.black, 0.05)}`,
+        background: `linear-gradient(180deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[50], 0.85)} 100%)`,
         cursor: dragEnabled ? "grab" : "default",
         "&:active": { cursor: dragEnabled ? "grabbing" : "default" },
         "& .kanban-actions": {
@@ -144,50 +211,136 @@ const KanbanCard = memo(function KanbanCard({
         },
       }}
     >
-      <CardContent sx={{ pb: 1.5 }}>
+      <CardContent sx={{ pb: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
         <Stack
           direction="row"
-          alignItems="center"
+          alignItems="flex-start"
           justifyContent="space-between"
           spacing={1}
         >
-          <Stack direction="row" alignItems="center" spacing={1}>
-            {dragEnabled && (
-              <DragIndicatorIcon fontSize="small" color="action" />
-            )}
-            <Typography variant="subtitle2" fontWeight={600}>
+          <Box>
+            <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.2 }}>
               Заказ #{order.id}
             </Typography>
-          </Stack>
+            {!!createdAtLabel && (
+              <Typography variant="caption" color="text.secondary" display="block">
+                {createdAtLabel}
+              </Typography>
+            )}
+          </Box>
           <Chip
             label={statusLabel(order.status)}
             size="small"
             color={columnMeta?.color || "default"}
           />
         </Stack>
-        <Typography variant="body2" fontWeight={600} sx={{ mt: 1 }}>
-          {order.customerName || "Директор магазина"}
-        </Typography>
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          display="block"
-          sx={{ mt: 0.5 }}
-        >
-          {order.deliveryAddressText || "Адрес не указан"}
-        </Typography>
-        <Stack direction="row" spacing={2} sx={{ mt: 1 }}>
-          <Typography variant="caption" color="text.secondary">
-            Сумма: {formatMoney(order.totalAmount)} BYN
-          </Typography>
-          <Typography variant="caption" color="text.secondary">
-            Позиций: {order.items?.length || 0}
-          </Typography>
+        <Stack direction="row" spacing={1.25} alignItems="flex-start">
+          <Avatar
+            sx={{
+              width: 44,
+              height: 44,
+              bgcolor: alpha(theme.palette.primary.main, 0.14),
+              color: "primary.dark",
+              fontWeight: 700,
+              fontSize: "0.95rem",
+            }}
+          >
+            {orderInitials(order)}
+          </Avatar>
+          <Box sx={{ minWidth: 0, flex: 1 }}>
+            <Typography variant="subtitle2" fontWeight={700}>
+              {orderStoreName(order)}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Директор: {orderDirectorName(order)}
+            </Typography>
+          </Box>
         </Stack>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 1.25,
+            borderRadius: 2.5,
+            bgcolor: alpha(theme.palette.background.default, 0.72),
+            borderColor: alpha(theme.palette.divider, 0.8),
+          }}
+        >
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.4 }}>
+            Адрес доставки
+          </Typography>
+          <Typography
+            variant="body2"
+            sx={{
+              minHeight: 24,
+            }}
+          >
+            {order.deliveryAddressText || "Адрес не указан"}
+          </Typography>
+        </Paper>
+        <Paper
+          variant="outlined"
+          sx={{
+            p: 1.25,
+            borderRadius: 2.5,
+            bgcolor: alpha(theme.palette.background.paper, 0.84),
+            borderColor: alpha(theme.palette.divider, 0.78),
+          }}
+        >
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
+            Расчёт суммы заказа
+          </Typography>
+          <Stack spacing={0.5}>
+            {amountBreakdown.length ? (
+              amountBreakdown.map((row) => (
+                <Stack
+                  key={row.key}
+                  direction="row"
+                  justifyContent="space-between"
+                  spacing={1}
+                >
+                  <Typography variant="body2" sx={{ minWidth: 0 }}>
+                    {row.label}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={600} sx={{ whiteSpace: "nowrap" }}>
+                    {row.total}
+                  </Typography>
+                </Stack>
+              ))
+            ) : (
+              <Typography variant="body2" color="text.secondary">
+                Нет позиций для расчёта
+              </Typography>
+            )}
+            <Box
+              sx={{
+                mt: 0.75,
+                pt: 0.75,
+                borderTop: "1px dashed",
+                borderColor: "divider",
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 1,
+              }}
+            >
+              <Typography variant="subtitle2" fontWeight={700}>
+                Итого
+              </Typography>
+              <Typography variant="subtitle2" fontWeight={700}>
+                {formatMoney(order.totalAmount)} BYN
+              </Typography>
+            </Box>
+          </Stack>
+        </Paper>
       </CardContent>
       <Box
         className="kanban-actions"
-        sx={{ px: 2, pb: 2, display: "flex", flexWrap: "wrap", gap: 1 }}
+        sx={{
+          px: 2,
+          pb: 2,
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
+          gap: 1,
+        }}
       >
         {hasQuickApprove && (
           <Button
@@ -196,6 +349,7 @@ const KanbanCard = memo(function KanbanCard({
             startIcon={<CheckIcon />}
             onClick={() => onApprove(order.id)}
             disabled={actionLoading}
+            fullWidth
           >
             Одобрить
           </Button>
@@ -203,9 +357,19 @@ const KanbanCard = memo(function KanbanCard({
         <Button
           size="small"
           variant="outlined"
+          onClick={() => onOpenDetails(order)}
+          disabled={actionLoading}
+          fullWidth
+        >
+          Подробнее
+        </Button>
+        <Button
+          size="small"
+          variant="outlined"
           startIcon={<HistoryIcon />}
           onClick={() => onLoadTimeline(order.id)}
           disabled={actionLoading}
+          fullWidth
         >
           История
         </Button>
@@ -249,7 +413,7 @@ function startOfDay(value) {
 }
 
 function dayKey(value) {
-  return startOfDay(value).toISOString().slice(0, 10);
+  return formatLocalDateValue(startOfDay(value));
 }
 
 function formatDayLabel(value) {
@@ -318,6 +482,7 @@ export default function ManagerView({ token, activeSection }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineOrderId, setTimelineOrderId] = useState(null);
   const [timeline, setTimeline] = useState([]);
+  const [detailsOrder, setDetailsOrder] = useState(null);
 
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -689,8 +854,8 @@ export default function ManagerView({ token, activeSection }) {
   const loadDashboard = async (signal) => {
     try {
       const data = await getDashboardSummary(token, {
-        from: dashboardFrom || null,
-        to: dashboardTo || null,
+        from: formatLocalDateValue(dashboardRange.from),
+        to: formatLocalDateValue(dashboardRange.to),
       });
       if (signal?.aborted) {
         return;
@@ -708,8 +873,8 @@ export default function ManagerView({ token, activeSection }) {
   const loadDashboardTrends = async (signal) => {
     try {
       const data = await getDashboardTrends(token, {
-        from: dashboardFrom || null,
-        to: dashboardTo || null,
+        from: formatLocalDateValue(dashboardRange.from),
+        to: formatLocalDateValue(dashboardRange.to),
       });
       if (signal?.aborted) {
         return;
@@ -727,8 +892,8 @@ export default function ManagerView({ token, activeSection }) {
   const loadDashboardCategories = async (signal) => {
     try {
       const data = await getDashboardCategories(token, {
-        from: dashboardFrom || null,
-        to: dashboardTo || null,
+        from: formatLocalDateValue(dashboardRange.from),
+        to: formatLocalDateValue(dashboardRange.to),
       });
       if (signal?.aborted) {
         return;
@@ -823,9 +988,6 @@ export default function ManagerView({ token, activeSection }) {
     if (!ordersByStatus.CREATED?.length) {
       return showMessage("Нет заказов для одобрения", "info");
     }
-    if (!window.confirm(`Одобрить все новые заказы (${ordersByStatus.CREATED.length} шт.)?`)) {
-      return;
-    }
 
     setActionLoading(true);
     try {
@@ -857,6 +1019,12 @@ export default function ManagerView({ token, activeSection }) {
     (orderId) => handleLoadTimelineRef.current(orderId),
     [],
   );
+  const handleOpenOrderDetails = useCallback((order) => {
+    setDetailsOrder(order);
+  }, []);
+  const handleCloseOrderDetails = useCallback(() => {
+    setDetailsOrder(null);
+  }, []);
 
   const handleDragStart = useCallback((event, orderId) => {
     event.dataTransfer.setData("text/plain", String(orderId));
@@ -1647,7 +1815,7 @@ export default function ManagerView({ token, activeSection }) {
               <Typography variant="body2" color="text.secondary">
                 {isMobile
                   ? "Используйте действия на карточках для управления."
-                  : "Перетаскивайте карточки между статусами"}
+                  : "Новые заявки можно перетащить в колонку «Одобрен» или одобрить кнопкой."}
               </Typography>
             </Box>
             <Button
@@ -1662,18 +1830,27 @@ export default function ManagerView({ token, activeSection }) {
           </Box>
 
           <Grid container spacing={2}>
-            {KANBAN_COLUMNS.map((column) => (
+            {KANBAN_COLUMNS.map((column) => {
+              const isApprovalDropZone = !isMobile && column.id === "APPROVED";
+              return (
               <Grid size={{ xs: 12, md: 3 }} key={column.id}>
                 <Paper
                   variant="outlined"
-                  onDragOver={(event) => event.preventDefault()}
-                  onDrop={(event) => handleDrop(event, column.id)}
+                  onDragOver={isApprovalDropZone ? (event) => event.preventDefault() : undefined}
+                  onDrop={isApprovalDropZone ? (event) => handleDrop(event, column.id) : undefined}
                   sx={{
                     p: 2,
-                    borderRadius: 2.5,
+                    borderRadius: 3,
                     minHeight: { xs: 260, md: 420 },
-                    bgcolor: "#f4f4f5",
-                    border: "1px solid #e4e4e7",
+                    bgcolor: alpha(theme.palette.background.paper, 0.94),
+                    background: `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.grey[50], 0.92)} 100%)`,
+                    border: "1px solid",
+                    borderColor: isApprovalDropZone && draggingOrderId
+                      ? alpha(theme.palette.success.main, 0.55)
+                      : alpha(theme.palette.divider, 0.9),
+                    boxShadow: isApprovalDropZone && draggingOrderId
+                      ? `0 0 0 2px ${alpha(theme.palette.success.main, 0.12)}`
+                      : "none",
                   }}
                 >
                   <Stack
@@ -1703,6 +1880,7 @@ export default function ManagerView({ token, activeSection }) {
                         onDragEnd={handleDragEnd}
                         onApprove={handleApprove}
                         onLoadTimeline={handleLoadTimeline}
+                        onOpenDetails={handleOpenOrderDetails}
                       />
                     ))}
                     {!ordersByStatus[column.id]?.length && (
@@ -1713,7 +1891,7 @@ export default function ManagerView({ token, activeSection }) {
                   </Stack>
                 </Paper>
               </Grid>
-            ))}
+            )})}
           </Grid>
           {ordersHasNext && (
             <Stack alignItems="center" spacing={1} sx={{ mt: 3 }}>
@@ -2193,6 +2371,148 @@ export default function ManagerView({ token, activeSection }) {
           </Stack>
         </Stack>
       </Drawer>
+
+      <Dialog
+        open={Boolean(detailsOrder)}
+        onClose={handleCloseOrderDetails}
+        maxWidth="md"
+        fullWidth
+        fullScreen={isMobile}
+      >
+        <DialogTitle>Заказ #{detailsOrder?.id ?? "—"}</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2}>
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+              <Typography variant="caption" color="text.secondary">
+                Магазин
+              </Typography>
+              <Typography variant="h6" fontWeight={700} sx={{ mt: 0.5 }}>
+                {orderStoreName(detailsOrder)}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                Директор: {orderDirectorName(detailsOrder)}
+              </Typography>
+            </Paper>
+
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "repeat(2, minmax(0, 1fr))",
+                  md: "repeat(5, minmax(0, 1fr))",
+                },
+                gap: 1.25,
+              }}
+            >
+              {[
+                {
+                  label: "Статус",
+                  value: statusLabel(detailsOrder?.status),
+                },
+                {
+                  label: "Сумма",
+                  value: `${formatMoney(detailsOrder?.totalAmount)} BYN`,
+                },
+                {
+                  label: "Позиций",
+                  value: detailsOrder?.items?.length || 0,
+                },
+                {
+                  label: "Товаров",
+                  value: `${orderTotalUnits(detailsOrder?.items)} шт.`,
+                },
+                {
+                  label: "Водитель",
+                  value: detailsOrder?.assignedDriverName || "Не назначен",
+                },
+              ].map((metric) => (
+                <Paper
+                  key={metric.label}
+                  variant="outlined"
+                  sx={{ p: 1.5, borderRadius: 2.5 }}
+                >
+                  <Typography variant="caption" color="text.secondary" display="block">
+                    {metric.label}
+                  </Typography>
+                  <Typography variant="body2" fontWeight={700} sx={{ mt: 0.4 }}>
+                    {metric.value}
+                  </Typography>
+                </Paper>
+              ))}
+            </Box>
+
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+              <Typography variant="caption" color="text.secondary" display="block">
+                Адрес доставки
+              </Typography>
+              <Typography variant="body1" sx={{ mt: 0.5 }}>
+                {detailsOrder?.deliveryAddressText || "Адрес не указан"}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                Создан
+              </Typography>
+              <Typography variant="body2">
+                {formatDateTime(detailsOrder?.createdAt) || "—"}
+              </Typography>
+            </Paper>
+
+            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                Расчёт суммы заказа
+              </Typography>
+              <Stack spacing={1}>
+                {orderAmountBreakdown(detailsOrder?.items).length ? (
+                  orderAmountBreakdown(detailsOrder?.items).map((row, index) => (
+                    <Box
+                      key={row.key}
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        gap: 2,
+                        pt: index ? 1 : 0,
+                        borderTop: index ? "1px dashed" : "none",
+                        borderColor: "divider",
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ minWidth: 0 }}>
+                        {row.label}
+                      </Typography>
+                      <Typography variant="body2" fontWeight={700} sx={{ whiteSpace: "nowrap" }}>
+                        {row.total}
+                      </Typography>
+                    </Box>
+                  ))
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Нет позиций для расчёта
+                  </Typography>
+                )}
+                <Box
+                  sx={{
+                    mt: 0.5,
+                    pt: 1,
+                    borderTop: "1px dashed",
+                    borderColor: "divider",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 2,
+                  }}
+                >
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    Итого
+                  </Typography>
+                  <Typography variant="subtitle2" fontWeight={700}>
+                    {formatMoney(detailsOrder?.totalAmount)} BYN
+                  </Typography>
+                </Box>
+              </Stack>
+            </Paper>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseOrderDetails}>Закрыть</Button>
+        </DialogActions>
+      </Dialog>
 
       <Dialog
         open={timelineOpen}

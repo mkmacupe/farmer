@@ -35,7 +35,7 @@ describe('App', () => {
   };
 
   beforeEach(() => {
-    vi.clearAllMocks();
+    vi.resetAllMocks();
     loadAuth.mockReturnValue(null);
     demoLogin.mockResolvedValue({
       token: 'jwt-token',
@@ -99,7 +99,7 @@ describe('App', () => {
   });
 
   it('logs in with autofilled unique profile password after manual submit', async () => {
-    login.mockResolvedValueOnce({
+    demoLogin.mockResolvedValueOnce({
       token: 'manager-token',
       username: 'manager',
       fullName: 'Manager',
@@ -111,7 +111,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'manager' }));
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
 
-    await waitFor(() => expect(login).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
+    await waitFor(() => expect(demoLogin).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
     await waitForWorkspaceReady();
     expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
   });
@@ -127,7 +127,7 @@ describe('App', () => {
   });
 
   it('sets role default section after login', async () => {
-    login.mockResolvedValueOnce({
+    demoLogin.mockResolvedValueOnce({
       token: 'manager-token',
       username: 'manager',
       fullName: 'Manager',
@@ -140,6 +140,7 @@ describe('App', () => {
     fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: 'secret123' } });
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
 
+    await waitFor(() => expect(demoLogin).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
     await waitForWorkspaceReady();
     expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByTestId('active-section')).toHaveTextContent('manager-dashboard');

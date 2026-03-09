@@ -494,6 +494,56 @@ class OrderServiceTest {
     verify(orderTimelineService, never()).recordStatusChange(any(Order.class), eq(OrderStatus.APPROVED), eq(OrderStatus.ASSIGNED));
   }
 
+
+  @Test
+  void previewAutoAssignPlanHandlesApprovedOrdersWithoutItems() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driver = user(3L, "Driver A", Role.DRIVER);
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Order approvedWithoutItems = orderWithCoordinates(401L, director, OrderStatus.APPROVED, "53.9395000", "30.3410000");
+    approvedWithoutItems.setItems(null);
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(approvedWithoutItems));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER)).thenReturn(List.of(driver));
+    when(orderRepository.countByAssignedDriverIdAndStatus(3L, OrderStatus.ASSIGNED)).thenReturn(0L);
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+
+    assertThat(preview.totalApprovedOrders()).isEqualTo(1);
+    assertThat(preview.plannedOrders()).isEqualTo(1);
+    assertThat(preview.routes()).isNotEmpty();
+  }
+
+  @Test
+  void previewAutoAssignPlanFallsBackWhenLegacyProductLogisticsMetricsAreMissing() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driver = user(3L, "Driver A", Role.DRIVER);
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Product legacyProduct = product(9L, "Старый товар", "7.50", 20);
+    legacyProduct.setWeightKg(null);
+    legacyProduct.setVolumeM3(null);
+
+    Order approved = orderWithCoordinates(402L, director, OrderStatus.APPROVED, "53.9395000", "30.3410000");
+    approved.setItems(List.of(item(approved, legacyProduct, 2)));
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(approved));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER)).thenReturn(List.of(driver));
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+
+    assertThat(preview.totalApprovedOrders()).isEqualTo(1);
+    assertThat(preview.plannedOrders()).isEqualTo(1);
+    assertThat(preview.routes()).hasSize(1);
+    assertThat(preview.routes().getFirst().totalWeightKg()).isEqualTo(2.0);
+    assertThat(preview.routes().getFirst().totalVolumeM3()).isEqualTo(0.0);
+  }
+
   @Test
   void approveAutoAssignPlanAssignsOrdersFromProvidedPlan() {
     User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
@@ -641,6 +691,7 @@ class OrderServiceTest {
         id,
         director.getId(),
         director.getFullName(),
+        director.getLegalEntityName(),
         5L,
         "Address",
         new BigDecimal("53.1"),

@@ -43,6 +43,7 @@ import AddLocationIcon from "@mui/icons-material/AddLocation";
 import MapIcon from "@mui/icons-material/Map";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import DeleteIcon from "@mui/icons-material/Delete";
+import EditIcon from "@mui/icons-material/Edit";
 import SaveIcon from "@mui/icons-material/Save";
 import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
@@ -81,6 +82,10 @@ function mapUrl(latitude, longitude) {
     return "";
   }
   return `https://www.openstreetmap.org/?mlat=${latitude}&mlon=${longitude}#map=17/${latitude}/${longitude}`;
+}
+
+function isCoordinateOnlyAddress(value) {
+  return String(value || "").trim().startsWith("Координаты:");
 }
 
 export default function DirectorView({ token, activeSection }) {
@@ -193,10 +198,13 @@ export default function DirectorView({ token, activeSection }) {
       return;
     }
     setAddresses(data);
-    if (!selectedAddressId && data.length > 0) {
-      setSelectedAddressId(String(data[0].id));
-    }
-  }, [selectedAddressId, token]);
+    setSelectedAddressId((current) => {
+      if (current && data.some((address) => String(address.id) === String(current))) {
+        return current;
+      }
+      return data.length ? String(data[0].id) : "";
+    });
+  }, [token]);
 
   const loadCatalogProducts = useCallback(async (signal) => {
     const productsPage = await getProductsPage(token, {
@@ -384,9 +392,12 @@ export default function DirectorView({ token, activeSection }) {
       ? Number(addressDraft.longitude)
       : null;
     const normalizedLabel = addressDraft.label.trim() || "Точка доставки";
-    const normalizedAddress =
-      addressDraft.addressLine.trim() ||
-      `Координаты: ${addressDraft.latitude}, ${addressDraft.longitude}`;
+    const normalizedAddress = addressDraft.addressLine.trim();
+
+    if (!normalizedAddress || isCoordinateOnlyAddress(normalizedAddress)) {
+      setError("Укажите текстовый адрес доставки");
+      return;
+    }
 
     const payload = {
       label: normalizedLabel,
@@ -425,13 +436,18 @@ export default function DirectorView({ token, activeSection }) {
 
   const handleAddressDelete = async (id) => {
     setError("");
+    setSuccess("");
+    if (!window.confirm("Удалить точку доставки?")) {
+      return;
+    }
     try {
       setLoading(true);
       await deleteDirectorAddress(token, id);
-      if (String(id) === selectedAddressId) {
-        setSelectedAddressId("");
+      if (String(id) === String(editingAddressId)) {
+        resetAddressForm();
       }
       await loadAddresses();
+      setSuccess("Точка доставки удалена");
     } catch (err) {
       setError(err.message || "Не удалось удалить адрес");
     } finally {
@@ -464,11 +480,9 @@ export default function DirectorView({ token, activeSection }) {
       setAddressDraft((prev) => ({
         ...prev,
         label: prev.label || "Точка доставки",
-        addressLine:
-          prev.addressLine || `Координаты: ${latitude}, ${longitude}`,
       }));
       setError(
-        err.message || "Координаты выбраны, но адрес определить не удалось",
+        err.message || "Координаты выбраны, но текстовый адрес нужно указать вручную",
       );
     } finally {
       setReverseGeoLoading(false);
@@ -1108,6 +1122,21 @@ export default function DirectorView({ token, activeSection }) {
                 </Suspense>
               </Grid>
               <Grid size={{ xs: 12 }}>
+                <TextField
+                  label="Текстовый адрес"
+                  fullWidth
+                  size="small"
+                  value={addressDraft.addressLine}
+                  onChange={(event) =>
+                    setAddressDraft((prev) => ({
+                      ...prev,
+                      addressLine: event.target.value,
+                    }))
+                  }
+                  placeholder="Например: Могилёв, ул. Первомайская 99"
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
                 <Stack spacing={0.5}>
                   <Typography variant="caption" color="text.secondary">
                     Адрес:{" "}
@@ -1184,6 +1213,16 @@ export default function DirectorView({ token, activeSection }) {
                           <Typography variant="body2" color="text.secondary">
                             {address.addressLine}
                           </Typography>
+                          {address.deletable === false && (
+                            <Typography
+                              variant="caption"
+                              color="warning.main"
+                              display="block"
+                              sx={{ mt: 0.75 }}
+                            >
+                              Удаление недоступно, пока по точке есть активные заказы
+                            </Typography>
+                          )}
                           <Stack
                             direction="row"
                             spacing={1}
@@ -1204,14 +1243,24 @@ export default function DirectorView({ token, activeSection }) {
                                 Карта
                               </Button>
                             ) : (
-                              <Chip label="Нет координат" size="small" />
-                            )}
+                                <Chip label="Нет координат" size="small" />
+                              )}
+                            <Button
+                              size="small"
+                              variant="outlined"
+                              startIcon={<EditIcon />}
+                              onClick={() => handleAddressEdit(address)}
+                              disabled={loading}
+                            >
+                              Изменить
+                            </Button>
                             <Button
                               size="small"
                               color="error"
                               variant="outlined"
                               startIcon={<DeleteIcon />}
                               onClick={() => handleAddressDelete(address.id)}
+                              disabled={loading || address.deletable === false}
                             >
                               Удалить
                             </Button>

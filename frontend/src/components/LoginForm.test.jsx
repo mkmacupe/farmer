@@ -11,7 +11,7 @@ describe('LoginForm', () => {
     expect(button).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/логин/i), {
-      target: { value: 'mogilevkhim' }
+      target: { value: 'berezka' }
     });
     expect(button).toBeDisabled();
 
@@ -64,6 +64,30 @@ describe('LoginForm', () => {
     expect(screen.getByLabelText(/логин/i)).toHaveValue('manager');
     expect(screen.getByLabelText(/пароль/i)).toHaveValue('MgrD5v8cN4');
     expect(onQuickLogin).not.toHaveBeenCalled();
+    expect(onLogin).not.toHaveBeenCalled();
+  });
+
+  it('submits demo profile via onQuickLogin after autofill', async () => {
+    const onLogin = vi.fn();
+    const onQuickLogin = vi.fn();
+    render(
+      <LoginForm
+        onLogin={onLogin}
+        onQuickLogin={onQuickLogin}
+        loading={false}
+        error=""
+      />
+    );
+
+    await userEvent.click(screen.getByRole('button', { name: 'berezka' }));
+    await userEvent.click(screen.getByRole('button', { name: /войти/i }));
+
+    expect(onQuickLogin).toHaveBeenCalledWith(expect.objectContaining({
+      username: 'berezka',
+      password: 'BrzK8r2pQ1',
+      legacyUsername: 'mogilevkhim',
+      legacyPassword: 'MhvK8r2pQ1'
+    }));
     expect(onLogin).not.toHaveBeenCalled();
   });
 

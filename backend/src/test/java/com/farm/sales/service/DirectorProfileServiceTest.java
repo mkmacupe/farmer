@@ -3,6 +3,7 @@ package com.farm.sales.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -14,6 +15,7 @@ import com.farm.sales.dto.ProfileResponse;
 import com.farm.sales.dto.ProfileUpdateRequest;
 import com.farm.sales.dto.StoreAddressRequest;
 import com.farm.sales.dto.StoreAddressResponse;
+import com.farm.sales.model.OrderStatus;
 import com.farm.sales.model.Role;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
@@ -22,6 +24,7 @@ import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,6 +104,7 @@ class DirectorProfileServiceTest {
 
     List<StoreAddressResponse> addresses = service.getAddresses(15L);
     assertThat(addresses).hasSize(1);
+    assertThat(addresses.getFirst().deletable()).isTrue();
     assertThat(addresses.getFirst().label()).isEqualTo("Точка");
 
     StoreAddressRequest createWithCoords = new StoreAddressRequest(
@@ -113,6 +117,7 @@ class DirectorProfileServiceTest {
     assertThat(created.label()).isEqualTo("Новый склад");
     assertThat(created.addressLine()).isEqualTo("Могилёв, 2");
     assertThat(created.latitude()).isEqualByComparingTo("53.8100000");
+    assertThat(created.deletable()).isTrue();
     verify(geocodingService, never()).geocodeFirst(any());
 
     when(geocodingService.geocodeFirst("Могилёв, 3")).thenReturn(Optional.of(
@@ -123,10 +128,18 @@ class DirectorProfileServiceTest {
     assertThat(updated.label()).isEqualTo("Обновлено");
     assertThat(updated.latitude()).isEqualByComparingTo("53.9100000");
     assertThat(updated.longitude()).isEqualByComparingTo("30.4100000");
+    assertThat(updated.deletable()).isTrue();
 
-    when(orderRepository.existsByDeliveryAddressId(3L)).thenReturn(false);
+    when(orderRepository.existsByDeliveryAddressIdAndStatusIn(
+        3L,
+        EnumSet.of(OrderStatus.CREATED, OrderStatus.APPROVED, OrderStatus.ASSIGNED)
+    )).thenReturn(false);
     service.deleteAddress(15L, 3L);
-    verify(orderRepository).existsByDeliveryAddressId(3L);
+    verify(orderRepository, atLeastOnce()).existsByDeliveryAddressIdAndStatusIn(
+        3L,
+        EnumSet.of(OrderStatus.CREATED, OrderStatus.APPROVED, OrderStatus.ASSIGNED)
+    );
+    verify(orderRepository).clearDeliveryAddressReference(3L);
     verify(storeAddressRepository).delete(existing);
 
     StoreAddress owned = service.getOwnedAddress(15L, 3L);
@@ -140,11 +153,15 @@ class DirectorProfileServiceTest {
     StoreAddress existing = address(4L, director, "Склад", "Минск, 1",
         new BigDecimal("53.9000000"), new BigDecimal("27.5667000"));
     when(storeAddressRepository.findByIdAndUserId(4L, 16L)).thenReturn(Optional.of(existing));
-    when(orderRepository.existsByDeliveryAddressId(4L)).thenReturn(true);
+    when(orderRepository.existsByDeliveryAddressIdAndStatusIn(
+        4L,
+        EnumSet.of(OrderStatus.CREATED, OrderStatus.APPROVED, OrderStatus.ASSIGNED)
+    )).thenReturn(true);
 
     assertStatus(() -> service.deleteAddress(16L, 4L),
-        HttpStatus.CONFLICT, "используется в заказах");
+        HttpStatus.CONFLICT, "есть активные заказы");
 
+    verify(orderRepository, never()).clearDeliveryAddressReference(4L);
     verify(storeAddressRepository, never()).delete(any(StoreAddress.class));
   }
 
@@ -166,6 +183,7 @@ class DirectorProfileServiceTest {
     assertThat(created.id()).isEqualTo(8L);
     assertThat(created.latitude()).isNull();
     assertThat(created.longitude()).isNull();
+    assertThat(created.deletable()).isTrue();
 
     when(storeAddressRepository.findByIdAndUserId(404L, 20L)).thenReturn(Optional.empty());
     assertStatus(() -> service.updateAddress(20L, 404L, new StoreAddressRequest("L", "A", null, null)),
@@ -181,6 +199,7 @@ class DirectorProfileServiceTest {
     );
     assertThat(createdWithSingleCoordinate.latitude()).isEqualByComparingTo("53.5");
     assertThat(createdWithSingleCoordinate.longitude()).isNull();
+    assertThat(createdWithSingleCoordinate.deletable()).isTrue();
   }
 
   @Test

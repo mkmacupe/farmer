@@ -5,6 +5,7 @@ import com.farm.sales.dto.ProfileResponse;
 import com.farm.sales.dto.ProfileUpdateRequest;
 import com.farm.sales.dto.StoreAddressRequest;
 import com.farm.sales.dto.StoreAddressResponse;
+import com.farm.sales.model.OrderStatus;
 import com.farm.sales.model.Role;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
@@ -14,6 +15,7 @@ import com.farm.sales.repository.UserRepository;
 import jakarta.transaction.Transactional;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.EnumSet;
 import java.util.List;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -21,6 +23,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 @Service
 public class DirectorProfileService {
+  private static final EnumSet<OrderStatus> ACTIVE_ADDRESS_LOCK_STATUSES =
+      EnumSet.of(OrderStatus.CREATED, OrderStatus.APPROVED, OrderStatus.ASSIGNED);
   private final UserRepository userRepository;
   private final StoreAddressRepository storeAddressRepository;
   private final OrderRepository orderRepository;
@@ -112,12 +116,13 @@ public class DirectorProfileService {
     loadDirector(directorId);
     StoreAddress address = storeAddressRepository.findByIdAndUserId(addressId, directorId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Адрес не найден"));
-    if (orderRepository.existsByDeliveryAddressId(addressId)) {
+    if (orderRepository.existsByDeliveryAddressIdAndStatusIn(addressId, ACTIVE_ADDRESS_LOCK_STATUSES)) {
       throw new ResponseStatusException(
           HttpStatus.CONFLICT,
-          "Нельзя удалить адрес, который используется в заказах"
+          "Нельзя удалить адрес, пока по нему есть активные заказы"
       );
     }
+    orderRepository.clearDeliveryAddressReference(addressId);
     storeAddressRepository.delete(address);
     auditTrailPublisher.publish(
         "DIRECTOR_ADDRESS_DELETED",
@@ -159,8 +164,14 @@ public class DirectorProfileService {
         address.getLabel(),
         address.getAddressLine(),
         address.getLatitude(),
-        address.getLongitude()
+        address.getLongitude(),
+        isAddressDeletable(address.getId())
     );
+  }
+
+  private boolean isAddressDeletable(Long addressId) {
+    return addressId == null
+        || !orderRepository.existsByDeliveryAddressIdAndStatusIn(addressId, ACTIVE_ADDRESS_LOCK_STATUSES);
   }
 
   private Coordinates resolveCoordinates(BigDecimal latitude, BigDecimal longitude, String addressLine) {

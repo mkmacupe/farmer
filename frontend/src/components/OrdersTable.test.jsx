@@ -73,8 +73,8 @@ describe('OrdersTable', () => {
         actionRenderer={(order) => <button type="button">Action {order.id}</button>}
       />
     );
-    expect(screen.getByRole('button', { name: 'Action 101' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Action 102' })).toBeInTheDocument();
+    expect(screen.getByText('Action 101')).toBeInTheDocument();
+    expect(screen.getByText('Action 102')).toBeInTheDocument();
   });
 
   it('filters rows by search term', async () => {

@@ -427,7 +427,12 @@ function Start-Backend {
       }
       $env:APP_CORS_ALLOWED_ORIGINS = ($origins | Select-Object -Unique) -join ","
     } else {
-      $env:APP_CORS_ALLOWED_ORIGINS = "http://127.0.0.1:5173,http://localhost:5173"
+      $env:APP_CORS_ALLOWED_ORIGINS = @(
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
+        "http://127.0.0.1:4173",
+        "http://localhost:4173"
+      ) -join ","
     }
 
     if ($RebuildBackend) {
@@ -626,6 +631,6 @@ if (-not $NoFrontend) {
   }
 }
 if ($composeEnv["APP_DEMO_ENABLED"] -eq "true") {
-  Write-Host "Demo users: mogilevkhim / mogilevlift / babushkina / manager / logistician / driver1 / driver2 / driver3"
+  Write-Host "Demo users: berezka / kvartal / yantar / manager / logistician / driver1 / driver2 / driver3"
   Write-Host "Demo passwords are unique per user and stored as bcrypt hashes in DB."
 }

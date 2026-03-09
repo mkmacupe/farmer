@@ -154,12 +154,23 @@ test.describe('Logistician Flows', () => {
     await expect(dialogTitle).toBeVisible({ timeout: 15_000 });
     
     await page.getByTestId('reject-route-plan-button').click();
-    const rejectAlert = page.locator('.MuiAlert-message').filter({ hasText: /отклон/i });
-    if (await rejectAlert.count()) {
-      await expect(rejectAlert.first()).toContainText(/отклон/i);
-    } else {
-      await expect(dialogTitle).toBeHidden({ timeout: 10_000 });
-    }
+    await expect
+      .poll(
+        async () => {
+          const rejectAlert = page.locator('.MuiAlert-message').filter({ hasText: /отклон/i });
+          if (await rejectAlert.count()) {
+            return 'alert';
+          }
+
+          try {
+            return (await dialogTitle.isVisible()) ? 'pending' : 'closed';
+          } catch {
+            return 'closed';
+          }
+        },
+        { timeout: 10_000 }
+      )
+      .toMatch(/alert|closed/);
   });
 });
 

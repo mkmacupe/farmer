@@ -6,24 +6,28 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
-import org.springframework.http.HttpStatus;
 
 @Service
 public class RoadRoutingService {
   private static final long DEFAULT_CACHE_TTL_MS = 15 * 60 * 1000L;
   private static final int DEFAULT_CACHE_MAX_ENTRIES = 10_000;
+  private static final long DEFAULT_FAILURE_COOLDOWN_MS = 60_000L;
   private final RestClient restClient;
   private final long cacheTtlMs;
   private final int cacheMaxEntries;
   private final int maxTableCoordinates;
+  private final long failureCooldownMs;
   private final Map<String, CacheEntry<Double>> distanceCache = new ConcurrentHashMap<>();
+  private final AtomicLong routingUnavailableUntil = new AtomicLong(0L);
 
   @Autowired
   public RoadRoutingService(
@@ -33,7 +37,8 @@ public class RoadRoutingService {
       @Value("${app.routing.read-timeout-ms:6000}") int readTimeoutMs,
       @Value("${app.routing.cache-ttl-ms:" + DEFAULT_CACHE_TTL_MS + "}") long cacheTtlMs,
       @Value("${app.routing.cache-max-entries:" + DEFAULT_CACHE_MAX_ENTRIES + "}") int cacheMaxEntries,
-      @Value("${app.routing.max-table-coordinates:50}") int maxTableCoordinates
+      @Value("${app.routing.max-table-coordinates:50}") int maxTableCoordinates,
+      @Value("${app.routing.failure-cooldown-ms:" + DEFAULT_FAILURE_COOLDOWN_MS + "}") long failureCooldownMs
   ) {
     SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
     requestFactory.setConnectTimeout(Math.max(connectTimeoutMs, 100));
@@ -47,13 +52,23 @@ public class RoadRoutingService {
     this.cacheTtlMs = Math.max(1_000L, cacheTtlMs);
     this.cacheMaxEntries = Math.max(100, cacheMaxEntries);
     this.maxTableCoordinates = Math.max(2, maxTableCoordinates);
+    this.failureCooldownMs = Math.max(1_000L, failureCooldownMs);
   }
 
   RoadRoutingService(RestClient restClient, long cacheTtlMs, int cacheMaxEntries, int maxTableCoordinates) {
+    this(restClient, cacheTtlMs, cacheMaxEntries, maxTableCoordinates, DEFAULT_FAILURE_COOLDOWN_MS);
+  }
+
+  RoadRoutingService(RestClient restClient,
+                     long cacheTtlMs,
+                     int cacheMaxEntries,
+                     int maxTableCoordinates,
+                     long failureCooldownMs) {
     this.restClient = restClient;
     this.cacheTtlMs = Math.max(1_000L, cacheTtlMs);
     this.cacheMaxEntries = Math.max(100, cacheMaxEntries);
     this.maxTableCoordinates = Math.max(2, maxTableCoordinates);
+    this.failureCooldownMs = Math.max(1_000L, failureCooldownMs);
   }
 
   public double drivingDistanceKm(RouteCoordinate from, RouteCoordinate to) {
@@ -126,6 +141,7 @@ public class RoadRoutingService {
   }
 
   private List<Double> requestTableDistances(RouteCoordinate source, List<RouteCoordinate> destinations) {
+    ensureRoutingAvailable();
     String coordinates = buildCoordinates(source, destinations);
     String destinationsParam = buildDestinationsParam(destinations.size());
 
@@ -141,31 +157,49 @@ public class RoadRoutingService {
           .retrieve()
           .body(JsonNode.class);
     } catch (RestClientException exception) {
-      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Не удалось получить дорожные расстояния", exception);
+      throw markRoutingFailure("Не удалось получить дорожные расстояния", exception);
     }
 
     if (payload == null || !"Ok".equals(payload.path("code").asText())) {
-      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Роутинг-сервис вернул некорректный ответ");
+      throw markRoutingFailure("Роутинг-сервис вернул некорректный ответ");
     }
 
     JsonNode distancesNode = payload.path("distances");
     if (!distancesNode.isArray() || distancesNode.isEmpty()) {
-      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Роутинг-сервис не вернул матрицу расстояний");
+      throw markRoutingFailure("Роутинг-сервис не вернул матрицу расстояний");
     }
 
     JsonNode firstRow = distancesNode.get(0);
     if (firstRow == null || !firstRow.isArray() || firstRow.size() != destinations.size()) {
-      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Роутинг-сервис вернул матрицу неожиданного размера");
+      throw markRoutingFailure("Роутинг-сервис вернул матрицу неожиданного размера");
     }
 
     List<Double> distancesKm = new ArrayList<>(destinations.size());
     for (JsonNode distanceNode : firstRow) {
       if (distanceNode == null || distanceNode.isNull()) {
-        throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Для части точек не удалось построить дорожный маршрут");
+        throw markRoutingFailure("Для части точек не удалось построить дорожный маршрут");
       }
       distancesKm.add(distanceNode.asDouble() / 1000.0);
     }
+    routingUnavailableUntil.set(0L);
     return distancesKm;
+  }
+
+  private void ensureRoutingAvailable() {
+    long unavailableUntil = routingUnavailableUntil.get();
+    if (unavailableUntil > System.currentTimeMillis()) {
+      throw new ResponseStatusException(HttpStatus.BAD_GATEWAY, "Дорожный роутинг временно недоступен");
+    }
+  }
+
+  private ResponseStatusException markRoutingFailure(String message) {
+    routingUnavailableUntil.set(System.currentTimeMillis() + failureCooldownMs);
+    return new ResponseStatusException(HttpStatus.BAD_GATEWAY, message);
+  }
+
+  private ResponseStatusException markRoutingFailure(String message, Exception exception) {
+    routingUnavailableUntil.set(System.currentTimeMillis() + failureCooldownMs);
+    return new ResponseStatusException(HttpStatus.BAD_GATEWAY, message, exception);
   }
 
   private String buildCoordinates(RouteCoordinate source, List<RouteCoordinate> destinations) {

@@ -6,7 +6,6 @@ import com.farm.sales.config.JwtProperties;
 import com.farm.sales.dto.AuthRequest;
 import com.farm.sales.dto.AuthResponse;
 import com.farm.sales.config.DataInitializer;
-import com.farm.sales.config.DemoTransportScenarioInitializer;
 import com.farm.sales.model.User;
 import com.farm.sales.repository.UserRepository;
 import java.time.Instant;
@@ -28,9 +27,9 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AuthService {
   private static final Set<String> DEMO_USERNAMES = Set.of(
-      "mogilevkhim",
-      "mogilevlift",
-      "babushkina",
+      "berezka",
+      "kvartal",
+      "yantar",
       "manager",
       "logistician",
       "driver1",
@@ -46,8 +45,6 @@ public class AuthService {
   private final String dummyPasswordHash;
   @Autowired(required = false)
   private DataInitializer dataInitializer;
-  @Autowired(required = false)
-  private DemoTransportScenarioInitializer demoTransportScenarioInitializer;
 
   public AuthService(UserRepository userRepository,
                      PasswordEncoder passwordEncoder,
@@ -154,9 +151,6 @@ public class AuthService {
     }
 
     dataInitializer.seedDemoData();
-    if (demoTransportScenarioInitializer != null) {
-      demoTransportScenarioInitializer.seedDemoScenario();
-    }
     return userRepository.findByUsername(username).orElse(null);
   }
 

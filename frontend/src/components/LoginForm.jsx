@@ -2,9 +2,27 @@ import { memo, useEffect, useState } from 'react';
 import './LoginForm.css';
 
 const DEMO_ACCOUNTS = [
-  { label: 'mogilevkhim', username: 'mogilevkhim', password: 'MhvK8r2pQ1' },
-  { label: 'mogilevlift', username: 'mogilevlift', password: 'MlvT4n7xR2' },
-  { label: 'babushkina', username: 'babushkina', password: 'BbkP6m9sL3' },
+  {
+    label: 'berezka',
+    username: 'berezka',
+    password: 'BrzK8r2pQ1',
+    legacyUsername: 'mogilevkhim',
+    legacyPassword: 'MhvK8r2pQ1'
+  },
+  {
+    label: 'kvartal',
+    username: 'kvartal',
+    password: 'KvtT4n7xR2',
+    legacyUsername: 'mogilevlift',
+    legacyPassword: 'MlvT4n7xR2'
+  },
+  {
+    label: 'yantar',
+    username: 'yantar',
+    password: 'YntP6m9sL3',
+    legacyUsername: 'babushkina',
+    legacyPassword: 'BbkP6m9sL3'
+  },
   { label: 'manager', username: 'manager', password: 'MgrD5v8cN4' },
   { label: 'logistician', username: 'logistician', password: 'LogS7q1wE5' },
   { label: 'driver1', username: 'driver1', password: 'Drv1A9k2Z6' },
@@ -12,7 +30,15 @@ const DEMO_ACCOUNTS = [
   { label: 'driver3', username: 'driver3', password: 'Drv3C7n4X8' }
 ];
 
-function LoginForm({ onLogin, loading, error, loadingMessage }) {
+function findDemoAccountByUsername(username) {
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  return DEMO_ACCOUNTS.find((account) =>
+    account.username.toLowerCase() === normalizedUsername
+    || account.legacyUsername?.toLowerCase() === normalizedUsername
+  ) || null;
+}
+
+function LoginForm({ onLogin, onQuickLogin, loading, error, loadingMessage }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showLoadingHint, setShowLoadingHint] = useState(false);
@@ -41,7 +67,13 @@ function LoginForm({ onLogin, loading, error, loadingMessage }) {
 
   const submit = (event) => {
     event.preventDefault();
-    onLogin(username.trim(), password);
+    const normalizedUsername = username.trim();
+    const demoAccount = findDemoAccountByUsername(normalizedUsername);
+    if (demoAccount && typeof onQuickLogin === 'function') {
+      onQuickLogin(demoAccount);
+      return;
+    }
+    onLogin(normalizedUsername, password);
   };
 
   return (

@@ -28,7 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DemoTransportScenarioInitializer.class);
-  private static final List<String> DIRECTOR_USERNAMES = List.of("mogilevkhim", "mogilevlift", "babushkina");
+  private static final List<String> DIRECTOR_USERNAMES = List.of("berezka", "kvartal", "yantar");
   private static final List<DemoPoint> MOGILEV_POINTS = List.of(
       new DemoPoint("Точка 01", "Могилёв, ул. Первомайская 12", "53.9024300", "30.3358700"),
       new DemoPoint("Точка 02", "Могилёв, ул. Ленинская 31", "53.9011200", "30.3341000"),

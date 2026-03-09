@@ -5,12 +5,12 @@ import 'leaflet/dist/leaflet.css';
 
 const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
 const OSRM_PUBLIC_ROUTE_API = 'https://router.project-osrm.org/route/v1/driving';
-const ROAD_ROUTE_TIMEOUT_MS = 4200;
 const ROAD_ROUTE_SEGMENT_TIMEOUT_MS = 1800;
 const ROAD_ROUTE_CACHE_TTL_MS = 10 * 60 * 1000;
 const ROAD_ROUTE_CACHE_MAX_ITEMS = 180;
 const ROAD_ROUTE_CACHE = new Map();
 const ROAD_ROUTE_PENDING = new Map();
+const ROUTE_POINT_EPSILON = 0.00001;
 
 function routeColor(routeIndex) {
   return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
@@ -37,6 +37,16 @@ function normalizeRoutePoints(rawPoints) {
     .filter(Boolean);
 
   return convertedPoints.length >= 2 ? convertedPoints : null;
+}
+
+function pointsEqual(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length < 2 || right.length < 2) {
+    return false;
+  }
+  return (
+    Math.abs(Number(left[0]) - Number(right[0])) <= ROUTE_POINT_EPSILON &&
+    Math.abs(Number(left[1]) - Number(right[1])) <= ROUTE_POINT_EPSILON
+  );
 }
 
 function createStopOrderIcon(stopSequence, color) {
@@ -158,8 +168,19 @@ async function requestRoadRoute(points, signal, timeoutMs) {
         throw new Error('OSRM malformed geometry');
       }
 
-      writeCachedRoute(key, normalizedPoints);
-      return normalizedPoints;
+      const exactPolyline = [...normalizedPoints];
+      const exactStart = points[0];
+      const exactEnd = points[points.length - 1];
+
+      if (!pointsEqual(exactPolyline[0], exactStart)) {
+        exactPolyline.unshift(exactStart);
+      }
+      if (!pointsEqual(exactPolyline[exactPolyline.length - 1], exactEnd)) {
+        exactPolyline.push(exactEnd);
+      }
+
+      writeCachedRoute(key, exactPolyline);
+      return exactPolyline;
     } finally {
       window.clearTimeout(timeoutId);
       signal?.removeEventListener('abort', abortFromParent);
@@ -179,24 +200,19 @@ async function resolveRoadPolylines(points, signal) {
     return [];
   }
 
-  try {
-    const fullRoute = await requestRoadRoute(points, signal, ROAD_ROUTE_TIMEOUT_MS);
-    return fullRoute ? [fullRoute] : [];
-  } catch {
-    const segmentTasks = [];
-    for (let index = 0; index < points.length - 1; index += 1) {
-      const from = points[index];
-      const to = points[index + 1];
-      segmentTasks.push(
-        requestRoadRoute([from, to], signal, ROAD_ROUTE_SEGMENT_TIMEOUT_MS).catch(() => null)
-      );
-    }
-
-    const segments = (await Promise.all(segmentTasks)).filter(
-      (segment) => Array.isArray(segment) && segment.length >= 2
+  const segmentTasks = [];
+  for (let index = 0; index < points.length - 1; index += 1) {
+    const from = points[index];
+    const to = points[index + 1];
+    segmentTasks.push(
+      requestRoadRoute([from, to], signal, ROAD_ROUTE_SEGMENT_TIMEOUT_MS).catch(() => [from, to])
     );
-    return segments;
   }
+
+  const segments = (await Promise.all(segmentTasks)).filter(
+    (segment) => Array.isArray(segment) && segment.length >= 2
+  );
+  return segments;
 }
 
 function RoutePlanMap({ plan }) {

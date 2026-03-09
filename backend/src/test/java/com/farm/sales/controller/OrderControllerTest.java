@@ -273,6 +273,7 @@ class OrderControllerTest {
         101L,
         42L,
         "Director",
+        "Store",
         7L,
         "Kyiv, Khreshchatyk 1",
         new BigDecimal("50.4501000"),

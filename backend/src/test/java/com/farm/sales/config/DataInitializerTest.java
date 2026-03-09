@@ -54,6 +54,7 @@ class DataInitializerTest {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
     when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
+    when(productRepository.count()).thenReturn(20L);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
 
     AtomicLong userIds = new AtomicLong(100);
@@ -73,7 +74,7 @@ class DataInitializerTest {
     verify(userRepository, times(8)).save(userCaptor.capture());
     
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-    verify(productRepository, atLeast(20)).save(productCaptor.capture());
+    verify(productRepository, atLeast(200)).save(productCaptor.capture());
     verify(storeAddressRepository, times(3)).save(any(StoreAddress.class));
 
     Product firstProduct = productCaptor.getAllValues().get(0);
@@ -86,6 +87,7 @@ class DataInitializerTest {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
     when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
+    when(productRepository.count()).thenReturn(20L);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
     when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
       User u = invocation.getArgument(0);
@@ -99,10 +101,33 @@ class DataInitializerTest {
   }
 
   @Test
+  void seedDemoDataWithoutAddressesDoesNotCreateStoreAddresses() {
+    when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
+    when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
+    when(productRepository.count()).thenReturn(20L);
+
+    AtomicLong userIds = new AtomicLong(100);
+    when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+      User user = invocation.getArgument(0);
+      if (user.getId() == null) {
+        user.setId(userIds.incrementAndGet());
+      }
+      return user;
+    });
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    dataInitializer.seedDemoDataWithoutAddresses();
+
+    verify(storeAddressRepository, times(0)).save(any(StoreAddress.class));
+  }
+
+  @Test
   void runFallsBackToNullPhotoWhenImageAlreadyTaken() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
     when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(true);
+    when(productRepository.count()).thenReturn(20L);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
 
     AtomicLong userIds = new AtomicLong(100);
@@ -119,7 +144,7 @@ class DataInitializerTest {
     dataInitializer.run();
 
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-    verify(productRepository, atLeast(20)).save(productCaptor.capture());
+    verify(productRepository, atLeast(200)).save(productCaptor.capture());
     assertThat(productCaptor.getAllValues()).allMatch(product -> product.getPhotoUrl() == null);
   }
 }

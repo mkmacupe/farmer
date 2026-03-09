@@ -3,6 +3,8 @@ package com.farm.sales.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -13,6 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.server.ResponseStatusException;
 
 class RoadRoutingServiceTest {
@@ -89,6 +92,19 @@ class RoadRoutingServiceTest {
         {"code":"Ok","distances":[[null]]}
         """));
     assertStatus(() -> service.drivingDistancesKm(source, destinations), HttpStatus.BAD_GATEWAY);
+  }
+
+  @Test
+  void drivingDistancesKmEntersCooldownAfterFirstRemoteFailure() {
+    var source = new RoadRoutingService.RouteCoordinate(53.8971270, 30.3320410);
+    var destinations = List.of(new RoadRoutingService.RouteCoordinate(53.9400000, 30.3400000));
+
+    when(responseSpec.body(JsonNode.class)).thenThrow(new RestClientException("osrm-down"));
+
+    assertStatus(() -> service.drivingDistancesKm(source, destinations), HttpStatus.BAD_GATEWAY);
+    assertStatus(() -> service.drivingDistancesKm(source, destinations), HttpStatus.BAD_GATEWAY);
+
+    verify(responseSpec, times(1)).body(JsonNode.class);
   }
 
   private void assertStatus(Runnable runnable, HttpStatus status) {

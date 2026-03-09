@@ -75,9 +75,32 @@ function formatDateTime(value) {
   });
 }
 
+function totalUnits(items) {
+  return (items || []).reduce((sum, item) => sum + Number(item?.quantity || 0), 0);
+}
+
+function orderComposition(items) {
+  if (!Array.isArray(items) || !items.length) {
+    return "—";
+  }
+  return items
+    .map((item) => `${item.productName || "Товар"} × ${item.quantity || 0}`)
+    .join(", ");
+}
+
+function primaryCustomerLabel(order) {
+  return order?.storeName || order?.customerName || "—";
+}
+
+function secondaryCustomerLabel(order) {
+  if (!order?.storeName || !order?.customerName || order.storeName === order.customerName) {
+    return null;
+  }
+  return `Директор: ${order.customerName}`;
+}
+
 const OrderMobileCard = memo(function OrderMobileCard({ order, showCustomer, actionRenderer, onShowDetails }) {
   const statusMeta = STATUS_META[order.status] || {};
-  const hasLongAddress = String(order.deliveryAddressText || "").trim().length > 72;
   const hasActions = typeof actionRenderer === "function";
 
   return (
@@ -95,9 +118,16 @@ const OrderMobileCard = memo(function OrderMobileCard({ order, showCustomer, act
           />
         </Stack>
         {showCustomer && (
-          <Typography variant="body2" fontWeight={600}>
-            {order.customerName || "—"}
-          </Typography>
+          <Box>
+            <Typography variant="body2" fontWeight={600}>
+              {primaryCustomerLabel(order)}
+            </Typography>
+            {secondaryCustomerLabel(order) && (
+              <Typography variant="caption" color="text.secondary" display="block">
+                {secondaryCustomerLabel(order)}
+              </Typography>
+            )}
+          </Box>
         )}
         <Typography
           variant="body2"
@@ -111,16 +141,14 @@ const OrderMobileCard = memo(function OrderMobileCard({ order, showCustomer, act
         >
           {order.deliveryAddressText || "—"}
         </Typography>
-        {hasLongAddress && (
-          <Button
-            size="small"
-            variant="text"
-            onClick={() => onShowDetails(order)}
-            sx={{ alignSelf: "flex-start", px: 0, minHeight: 32 }}
-          >
-            Показать адрес
-          </Button>
-        )}
+        <Button
+          size="small"
+          variant="text"
+          onClick={() => onShowDetails(order)}
+          sx={{ alignSelf: "flex-start", px: 0, minHeight: 32 }}
+        >
+          Подробнее
+        </Button>
         <Stack direction="row" justifyContent="space-between">
           <Typography variant="caption" color="text.secondary">
             Водитель
@@ -185,20 +213,36 @@ const OrderTableRow = memo(function OrderTableRow({ order, showCustomer, actionR
       </TableCell>
       {showCustomer && (
         <TableCell>
-          <Typography
-            variant="body2"
-            fontWeight={500}
-            title={order.customerName || "—"}
-            sx={{
-              maxWidth: 180,
-              display: "-webkit-box",
-              WebkitLineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              overflow: "hidden",
-            }}
-          >
-            {order.customerName}
-          </Typography>
+          <Stack spacing={0.25} sx={{ maxWidth: 180 }}>
+            <Typography
+              variant="body2"
+              fontWeight={600}
+              title={primaryCustomerLabel(order)}
+              sx={{
+                display: "-webkit-box",
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
+              }}
+            >
+              {primaryCustomerLabel(order)}
+            </Typography>
+            {secondaryCustomerLabel(order) && (
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                title={secondaryCustomerLabel(order)}
+                sx={{
+                  display: "-webkit-box",
+                  WebkitLineClamp: 1,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden",
+                }}
+              >
+                {secondaryCustomerLabel(order)}
+              </Typography>
+            )}
+          </Stack>
         </TableCell>
       )}
       <TableCell>
@@ -215,16 +259,14 @@ const OrderTableRow = memo(function OrderTableRow({ order, showCustomer, actionR
           >
             {order.deliveryAddressText || "—"}
           </Typography>
-          {String(order.deliveryAddressText || "").trim().length > 72 && (
-            <Button
-              size="small"
-              variant="text"
-              onClick={() => onShowDetails(order)}
-              sx={{ alignSelf: "flex-start", p: 0, minHeight: 28 }}
-            >
-              Подробнее
-            </Button>
-          )}
+          <Button
+            size="small"
+            variant="text"
+            onClick={() => onShowDetails(order)}
+            sx={{ alignSelf: "flex-start", p: 0, minHeight: 28 }}
+          >
+            Подробнее
+          </Button>
         </Stack>
       </TableCell>
       <TableCell>
@@ -301,6 +343,7 @@ export default memo(function OrdersTable({
       const searchable = [
         `#${order.id}`,
         order.customerName,
+        order.storeName,
         order.deliveryAddressText,
         order.assignedDriverName,
         statusLabel(order.status),
@@ -342,11 +385,16 @@ export default memo(function OrdersTable({
           {showCustomer && (
             <Box>
               <Typography variant="caption" color="text.secondary">
-                Директор
+                Магазин
               </Typography>
               <Typography variant="body2" fontWeight={600}>
-                {detailsOrder?.customerName || "—"}
+                {primaryCustomerLabel(detailsOrder)}
               </Typography>
+              {secondaryCustomerLabel(detailsOrder) && (
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                  {secondaryCustomerLabel(detailsOrder)}
+                </Typography>
+              )}
             </Box>
           )}
           <Box>
@@ -371,6 +419,30 @@ export default memo(function OrdersTable({
             </Typography>
             <Typography variant="body2">
               {formatDateTime(detailsOrder?.createdAt)}
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Сумма
+            </Typography>
+            <Typography variant="body2" fontWeight={600}>
+              {formatMoney(detailsOrder?.totalAmount)} BYN
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Позиции
+            </Typography>
+            <Typography variant="body2">
+              {detailsOrder?.items?.length || 0} поз., {totalUnits(detailsOrder?.items)} шт.
+            </Typography>
+          </Box>
+          <Box>
+            <Typography variant="caption" color="text.secondary">
+              Состав
+            </Typography>
+            <Typography variant="body2">
+              {orderComposition(detailsOrder?.items)}
             </Typography>
           </Box>
         </Stack>

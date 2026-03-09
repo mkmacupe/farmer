@@ -34,6 +34,7 @@ const READINESS_TIMEOUT_MS = 12_000;
 const READINESS_RETRY_DELAY_MS = 5_000;
 const BACKGROUND_WARMUP_MAX_WAIT_MS = 4 * 60_000;
 const AUTH_WARMUP_MAX_WAIT_MS = 6 * 60_000;
+const AUTO_ASSIGN_TIMEOUT_MS = 90_000;
 const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
 const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
 export const LOGIN_LOADING_MESSAGE = 'Подключаем сервер. Если backend был в спящем режиме на Render Free, вход продолжится автоматически и может занять до 5 минут.';
@@ -697,6 +698,7 @@ function normalizeOrdersPage(payload, fallbackPage = 0, fallbackSize = 50) {
 export async function previewAutoAssignOrders(token) {
   const response = await apiFetch(`${API_BASE}/orders/auto-assign/preview`, {
     method: 'POST',
+    timeoutMs: AUTO_ASSIGN_TIMEOUT_MS,
     headers: { ...authHeaders(token) }
   });
   return handleResponse(response);
@@ -705,6 +707,7 @@ export async function previewAutoAssignOrders(token) {
 export async function approveAutoAssignOrders(token, assignments) {
   const response = await apiFetch(`${API_BASE}/orders/auto-assign/approve`, {
     method: 'POST',
+    timeoutMs: AUTO_ASSIGN_TIMEOUT_MS,
     headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
     body: JSON.stringify({ assignments })
   });

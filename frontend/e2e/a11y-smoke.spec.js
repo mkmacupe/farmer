@@ -41,7 +41,16 @@ for (const roleCase of ROLE_CASES) {
     await loginAs(page, roleCase.username);
     await waitForWorkspaceReady(page);
     await openRoleHomeSection(page, roleCase.username);
-    await expect(page.getByRole('heading', { name: roleCase.heading }).first()).toBeVisible();
+    await expect
+      .poll(async () => {
+        await openRoleHomeSection(page, roleCase.username);
+        try {
+          return await page.getByRole('heading', { name: roleCase.heading }).first().isVisible();
+        } catch {
+          return false;
+        }
+      }, { timeout: 15_000 })
+      .toBe(true);
 
     const results = await new AxeBuilder({ page }).analyze();
     const blockingImpacts = new Set(['critical', 'serious', 'moderate']);

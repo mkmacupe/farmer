@@ -261,7 +261,19 @@ export default function DriverView({ token, activeSection }) {
                   Всего точек: {fullRoute.length} · Активных: {activeDeliveries}
                 </Typography>
               </Box>
-              <Chip icon={<LocalShippingIcon />} label={statusChipLabel} color={statusChipColor} sx={{ fontWeight: 700 }} />
+              <Chip
+                icon={<LocalShippingIcon />}
+                label={statusChipLabel}
+                color={statusChipColor}
+                sx={{
+                  fontWeight: 700,
+                  bgcolor: activeDeliveries ? 'primary.dark' : 'grey.200',
+                  color: activeDeliveries ? 'primary.contrastText' : 'text.primary',
+                  '& .MuiChip-icon': {
+                    color: activeDeliveries ? 'inherit' : 'text.secondary'
+                  }
+                }}
+              />
             </Stack>
 
             {!!activeRouteSteps.length && (

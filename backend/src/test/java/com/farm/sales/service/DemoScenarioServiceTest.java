@@ -80,9 +80,9 @@ class DemoScenarioServiceTest {
     when(userRepository.count()).thenReturn(8L);
     when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR)).thenReturn(List.of(director, director, director));
     when(productRepository.count()).thenReturn(20L);
-    when(storeAddressRepository.count()).thenReturn(28L);
-    when(orderRepository.count()).thenReturn(25L);
-    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(25L);
+    when(storeAddressRepository.count()).thenReturn(0L);
+    when(orderRepository.count()).thenReturn(0L);
+    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(0L);
 
     var response = service.resetDemoScenario();
 
@@ -112,16 +112,16 @@ class DemoScenarioServiceTest {
     inOrder.verify(entityManager).flush();
     inOrder.verify(entityManager).clear();
     inOrder.verify(dataInitializer).resetDemoSeedState();
-    inOrder.verify(dataInitializer).seedDemoData();
-    inOrder.verify(demoTransportScenarioInitializer).seedDemoScenario();
+    inOrder.verify(demoTransportScenarioInitializer).resetSeedState();
+    inOrder.verify(dataInitializer).seedDemoDataWithoutAddresses();
 
     assertThat(response.scenarioName()).contains("Демо-сценарий");
     assertThat(response.totalUsers()).isEqualTo(8L);
     assertThat(response.directors()).isEqualTo(3L);
     assertThat(response.products()).isEqualTo(20L);
-    assertThat(response.storeAddresses()).isEqualTo(28L);
-    assertThat(response.totalOrders()).isEqualTo(25L);
-    assertThat(response.approvedOrders()).isEqualTo(25L);
+    assertThat(response.storeAddresses()).isEqualTo(0L);
+    assertThat(response.totalOrders()).isEqualTo(0L);
+    assertThat(response.approvedOrders()).isEqualTo(0L);
     assertThat(response.defenseFlow()).hasSize(4);
     verify(orderRepository).countByStatus(OrderStatus.APPROVED);
   }
