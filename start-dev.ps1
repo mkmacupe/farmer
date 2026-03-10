@@ -21,6 +21,7 @@ $frontendDir = Join-Path $projectRoot "frontend"
 $envFilePath = Join-Path $projectRoot ".env"
 Set-Location -LiteralPath $projectRoot
 Write-Host "Starting local dev environment from $projectRoot"
+Ensure-GitHooksConfigured
 
 # Clean up a stray Windows "nul" file that can appear from shell redirection in PowerShell.
 $nulPath = Join-Path $projectRoot "nul"
@@ -33,6 +34,32 @@ function Require-Command {
   if (-not (Get-Command $Name -ErrorAction SilentlyContinue)) {
     throw "Command '$Name' was not found in PATH."
   }
+}
+
+function Ensure-GitHooksConfigured {
+  $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+  if (-not $gitCommand) {
+    return
+  }
+
+  $hooksDir = Join-Path $projectRoot ".githooks"
+  if (-not (Test-Path -LiteralPath $hooksDir)) {
+    return
+  }
+
+  $currentHooksPath = ""
+  try {
+    $currentHooksPath = (& $gitCommand.Source config --get core.hooksPath 2>$null | Select-Object -First 1).Trim()
+  } catch {
+    $currentHooksPath = ""
+  }
+
+  if ($currentHooksPath -eq ".githooks") {
+    return
+  }
+
+  & $gitCommand.Source config core.hooksPath .githooks | Out-Null
+  Write-Host "Configured repository git hooks at .githooks"
 }
 
 function New-RandomSecret {
