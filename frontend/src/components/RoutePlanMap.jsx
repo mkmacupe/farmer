@@ -77,11 +77,13 @@ function RoutePlanMap({ plan, token }) {
   const containerRef = useRef(null);
   const [routePaths, setRoutePaths] = useState({});
   const [geometryLoading, setGeometryLoading] = useState(false);
+  const [geometryPrepared, setGeometryPrepared] = useState(false);
 
   useEffect(() => {
     if (!plan) {
       setRoutePaths({});
       setGeometryLoading(false);
+      setGeometryPrepared(false);
       return undefined;
     }
 
@@ -99,9 +101,11 @@ function RoutePlanMap({ plan, token }) {
       }
     });
     setRoutePaths(initialPaths);
+    setGeometryPrepared(false);
 
     if (!token || !routesToLoad.length) {
       setGeometryLoading(false);
+      setGeometryPrepared(true);
       return undefined;
     }
 
@@ -138,6 +142,7 @@ function RoutePlanMap({ plan, token }) {
       .finally(() => {
         if (!cancelled) {
           setGeometryLoading(false);
+          setGeometryPrepared(true);
         }
       });
 
@@ -147,7 +152,7 @@ function RoutePlanMap({ plan, token }) {
   }, [plan, token]);
 
   useEffect(() => {
-    if (!plan || !containerRef.current) {
+    if (!plan || !containerRef.current || !geometryPrepared) {
       return undefined;
     }
 
@@ -227,7 +232,27 @@ function RoutePlanMap({ plan, token }) {
       layers.forEach((layer) => layer.remove());
       map.remove();
     };
-  }, [plan, routePaths]);
+  }, [geometryPrepared, plan, routePaths]);
+
+  if (!geometryPrepared) {
+    return (
+      <Box
+        sx={{
+          width: '100%',
+          height: { xs: 210, md: 250 },
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.default',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <CircularProgress size={26} />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ position: 'relative' }}>
@@ -267,9 +292,6 @@ function RoutePlanMap({ plan, token }) {
           >
             <Stack direction="row" spacing={1.25} alignItems="center">
               <CircularProgress size={18} />
-              <Typography variant="body2" fontWeight={600}>
-                Строим путь по дорогам
-              </Typography>
             </Stack>
           </Box>
         </Box>

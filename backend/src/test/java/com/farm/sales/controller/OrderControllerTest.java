@@ -175,7 +175,7 @@ class OrderControllerTest {
     when(orderService.previewAutoAssignRouteGeometry(18L, geometryRequest)).thenReturn(geometry);
 
     AutoAssignApproveRequest request = new AutoAssignApproveRequest(
-        List.of(new AutoAssignApproveItemRequest(1L, 31L, 1))
+        List.of(new AutoAssignApproveItemRequest(1L, 31L, 1, 3.4))
     );
     AutoAssignResultResponse approved = new AutoAssignResultResponse(
         2,

@@ -187,7 +187,6 @@ const KanbanCard = memo(function KanbanCard({
       }
       onDragEnd={dragEnabled ? onDragEnd : undefined}
       sx={{
-        height: "100%",
         display: "flex",
         flexDirection: "column",
         border: "1px solid",
@@ -209,9 +208,7 @@ const KanbanCard = memo(function KanbanCard({
         },
       }}
     >
-      <CardContent
-        sx={{ pb: 1.5, display: "flex", flexDirection: "column", gap: 1.5, flex: 1 }}
-      >
+      <CardContent sx={{ pb: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
         <Stack
           direction="row"
           alignItems="flex-start"
@@ -359,7 +356,6 @@ const KanbanCard = memo(function KanbanCard({
         sx={{
           px: 2,
           pb: 2,
-          mt: "auto",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(152px, 1fr))",
           gap: 1,
@@ -1847,6 +1843,7 @@ export default function ManagerView({ token, activeSection }) {
 
           <Grid container spacing={2}>
             {KANBAN_COLUMNS.map((column) => {
+              const columnOrders = ordersByStatus[column.id] || [];
               const isApprovalDropZone = !isMobile && column.id === "APPROVED";
               return (
               <Grid size={{ xs: 12, md: 6, xl: 3 }} key={column.id}>
@@ -1855,12 +1852,11 @@ export default function ManagerView({ token, activeSection }) {
                   onDragOver={isApprovalDropZone ? (event) => event.preventDefault() : undefined}
                   onDrop={isApprovalDropZone ? (event) => handleDrop(event, column.id) : undefined}
                   sx={{
-                    height: "100%",
                     display: "flex",
                     flexDirection: "column",
                     p: 2,
                     borderRadius: 3,
-                    minHeight: { xs: 260, md: 420 },
+                    minHeight: columnOrders.length ? "auto" : { xs: 180, md: 220 },
                     bgcolor: alpha(theme.palette.background.paper, 0.94),
                     background: `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.grey[50], 0.92)} 100%)`,
                     border: "1px solid",
@@ -1882,13 +1878,13 @@ export default function ManagerView({ token, activeSection }) {
                       {column.title}
                     </Typography>
                     <Chip
-                      label={ordersByStatus[column.id]?.length || 0}
+                      label={columnOrders.length}
                       size="small"
                       color={column.color}
                     />
                   </Stack>
-                  <Stack spacing={1.5} sx={{ flex: 1 }}>
-                    {(ordersByStatus[column.id] || []).map((order) => (
+                  <Stack spacing={1.5}>
+                    {columnOrders.map((order) => (
                       <KanbanCard
                         key={order.id}
                         order={order}
@@ -1901,7 +1897,7 @@ export default function ManagerView({ token, activeSection }) {
                         onLoadTimeline={handleLoadTimeline}
                       />
                     ))}
-                    {!ordersByStatus[column.id]?.length && (
+                    {!columnOrders.length && (
                       <Typography variant="caption" color="text.secondary">
                         Нет заказов
                       </Typography>

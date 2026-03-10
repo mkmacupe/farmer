@@ -65,6 +65,33 @@ class RoadRoutingServiceTest {
   }
 
   @Test
+  void drivingDistanceMatrixKmParsesRowsAndSeedsPairCache() throws Exception {
+    JsonNode payload = objectMapper.readTree("""
+        {"code":"Ok","distances":[[1500.0,2750.0],[900.0,1100.0]]}
+        """);
+    when(responseSpec.body(JsonNode.class)).thenReturn(payload);
+
+    var sources = List.of(
+        new RoadRoutingService.RouteCoordinate(53.8971270, 30.3320410),
+        new RoadRoutingService.RouteCoordinate(53.9050000, 30.3500000)
+    );
+    var destinations = List.of(
+        new RoadRoutingService.RouteCoordinate(53.9400000, 30.3400000),
+        new RoadRoutingService.RouteCoordinate(53.8700000, 30.4100000)
+    );
+
+    List<List<Double>> matrix = service.drivingDistanceMatrixKm(sources, destinations);
+    double cachedDistance = service.drivingDistanceKm(sources.get(1), destinations.get(0));
+
+    assertThat(matrix).containsExactly(
+        List.of(1.5, 2.75),
+        List.of(0.9, 1.1)
+    );
+    assertThat(cachedDistance).isEqualTo(0.9);
+    verify(responseSpec, times(1)).body(JsonNode.class);
+  }
+
+  @Test
   void drivingRouteGeometryReturnsFullPolylineWithExactEndpoints() throws Exception {
     JsonNode payload = objectMapper.readTree("""
         {

@@ -6,6 +6,7 @@ import jakarta.validation.constraints.PositiveOrZero;
 public record AutoAssignApproveItemRequest(
     @NotNull Long orderId,
     @NotNull Long driverId,
-    @PositiveOrZero Integer stopSequence
+    @PositiveOrZero Integer stopSequence,
+    @PositiveOrZero Double estimatedDistanceKm
 ) {
 }

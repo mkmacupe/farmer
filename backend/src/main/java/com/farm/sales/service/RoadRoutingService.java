@@ -171,6 +171,83 @@ public class RoadRoutingService {
     return List.copyOf(results);
   }
 
+  public List<List<Double>> drivingDistanceMatrixKm(List<RouteCoordinate> sources, List<RouteCoordinate> destinations) {
+    if (sources == null || sources.isEmpty() || destinations == null || destinations.isEmpty()) {
+      return List.of();
+    }
+
+    List<List<Double>> results = new ArrayList<>(sources.size());
+    List<Integer> uncachedSourceIndexes = new ArrayList<>();
+    for (int sourceIndex = 0; sourceIndex < sources.size(); sourceIndex++) {
+      RouteCoordinate source = sources.get(sourceIndex);
+      List<Double> row = new ArrayList<>(destinations.size());
+      boolean hasMisses = false;
+      for (RouteCoordinate destination : destinations) {
+        if (source.equals(destination)) {
+          row.add(0.0);
+          continue;
+        }
+
+        Double cached = readCache(cacheKey(source, destination));
+        if (cached != null) {
+          row.add(cached);
+        } else {
+          row.add(null);
+          hasMisses = true;
+        }
+      }
+      results.add(row);
+      if (hasMisses) {
+        uncachedSourceIndexes.add(sourceIndex);
+      }
+    }
+
+    if (uncachedSourceIndexes.isEmpty()) {
+      return results.stream().map(List::copyOf).toList();
+    }
+
+    int maxDestinationsPerRequest = Math.max(1, maxTableCoordinates - 1);
+    int destinationFromIndex = 0;
+    while (destinationFromIndex < destinations.size()) {
+      int destinationToIndex = Math.min(destinationFromIndex + maxDestinationsPerRequest, destinations.size());
+      List<RouteCoordinate> destinationChunk = destinations.subList(destinationFromIndex, destinationToIndex);
+      int maxSourcesPerRequest = Math.max(1, maxTableCoordinates - destinationChunk.size());
+
+      int sourceFromIndex = 0;
+      while (sourceFromIndex < uncachedSourceIndexes.size()) {
+        int sourceToIndex = Math.min(sourceFromIndex + maxSourcesPerRequest, uncachedSourceIndexes.size());
+        List<Integer> sourceIndexesChunk = uncachedSourceIndexes.subList(sourceFromIndex, sourceToIndex);
+        List<RouteCoordinate> sourceChunk = sourceIndexesChunk.stream()
+            .map(sources::get)
+            .toList();
+        List<List<Double>> chunkMatrix = requestTableDistanceMatrix(sourceChunk, destinationChunk);
+
+        for (int rowIndex = 0; rowIndex < sourceIndexesChunk.size(); rowIndex++) {
+          int sourceIndex = sourceIndexesChunk.get(rowIndex);
+          RouteCoordinate source = sources.get(sourceIndex);
+          List<Double> row = results.get(sourceIndex);
+          List<Double> matrixRow = chunkMatrix.get(rowIndex);
+          for (int offset = 0; offset < destinationChunk.size(); offset++) {
+            int destinationIndex = destinationFromIndex + offset;
+            if (row.get(destinationIndex) != null) {
+              continue;
+            }
+            RouteCoordinate destination = destinationChunk.get(offset);
+            double distanceKm = matrixRow.get(offset);
+            row.set(destinationIndex, distanceKm);
+            writeCache(cacheKey(source, destination), distanceKm);
+          }
+        }
+
+        sourceFromIndex = sourceToIndex;
+      }
+
+      destinationFromIndex = destinationToIndex;
+    }
+
+    return results.stream().map(List::copyOf).toList();
+  }
+
   public List<RouteCoordinate> drivingRouteGeometry(List<RouteCoordinate> waypoints) {
     List<RouteCoordinate> normalizedWaypoints = normalizeWaypoints(waypoints);
     if (normalizedWaypoints.size() < 2) {
@@ -275,6 +352,50 @@ public class RoadRoutingService {
     return distancesKm;
   }
 
+  private List<List<Double>> requestTableDistanceMatrix(List<RouteCoordinate> sources, List<RouteCoordinate> destinations) {
+    ensureTableRoutingAvailable();
+    String coordinates = buildCoordinates(sources, destinations);
+    String sourcesParam = buildIndexParam(0, sources.size());
+    String destinationsParam = buildIndexParam(sources.size(), destinations.size());
+
+    JsonNode payload;
+    try {
+      payload = executeJsonGet(URI.create(baseUrl + "/table/v1/driving/" + coordinates
+          + "?sources=" + sourcesParam
+          + "&destinations=" + destinationsParam
+          + "&annotations=distance"));
+    } catch (RuntimeException exception) {
+      throw markTableFailure("Не удалось получить матрицу дорожных расстояний: " + exception.getMessage(), exception);
+    }
+
+    if (payload == null || !"Ok".equals(payload.path("code").asText())) {
+      throw markTableFailure("Роутинг-сервис вернул некорректную матрицу расстояний");
+    }
+
+    JsonNode distancesNode = payload.path("distances");
+    if (!distancesNode.isArray() || distancesNode.size() != sources.size()) {
+      throw markTableFailure("Роутинг-сервис не вернул матрицу ожидаемого размера");
+    }
+
+    List<List<Double>> matrix = new ArrayList<>(sources.size());
+    for (JsonNode rowNode : distancesNode) {
+      if (rowNode == null || !rowNode.isArray() || rowNode.size() != destinations.size()) {
+        throw markTableFailure("Роутинг-сервис вернул матрицу неожиданного размера");
+      }
+      List<Double> row = new ArrayList<>(destinations.size());
+      for (JsonNode distanceNode : rowNode) {
+        if (distanceNode == null || distanceNode.isNull()) {
+          throw markTableFailure("Для части точек не удалось построить дорожный маршрут");
+        }
+        row.add(distanceNode.asDouble() / 1000.0);
+      }
+      matrix.add(List.copyOf(row));
+    }
+
+    tableRoutingUnavailableUntil.set(0L);
+    return List.copyOf(matrix);
+  }
+
   private void ensureTableRoutingAvailable() {
     long unavailableUntil = tableRoutingUnavailableUntil.get();
     if (unavailableUntil > System.currentTimeMillis()) {
@@ -319,6 +440,26 @@ public class RoadRoutingService {
     return builder.toString();
   }
 
+  private String buildCoordinates(List<RouteCoordinate> sources, List<RouteCoordinate> destinations) {
+    StringBuilder builder = new StringBuilder(Math.max(64, (sources.size() + destinations.size()) * 20));
+    boolean first = true;
+    for (RouteCoordinate source : sources) {
+      if (!first) {
+        builder.append(';');
+      }
+      appendCoordinate(builder, source);
+      first = false;
+    }
+    for (RouteCoordinate destination : destinations) {
+      if (!first) {
+        builder.append(';');
+      }
+      appendCoordinate(builder, destination);
+      first = false;
+    }
+    return builder.toString();
+  }
+
   private String buildCoordinates(List<RouteCoordinate> waypoints) {
     StringBuilder builder = new StringBuilder(Math.max(64, waypoints.size() * 20));
     for (int index = 0; index < waypoints.size(); index++) {
@@ -337,6 +478,17 @@ public class RoadRoutingService {
         builder.append(';');
       }
       builder.append(i + 1);
+    }
+    return builder.toString();
+  }
+
+  private String buildIndexParam(int startIndex, int count) {
+    StringBuilder builder = new StringBuilder(Math.max(4, count * 3));
+    for (int index = 0; index < count; index++) {
+      if (index > 0) {
+        builder.append(';');
+      }
+      builder.append(startIndex + index);
     }
     return builder.toString();
   }

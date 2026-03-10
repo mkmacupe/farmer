@@ -102,6 +102,14 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
       """)
   List<Order> findByStatusOrderByCreatedAtDescForUpdate(@Param("status") OrderStatus status, Pageable pageable);
 
+  @Lock(LockModeType.PESSIMISTIC_WRITE)
+  @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
+  @Query("""
+      select o from Order o
+      where o.id in :ids
+      """)
+  List<Order> findAllByIdInForUpdate(@Param("ids") Collection<Long> ids);
+
   long countByStatus(OrderStatus status);
 
   long countByAssignedDriverIdAndStatus(Long driverId, OrderStatus status);

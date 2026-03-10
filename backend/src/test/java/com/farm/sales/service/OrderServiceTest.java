@@ -74,6 +74,17 @@ class OrderServiceTest {
           .map(destination -> testDistance(source, destination))
           .toList();
     });
+    when(roadRoutingService.drivingDistanceMatrixKm(any(), any())).thenAnswer(invocation -> {
+      @SuppressWarnings("unchecked")
+      List<RoadRoutingService.RouteCoordinate> sources = invocation.getArgument(0);
+      @SuppressWarnings("unchecked")
+      List<RoadRoutingService.RouteCoordinate> destinations = invocation.getArgument(1);
+      return sources.stream()
+          .map(source -> destinations.stream()
+              .map(destination -> testDistance(source, destination))
+              .toList())
+          .toList();
+    });
     when(roadRoutingService.drivingDistanceKm(any(), any())).thenAnswer(invocation -> {
       RoadRoutingService.RouteCoordinate from = invocation.getArgument(0);
       RoadRoutingService.RouteCoordinate to = invocation.getArgument(1);
@@ -558,6 +569,39 @@ class OrderServiceTest {
   }
 
   @Test
+  void previewAutoAssignPlanKeepsDriversWithinPreferredZonesWhenFeasible() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driverNorth = user(3L, "Driver 1", Role.DRIVER);
+    User driverSouthEast = user(4L, "Driver 2", Role.DRIVER);
+    User driverSouthWest = user(5L, "Driver 3", Role.DRIVER);
+    driverNorth.setUsername("driver1");
+    driverSouthEast.setUsername("driver2");
+    driverSouthWest.setUsername("driver3");
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Order northOrder = orderWithCoordinates(601L, director, OrderStatus.APPROVED, "53.9395000", "30.3410000");
+    Order southEastOrder = orderWithCoordinates(602L, director, OrderStatus.APPROVED, "53.8710000", "30.4095000");
+    Order southWestOrder = orderWithCoordinates(603L, director, OrderStatus.APPROVED, "53.8600000", "30.2605000");
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(northOrder, southEastOrder, southWestOrder));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER))
+        .thenReturn(List.of(driverNorth, driverSouthEast, driverSouthWest));
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+
+    java.util.Map<Long, Long> driverByOrderId = preview.routes().stream()
+        .flatMap(route -> route.points().stream().map(point -> java.util.Map.entry(point.orderId(), route.driverId())))
+        .collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
+
+    assertThat(driverByOrderId)
+        .containsEntry(601L, 3L)
+        .containsEntry(602L, 4L)
+        .containsEntry(603L, 5L);
+  }
+
+  @Test
   void previewAutoAssignPlanFallsBackWhenLegacyProductLogisticsMetricsAreMissing() {
     User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
     User driver = user(3L, "Driver A", Role.DRIVER);
@@ -613,8 +657,9 @@ class OrderServiceTest {
     when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
     when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
         .thenReturn(List.of(firstApproved, secondApproved));
-    when(orderRepository.findByStatusOrderByCreatedAtDescForUpdate(eq(OrderStatus.APPROVED), any(Pageable.class)))
+    when(orderRepository.findAllByIdInForUpdate(any()))
         .thenReturn(List.of(firstApproved, secondApproved));
+    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(2L);
     when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER))
         .thenReturn(List.of(driverNearFirst, driverNearSecond));
     when(orderRepository.countByAssignedDriverIdAndStatus(3L, OrderStatus.ASSIGNED)).thenReturn(0L);
@@ -624,7 +669,12 @@ class OrderServiceTest {
     AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
     List<AutoAssignApproveItemRequest> requestedAssignments = preview.routes().stream()
         .flatMap(route -> route.points().stream()
-            .map(point -> new AutoAssignApproveItemRequest(point.orderId(), route.driverId(), point.stopSequence())))
+        .map(point -> new AutoAssignApproveItemRequest(
+            point.orderId(),
+            route.driverId(),
+            point.stopSequence(),
+            point.distanceFromPreviousKm()
+        )))
         .toList();
     AutoAssignResultResponse result = orderService.approveAutoAssignPlan(2L, new AutoAssignApproveRequest(requestedAssignments));
 

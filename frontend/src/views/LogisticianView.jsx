@@ -83,6 +83,7 @@ const MetricCard = memo(function MetricCard({ title, value, icon, color }) {
 });
 
 const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
+const ROUTE_PLAN_DIALOG_LOADING_DELAY_MS = 350;
 
 function routeColor(routeIndex) {
   return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
@@ -145,7 +146,8 @@ export default function LogisticianView({ token, activeSection }) {
       return route.points.map((point) => ({
         orderId: point.orderId,
         driverId: route.driverId,
-        stopSequence: point.stopSequence
+        stopSequence: point.stopSequence,
+        estimatedDistanceKm: point.distanceFromPreviousKm
       }));
     });
   }, [routePlan]);
@@ -248,10 +250,18 @@ export default function LogisticianView({ token, activeSection }) {
   const handleAutoAssign = async () => {
     setActionLoading(true);
     setRoutePlan(null);
-    setRoutePlanOpen(true);
-    setRoutePlanLoading(true);
+    let loadingDialogTimerId = null;
     try {
+      loadingDialogTimerId = window.setTimeout(() => {
+        setRoutePlanLoading(true);
+        setRoutePlanOpen(true);
+      }, ROUTE_PLAN_DIALOG_LOADING_DELAY_MS);
+
       const result = await previewAutoAssignOrders(token);
+      if (loadingDialogTimerId !== null) {
+        window.clearTimeout(loadingDialogTimerId);
+        loadingDialogTimerId = null;
+      }
       if (result.totalApprovedOrders === 0) {
         setRoutePlanOpen(false);
         showMessage('Нет одобренных заказов для распределения', 'info');
@@ -260,17 +270,20 @@ export default function LogisticianView({ token, activeSection }) {
         showMessage('Не удалось построить маршрутный план для текущего набора заказов', 'warning');
       } else {
         setRoutePlan(result);
-        showMessage(
-          `План построен: ${result.plannedOrders}/${result.totalApprovedOrders}, ` +
-          `оценка пути ${result.estimatedTotalDistanceKm} км`,
-          'info'
-        );
+        setRoutePlanOpen(true);
       }
     } catch (err) {
+      if (loadingDialogTimerId !== null) {
+        window.clearTimeout(loadingDialogTimerId);
+        loadingDialogTimerId = null;
+      }
       setRoutePlanOpen(false);
       setRoutePlan(null);
       showMessage(err.message || 'Не удалось выполнить автоназначение', 'error');
     } finally {
+      if (loadingDialogTimerId !== null) {
+        window.clearTimeout(loadingDialogTimerId);
+      }
       setRoutePlanLoading(false);
       setActionLoading(false);
     }
@@ -288,9 +301,25 @@ export default function LogisticianView({ token, activeSection }) {
         `Автораспределено: ${result.assignedOrders}/${result.totalApprovedOrders}, ` +
         `оценка пути ${result.estimatedTotalDistanceKm} км`
       );
+      const assignedOrderIds = new Set(
+        Array.isArray(result.assignments)
+          ? result.assignments.map((item) => item.orderId)
+          : routePlanAssignments.map((item) => item.orderId)
+      );
+      if (assignedOrderIds.size) {
+        setOrders((prev) => prev.filter((order) => !assignedOrderIds.has(order.id)));
+        setOrdersTotalItems((prev) => Math.max(0, prev - assignedOrderIds.size));
+        setDriverSelection((prev) => {
+          const next = { ...prev };
+          assignedOrderIds.forEach((orderId) => {
+            delete next[orderId];
+          });
+          return next;
+        });
+      }
       setRoutePlanOpen(false);
       setRoutePlan(null);
-      await loadOrders();
+      void loadOrders();
     } catch (err) {
       showMessage(err.message || 'Не удалось применить маршрутный план', 'error');
     } finally {
@@ -500,19 +529,11 @@ export default function LogisticianView({ token, activeSection }) {
         <DialogContent dividers sx={{ overflow: 'hidden', py: 1.5 }}>
           {routePlanLoading ? (
             <Stack
-              spacing={1.5}
               alignItems="center"
               justifyContent="center"
               sx={{ minHeight: { xs: 260, sm: 340 }, textAlign: 'center' }}
             >
               <CircularProgress size={34} />
-              <Typography variant="subtitle1" fontWeight={700}>
-                Строим транспортный план
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420 }}>
-                Считаем распределение заказов между водителями и подтягиваем дорожную геометрию
-                для карты.
-              </Typography>
             </Stack>
           ) : routePlan ? (
             <Stack spacing={1.5}>
@@ -555,12 +576,7 @@ export default function LogisticianView({ token, activeSection }) {
                       justifyContent: 'center'
                     }}
                   >
-                    <Stack spacing={1} alignItems="center">
-                      <CircularProgress size={26} />
-                      <Typography variant="body2" color="text.secondary">
-                        Загружаем карту маршрутов
-                      </Typography>
-                    </Stack>
+                    <CircularProgress size={26} />
                   </Paper>
                 }
               >
