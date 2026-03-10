@@ -704,6 +704,23 @@ export async function previewAutoAssignOrders(token) {
   return handleResponse(response);
 }
 
+export async function previewAutoAssignRouteGeometry(token, points) {
+  const response = await apiFetch(`${API_BASE}/orders/auto-assign/route-geometry`, {
+    method: 'POST',
+    timeoutMs: AUTO_ASSIGN_TIMEOUT_MS,
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({
+      points: Array.isArray(points)
+        ? points.map((point) => ({
+            latitude: Number(point?.latitude),
+            longitude: Number(point?.longitude)
+          }))
+        : []
+    })
+  });
+  return handleResponse(response);
+}
+
 export async function approveAutoAssignOrders(token, assignments) {
   const response = await apiFetch(`${API_BASE}/orders/auto-assign/approve`, {
     method: 'POST',

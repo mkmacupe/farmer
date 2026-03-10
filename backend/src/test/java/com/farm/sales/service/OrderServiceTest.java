@@ -15,6 +15,8 @@ import com.farm.sales.audit.AuditTrailPublisher;
 import com.farm.sales.dto.AutoAssignApproveItemRequest;
 import com.farm.sales.dto.AutoAssignApproveRequest;
 import com.farm.sales.dto.AutoAssignPreviewResponse;
+import com.farm.sales.dto.AutoAssignRouteGeometryRequest;
+import com.farm.sales.dto.AutoAssignRoutePathPointResponse;
 import com.farm.sales.dto.AutoAssignResultResponse;
 import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderItemRequest;
@@ -76,6 +78,11 @@ class OrderServiceTest {
       RoadRoutingService.RouteCoordinate from = invocation.getArgument(0);
       RoadRoutingService.RouteCoordinate to = invocation.getArgument(1);
       return testDistance(from, to);
+    });
+    when(roadRoutingService.drivingRouteGeometry(any())).thenAnswer(invocation -> {
+      @SuppressWarnings("unchecked")
+      List<RoadRoutingService.RouteCoordinate> waypoints = invocation.getArgument(0);
+      return waypoints;
     });
     orderService = new OrderService(
         orderRepository,
@@ -487,6 +494,9 @@ class OrderServiceTest {
         .flatExtracting(route -> route.points())
         .extracting(point -> point.orderId())
         .containsExactlyInAnyOrder(201L, 202L);
+    assertThat(preview.routes())
+        .filteredOn(route -> !route.points().isEmpty())
+        .allSatisfy(route -> assertThat(route.path()).isEmpty());
 
     assertThat(firstApproved.getStatus()).isEqualTo(OrderStatus.APPROVED);
     assertThat(secondApproved.getStatus()).isEqualTo(OrderStatus.APPROVED);
@@ -518,6 +528,36 @@ class OrderServiceTest {
   }
 
   @Test
+  void previewAutoAssignPlanAssignsMultipleOrdersFromSameLocation() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driverA = user(3L, "Driver A", Role.DRIVER);
+    User driverB = user(4L, "Driver B", Role.DRIVER);
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Order firstApproved = orderWithCoordinates(501L, director, OrderStatus.APPROVED, "53.8654000", "30.2905000");
+    Order secondApproved = orderWithCoordinates(502L, director, OrderStatus.APPROVED, "53.8654000", "30.2905000");
+    firstApproved.setItems(List.of(item(firstApproved, product(1L, "Горох", "2.60", 100), 8)));
+    secondApproved.setItems(List.of(item(secondApproved, product(2L, "Гречка", "3.00", 100), 6)));
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(firstApproved, secondApproved));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER)).thenReturn(List.of(driverA, driverB));
+    when(orderRepository.countByAssignedDriverIdAndStatus(3L, OrderStatus.ASSIGNED)).thenReturn(0L);
+    when(orderRepository.countByAssignedDriverIdAndStatus(4L, OrderStatus.ASSIGNED)).thenReturn(0L);
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+
+    assertThat(preview.totalApprovedOrders()).isEqualTo(2);
+    assertThat(preview.plannedOrders()).isEqualTo(2);
+    assertThat(preview.unplannedOrders()).isEqualTo(0);
+    assertThat(preview.routes())
+        .flatExtracting(route -> route.points())
+        .extracting(point -> point.orderId())
+        .containsExactlyInAnyOrder(501L, 502L);
+  }
+
+  @Test
   void previewAutoAssignPlanFallsBackWhenLegacyProductLogisticsMetricsAreMissing() {
     User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
     User driver = user(3L, "Driver A", Role.DRIVER);
@@ -542,6 +582,20 @@ class OrderServiceTest {
     assertThat(preview.routes()).hasSize(1);
     assertThat(preview.routes().getFirst().totalWeightKg()).isEqualTo(2.0);
     assertThat(preview.routes().getFirst().totalVolumeM3()).isEqualTo(0.0);
+  }
+
+  @Test
+  void previewAutoAssignRouteGeometryBuildsPathFromProvidedPoints() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+
+    List<AutoAssignRoutePathPointResponse> geometry = orderService.previewAutoAssignRouteGeometry(
+        2L,
+        new AutoAssignRouteGeometryRequest(List.of(new AutoAssignRoutePathPointResponse(53.9395, 30.3410)))
+    );
+
+    assertThat(geometry).hasSizeGreaterThanOrEqualTo(2);
+    assertThat(geometry.getLast()).isEqualTo(new AutoAssignRoutePathPointResponse(53.9395, 30.3410));
   }
 
   @Test

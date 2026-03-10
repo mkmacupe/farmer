@@ -125,6 +125,10 @@ function Ensure-ComposeEnvFile {
     $values["APP_DEMO_ENABLED"] = "true"
     $updated = $true
   }
+  if (-not $values.Contains("APP_DEMO_SEED_ON_STARTUP") -or (Test-PlaceholderValue -Value $values["APP_DEMO_SEED_ON_STARTUP"])) {
+    $values["APP_DEMO_SEED_ON_STARTUP"] = "true"
+    $updated = $true
+  }
 
   if ($updated -or -not (Test-Path $Path)) {
     $lines = @(
@@ -133,6 +137,7 @@ function Ensure-ComposeEnvFile {
       "POSTGRES_PASSWORD=$($values["POSTGRES_PASSWORD"])"
       "JWT_SECRET=$($values["JWT_SECRET"])"
       "APP_DEMO_ENABLED=$($values["APP_DEMO_ENABLED"])"
+      "APP_DEMO_SEED_ON_STARTUP=$($values["APP_DEMO_SEED_ON_STARTUP"])"
     )
     Set-Content -LiteralPath $Path -Value ($lines -join [Environment]::NewLine) -Encoding ascii
     Write-Host "Prepared .env file for docker compose at $Path"
@@ -458,10 +463,10 @@ function Start-Backend {
         -SoftFail
     }
 
-    Write-Host "Starting backend and database with docker compose (without forced rebuild)..."
+    Write-Host "Starting backend and database with docker compose (building backend with cache-aware rebuild)..."
     Invoke-CommandWithDockerRetry `
-      -CommandLine "docker compose --env-file ""$EnvFilePath"" up -d" `
-      -FailureMessage "docker compose up -d" `
+      -CommandLine "docker compose --env-file ""$EnvFilePath"" up -d --build" `
+      -FailureMessage "docker compose up -d --build" `
       -MaxAttempts 5
 
     $actualApiPort = Resolve-ComposeBackendPort -EnvFilePath $EnvFilePath -FallbackPort $ApiPort

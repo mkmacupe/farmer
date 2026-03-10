@@ -1,66 +1,16 @@
-import { memo, useEffect, useRef } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
+import Stack from '@mui/material/Stack';
+import Typography from '@mui/material/Typography';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { previewAutoAssignRouteGeometry } from '../api.js';
 
 const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
-const OSRM_PUBLIC_ROUTE_API = 'https://router.project-osrm.org/route/v1/driving';
-const ROAD_ROUTE_SEGMENT_TIMEOUT_MS = 3200;
-const ROAD_ROUTE_CACHE_TTL_MS = 10 * 60 * 1000;
-const ROAD_ROUTE_CACHE_MAX_ITEMS = 180;
-const ROAD_ROUTE_CACHE = new Map();
-const ROAD_ROUTE_PENDING = new Map();
-const ROUTE_POINT_EPSILON = 0.00001;
-const MAX_ROUTE_CONNECTOR_METERS = 18;
 
 function routeColor(routeIndex) {
   return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
-}
-
-function routeCacheKey(points) {
-  return points
-    .map(([lat, lon]) => `${Number(lat).toFixed(5)},${Number(lon).toFixed(5)}`)
-    .join('|');
-}
-
-function normalizeRoutePoints(rawPoints) {
-  const convertedPoints = rawPoints
-    .map((coordinate) => {
-      if (!Array.isArray(coordinate) || coordinate.length < 2) {
-        return null;
-      }
-      const [lon, lat] = coordinate;
-      if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-        return null;
-      }
-      return [lat, lon];
-    })
-    .filter(Boolean);
-
-  return convertedPoints.length >= 2 ? convertedPoints : null;
-}
-
-function pointsEqual(left, right) {
-  if (!Array.isArray(left) || !Array.isArray(right) || left.length < 2 || right.length < 2) {
-    return false;
-  }
-  return (
-    Math.abs(Number(left[0]) - Number(right[0])) <= ROUTE_POINT_EPSILON &&
-    Math.abs(Number(left[1]) - Number(right[1])) <= ROUTE_POINT_EPSILON
-  );
-}
-
-function distanceBetweenPointsMeters(left, right) {
-  if (!Array.isArray(left) || !Array.isArray(right) || left.length < 2 || right.length < 2) {
-    return Number.POSITIVE_INFINITY;
-  }
-
-  const latFactor = 111_320;
-  const avgLatRadians = ((Number(left[0]) + Number(right[0])) / 2) * (Math.PI / 180);
-  const lonFactor = Math.cos(avgLatRadians) * 111_320;
-  const latDelta = (Number(left[0]) - Number(right[0])) * latFactor;
-  const lonDelta = (Number(left[1]) - Number(right[1])) * lonFactor;
-  return Math.hypot(latDelta, lonDelta);
 }
 
 function createStopOrderIcon(stopSequence, color) {
@@ -93,150 +43,108 @@ function escapeHtml(value) {
     .replaceAll("'", '&#39;');
 }
 
-function pruneExpiredRoutes(now = Date.now()) {
-  for (const [key, entry] of ROAD_ROUTE_CACHE.entries()) {
-    if (entry.expiresAt <= now) {
-      ROAD_ROUTE_CACHE.delete(key);
-    }
-  }
-}
-
-function readCachedRoute(key) {
-  const entry = ROAD_ROUTE_CACHE.get(key);
-  if (!entry) {
-    return null;
-  }
-  if (entry.expiresAt <= Date.now()) {
-    ROAD_ROUTE_CACHE.delete(key);
-    return null;
-  }
-  return entry.points;
-}
-
-function writeCachedRoute(key, points) {
-  pruneExpiredRoutes();
-  if (ROAD_ROUTE_CACHE.has(key)) {
-    ROAD_ROUTE_CACHE.delete(key);
-  }
-  ROAD_ROUTE_CACHE.set(key, {
-    points,
-    expiresAt: Date.now() + ROAD_ROUTE_CACHE_TTL_MS
-  });
-
-  while (ROAD_ROUTE_CACHE.size > ROAD_ROUTE_CACHE_MAX_ITEMS) {
-    const oldestKey = ROAD_ROUTE_CACHE.keys().next().value;
-    if (!oldestKey) {
-      break;
-    }
-    ROAD_ROUTE_CACHE.delete(oldestKey);
-  }
-}
-
-async function requestRoadRoute(points, signal, timeoutMs) {
-  if (points.length < 2) {
-    return null;
-  }
-
-  const key = routeCacheKey(points);
-  const cachedPoints = readCachedRoute(key);
-  if (cachedPoints) {
-    return cachedPoints;
-  }
-
-  const pending = ROAD_ROUTE_PENDING.get(key);
-  if (pending) {
-    return pending;
-  }
-
-  const requestPromise = (async () => {
-    const requestAbort = new AbortController();
-    const timeoutId = window.setTimeout(() => {
-      requestAbort.abort();
-    }, timeoutMs);
-    const abortFromParent = () => requestAbort.abort();
-    signal?.addEventListener('abort', abortFromParent, { once: true });
-
-    const waypointSequence = points.map(([lat, lon]) => `${lon},${lat}`).join(';');
-    const query = new URLSearchParams({
-      overview: 'simplified',
-      geometries: 'geojson',
-      steps: 'false'
-    });
-
-    try {
-      const response = await fetch(`${OSRM_PUBLIC_ROUTE_API}/${waypointSequence}?${query.toString()}`, {
-        signal: requestAbort.signal
-      });
-      if (!response.ok) {
-        throw new Error(`OSRM request failed with status ${response.status}`);
-      }
-
-      const payload = await response.json();
-      const geometryPoints = payload?.routes?.[0]?.geometry?.coordinates;
-      if (!Array.isArray(geometryPoints) || !geometryPoints.length) {
-        throw new Error('OSRM empty geometry');
-      }
-
-      const normalizedPoints = normalizeRoutePoints(geometryPoints);
-      if (!normalizedPoints) {
-        throw new Error('OSRM malformed geometry');
-      }
-
-      const exactPolyline = [...normalizedPoints];
-      const exactStart = points[0];
-      const exactEnd = points[points.length - 1];
-
-      if (
-        !pointsEqual(exactPolyline[0], exactStart) &&
-        distanceBetweenPointsMeters(exactPolyline[0], exactStart) <= MAX_ROUTE_CONNECTOR_METERS
-      ) {
-        exactPolyline.unshift(exactStart);
-      }
-      if (
-        !pointsEqual(exactPolyline[exactPolyline.length - 1], exactEnd) &&
-        distanceBetweenPointsMeters(exactPolyline[exactPolyline.length - 1], exactEnd) <= MAX_ROUTE_CONNECTOR_METERS
-      ) {
-        exactPolyline.push(exactEnd);
-      }
-
-      writeCachedRoute(key, exactPolyline);
-      return exactPolyline;
-    } finally {
-      window.clearTimeout(timeoutId);
-      signal?.removeEventListener('abort', abortFromParent);
-    }
-  })();
-
-  ROAD_ROUTE_PENDING.set(key, requestPromise);
-  try {
-    return await requestPromise;
-  } finally {
-    ROAD_ROUTE_PENDING.delete(key);
-  }
-}
-
-async function resolveRoadPolylines(points, signal) {
-  if (points.length < 2) {
+function normalizeRoutePath(path) {
+  if (!Array.isArray(path)) {
     return [];
   }
 
-  const segmentTasks = [];
-  for (let index = 0; index < points.length - 1; index += 1) {
-    const from = points[index];
-    const to = points[index + 1];
-    segmentTasks.push(
-      requestRoadRoute([from, to], signal, ROAD_ROUTE_SEGMENT_TIMEOUT_MS).catch(() => null)
-    );
-  }
-
-  const segments = (await Promise.all(segmentTasks)).filter(
-    (segment) => Array.isArray(segment) && segment.length >= 2
-  );
-  return segments;
+  return path
+    .map((point) => {
+      if (Array.isArray(point) && point.length >= 2) {
+        const [latitude, longitude] = point;
+        if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+          return [latitude, longitude];
+        }
+      }
+      if (!point || typeof point !== 'object') {
+        return null;
+      }
+      const latitude = Number(point.latitude);
+      const longitude = Number(point.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+        return null;
+      }
+      return [latitude, longitude];
+    })
+    .filter(Boolean);
 }
 
-function RoutePlanMap({ plan }) {
+function routeKey(route, routeIndex) {
+  return route?.driverId ?? `route-${routeIndex}`;
+}
+
+function RoutePlanMap({ plan, token }) {
   const containerRef = useRef(null);
+  const [routePaths, setRoutePaths] = useState({});
+  const [geometryLoading, setGeometryLoading] = useState(false);
+
+  useEffect(() => {
+    if (!plan) {
+      setRoutePaths({});
+      setGeometryLoading(false);
+      return undefined;
+    }
+
+    const initialPaths = {};
+    const routesToLoad = [];
+    plan.routes.forEach((route, routeIndex) => {
+      const key = routeKey(route, routeIndex);
+      const inlinePath = normalizeRoutePath(route?.path);
+      if (inlinePath.length >= 2) {
+        initialPaths[key] = inlinePath;
+        return;
+      }
+      if (Array.isArray(route?.points) && route.points.length) {
+        routesToLoad.push({ key, points: route.points });
+      }
+    });
+    setRoutePaths(initialPaths);
+
+    if (!token || !routesToLoad.length) {
+      setGeometryLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setGeometryLoading(true);
+
+    Promise.all(
+      routesToLoad.map(async ({ key, points }) => {
+        try {
+          const path = await previewAutoAssignRouteGeometry(
+            token,
+            [...points].sort((left, right) => left.stopSequence - right.stopSequence)
+          );
+          return [key, normalizeRoutePath(path)];
+        } catch {
+          return [key, []];
+        }
+      })
+    )
+      .then((entries) => {
+        if (cancelled) {
+          return;
+        }
+        setRoutePaths((previous) => {
+          const next = { ...previous };
+          entries.forEach(([key, path]) => {
+            if (path.length >= 2) {
+              next[key] = path;
+            }
+          });
+          return next;
+        });
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setGeometryLoading(false);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [plan, token]);
 
   useEffect(() => {
     if (!plan || !containerRef.current) {
@@ -253,8 +161,6 @@ function RoutePlanMap({ plan }) {
       maxZoom: 19
     }).addTo(map);
 
-    const abortController = new AbortController();
-    const routeDrawTasks = [];
     const layers = [];
     const depotPoint = [plan.depotLatitude, plan.depotLongitude];
     const depotMarker = L.circleMarker(depotPoint, {
@@ -271,31 +177,25 @@ function RoutePlanMap({ plan }) {
     const bounds = [depotPoint];
     plan.routes.forEach((route, routeIndex) => {
       const color = routeColor(routeIndex);
-      const orderedStops = [...route.points].sort((left, right) => left.stopSequence - right.stopSequence);
+      const orderedStops = [...(route?.points || [])].sort((left, right) => left.stopSequence - right.stopSequence);
       if (!orderedStops.length) {
         return;
       }
 
-      const polylinePoints = [depotPoint, ...orderedStops.map((point) => [point.latitude, point.longitude])];
-      const routeTask = resolveRoadPolylines(polylinePoints, abortController.signal)
-        .then((roadPolylineSegments) => {
-          if (abortController.signal.aborted) {
-            return;
-          }
-          roadPolylineSegments.forEach((segment) => {
-            const polyline = L.polyline(segment, {
-              color,
-              weight: 4,
-              opacity: 0.9
-            }).addTo(map);
-            layers.push(polyline);
-          });
-        })
-        .catch(() => undefined);
-      routeDrawTasks.push(routeTask);
+      const routePath = routePaths[routeKey(route, routeIndex)] || normalizeRoutePath(route?.path);
+      if (routePath.length >= 2) {
+        const polyline = L.polyline(routePath, {
+          color,
+          weight: 4,
+          opacity: 0.9
+        }).addTo(map);
+        layers.push(polyline);
+        routePath.forEach((point) => bounds.push(point));
+      }
 
       orderedStops.forEach((point) => {
-        const marker = L.marker([point.latitude, point.longitude], {
+        const markerPoint = [point.latitude, point.longitude];
+        const marker = L.marker(markerPoint, {
           icon: createStopOrderIcon(point.stopSequence, color),
           keyboard: false
         })
@@ -308,7 +208,7 @@ function RoutePlanMap({ plan }) {
           )
           .addTo(map);
         layers.push(marker);
-        bounds.push([point.latitude, point.longitude]);
+        bounds.push(markerPoint);
       });
     });
 
@@ -322,23 +222,15 @@ function RoutePlanMap({ plan }) {
       map.invalidateSize();
     }, 60);
 
-    Promise.allSettled(routeDrawTasks).finally(() => {
-      if (abortController.signal.aborted) {
-        return;
-      }
-      map.invalidateSize();
-    });
-
     return () => {
-      abortController.abort();
       window.clearTimeout(timeoutId);
       layers.forEach((layer) => layer.remove());
       map.remove();
     };
-  }, [plan]);
+  }, [plan, routePaths]);
 
   return (
-    <Box>
+    <Box sx={{ position: 'relative' }}>
       <Box
         ref={containerRef}
         aria-label="Карта автопостроенных маршрутов"
@@ -353,6 +245,35 @@ function RoutePlanMap({ plan }) {
           bgcolor: 'background.default'
         }}
       />
+      {geometryLoading && (
+        <Box
+          sx={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            pointerEvents: 'none'
+          }}
+        >
+          <Box
+            sx={{
+              px: 2,
+              py: 1.25,
+              borderRadius: 2,
+              bgcolor: 'rgba(255,255,255,0.9)',
+              boxShadow: 2
+            }}
+          >
+            <Stack direction="row" spacing={1.25} alignItems="center">
+              <CircularProgress size={18} />
+              <Typography variant="body2" fontWeight={600}>
+                Строим путь по дорогам
+              </Typography>
+            </Stack>
+          </Box>
+        </Box>
+      )}
       <Box
         id="route-plan-map-description"
         sx={{
@@ -373,4 +294,4 @@ function RoutePlanMap({ plan }) {
   );
 }
 
-export default RoutePlanMap;
+export default memo(RoutePlanMap);

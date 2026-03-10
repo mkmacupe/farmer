@@ -2,6 +2,8 @@ package com.farm.sales.controller;
 
 import com.farm.sales.dto.AutoAssignApproveRequest;
 import com.farm.sales.dto.AutoAssignPreviewResponse;
+import com.farm.sales.dto.AutoAssignRouteGeometryRequest;
+import com.farm.sales.dto.AutoAssignRoutePathPointResponse;
 import com.farm.sales.dto.AutoAssignResultResponse;
 import com.farm.sales.dto.DriverAssignRequest;
 import com.farm.sales.dto.OrderCreateRequest;
@@ -125,6 +127,14 @@ public class OrderController {
   @PostMapping("/auto-assign/preview")
   public ResponseEntity<AutoAssignPreviewResponse> autoAssignPreview(@AuthenticationPrincipal Jwt jwt) {
     return ResponseEntity.ok(orderService.previewAutoAssignPlan(jwtClaimsReader.requireUserId(jwt)));
+  }
+
+  @PostMapping("/auto-assign/route-geometry")
+  public ResponseEntity<List<AutoAssignRoutePathPointResponse>> autoAssignRouteGeometry(
+      @AuthenticationPrincipal Jwt jwt,
+      @Valid @RequestBody AutoAssignRouteGeometryRequest request
+  ) {
+    return ResponseEntity.ok(orderService.previewAutoAssignRouteGeometry(jwtClaimsReader.requireUserId(jwt), request));
   }
 
   @PostMapping("/auto-assign/approve")

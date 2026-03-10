@@ -3,6 +3,7 @@ package com.farm.sales.service;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
 import java.io.ByteArrayOutputStream;
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -87,13 +88,19 @@ public class ReportService {
           "Слишком большой отчёт. Сузьте период или фильтр статуса"
       );
     }
+    BigDecimal totalAmount = orders.stream()
+        .map(OrderRepository.ReportRow::getTotalAmount)
+        .filter(value -> value != null)
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
 
     try (SXSSFWorkbook workbook = new SXSSFWorkbook(REPORT_ROW_WINDOW);
          ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
       Sheet sheet = workbook.createSheet("Заказы");
       ReportStyles styles = createStyles(workbook);
+      sheet.setDisplayGridlines(false);
+      sheet.setZoom(120);
       createHeader(sheet, styles);
-      createReportMeta(sheet, styles, from, to, status, orders.size());
+      createReportMeta(sheet, styles, from, to, status, orders.size(), totalAmount);
       setColumnWidths(sheet);
       sheet.createFreezePane(0, DATA_START_ROW_INDEX);
       sheet.setAutoFilter(new CellRangeAddress(HEADER_ROW_INDEX, HEADER_ROW_INDEX, 0, 7));
@@ -145,22 +152,31 @@ public class ReportService {
                                 Instant from,
                                 Instant to,
                                 OrderStatus status,
-                                int rowsCount) {
+                                int rowsCount,
+                                BigDecimal totalAmount) {
     Row metaRow = sheet.createRow(FILTER_ROW_INDEX);
     metaRow.setHeightInPoints(34);
     Cell metaCell = metaRow.createCell(0);
-    metaCell.setCellValue(buildFilterSummary(from, to, status, rowsCount));
+    metaCell.setCellValue(buildFilterSummary(from, to, status, rowsCount, totalAmount));
     metaCell.setCellStyle(styles.meta());
     sheet.addMergedRegion(new CellRangeAddress(FILTER_ROW_INDEX, FILTER_ROW_INDEX, 0, 7));
   }
 
-  private String buildFilterSummary(Instant from, Instant to, OrderStatus status, int rowsCount) {
+  private String buildFilterSummary(Instant from,
+                                    Instant to,
+                                    OrderStatus status,
+                                    int rowsCount,
+                                    BigDecimal totalAmount) {
     String fromLabel = from == null ? "с начала" : FILTER_DATE_FORMATTER.format(from);
     String toLabel = to == null ? "сейчас" : FILTER_DATE_FORMATTER.format(to);
-    String statusLabel = status == null ? "все статусы" : status.name();
+    String statusLabel = status == null ? "все статусы" : localizeStatus(status);
+    String totalAmountLabel = formatCurrencyValue(totalAmount);
+    String generatedAtLabel = REPORT_DATE_FORMATTER.format(Instant.now());
     return "Период: " + fromLabel + " - " + toLabel
         + " | Статус: " + statusLabel
-        + " | Строк: " + rowsCount;
+        + " | Строк: " + rowsCount
+        + " | Сумма: " + totalAmountLabel
+        + " | Сформирован: " + generatedAtLabel + " UTC";
   }
 
   private void createOrderRow(Row row, int rowIndex, OrderRepository.ReportRow order, ReportStyles styles) {
@@ -181,7 +197,7 @@ public class ReportService {
     storeCell.setCellStyle(bodyStyle);
 
     Cell statusCell = row.createCell(2);
-    statusCell.setCellValue(order.getStatus() == null ? "-" : order.getStatus().name());
+    statusCell.setCellValue(order.getStatus() == null ? "-" : localizeStatus(order.getStatus()));
     statusCell.setCellStyle(bodyStyle);
 
     Cell createdCell = row.createCell(3);
@@ -210,12 +226,13 @@ public class ReportService {
 
     Font titleFont = workbook.createFont();
     titleFont.setBold(true);
-    titleFont.setFontHeightInPoints((short) 15);
-    titleFont.setColor(IndexedColors.DARK_GREEN.getIndex());
+    titleFont.setFontHeightInPoints((short) 18);
+    titleFont.setColor(IndexedColors.WHITE.getIndex());
 
     Font metaFont = workbook.createFont();
     metaFont.setFontHeightInPoints((short) 10);
-    metaFont.setColor(IndexedColors.GREY_80_PERCENT.getIndex());
+    metaFont.setBold(true);
+    metaFont.setColor(IndexedColors.DARK_GREEN.getIndex());
 
     Font headerFont = workbook.createFont();
     headerFont.setBold(true);
@@ -225,19 +242,21 @@ public class ReportService {
     titleStyle.setFont(titleFont);
     titleStyle.setAlignment(HorizontalAlignment.LEFT);
     titleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+    titleStyle.setFillForegroundColor(IndexedColors.DARK_GREEN.getIndex());
+    titleStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
     CellStyle metaStyle = workbook.createCellStyle();
     metaStyle.setFont(metaFont);
     metaStyle.setWrapText(true);
     metaStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-    metaStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+    metaStyle.setFillForegroundColor(IndexedColors.LIGHT_GREEN.getIndex());
     metaStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
     CellStyle headerStyle = workbook.createCellStyle();
     headerStyle.setFont(headerFont);
     headerStyle.setAlignment(HorizontalAlignment.CENTER);
     headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
-    headerStyle.setFillForegroundColor(IndexedColors.SEA_GREEN.getIndex());
+    headerStyle.setFillForegroundColor(IndexedColors.GREEN.getIndex());
     headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
     applyBorders(headerStyle);
 
@@ -248,7 +267,7 @@ public class ReportService {
 
     CellStyle bodyAltStyle = workbook.createCellStyle();
     bodyAltStyle.cloneStyleFrom(bodyStyle);
-    bodyAltStyle.setFillForegroundColor(IndexedColors.LEMON_CHIFFON.getIndex());
+    bodyAltStyle.setFillForegroundColor(IndexedColors.LIGHT_TURQUOISE.getIndex());
     bodyAltStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
 
     CellStyle dateStyle = workbook.createCellStyle();
@@ -303,13 +322,32 @@ public class ReportService {
 
   private void setColumnWidths(Sheet sheet) {
     sheet.setColumnWidth(0, 12 * 256);
-    sheet.setColumnWidth(1, 30 * 256);
-    sheet.setColumnWidth(2, 16 * 256);
+    sheet.setColumnWidth(1, 32 * 256);
+    sheet.setColumnWidth(2, 18 * 256);
     sheet.setColumnWidth(3, 20 * 256);
     sheet.setColumnWidth(4, 16 * 256);
-    sheet.setColumnWidth(5, 20 * 256);
-    sheet.setColumnWidth(6, 52 * 256);
+    sheet.setColumnWidth(5, 18 * 256);
+    sheet.setColumnWidth(6, 56 * 256);
     sheet.setColumnWidth(7, 24 * 256);
+  }
+
+  private String localizeStatus(OrderStatus status) {
+    if (status == null) {
+      return "-";
+    }
+    return switch (status) {
+      case CREATED -> "Создан";
+      case APPROVED -> "Одобрен";
+      case ASSIGNED -> "Назначен";
+      case DELIVERED -> "Доставлен";
+    };
+  }
+
+  private String formatCurrencyValue(BigDecimal amount) {
+    BigDecimal normalizedAmount = amount == null ? BigDecimal.ZERO : amount;
+    return normalizedAmount.stripTrailingZeros().scale() > 0
+        ? normalizedAmount.toPlainString() + " BYN"
+        : normalizedAmount.setScale(2).toPlainString() + " BYN";
   }
 
   private OrderStatus parseStatus(String statusValue) {

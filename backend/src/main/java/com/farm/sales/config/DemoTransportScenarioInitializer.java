@@ -62,8 +62,8 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private final StoreAddressRepository storeAddressRepository;
   private final OrderRepository orderRepository;
   private final Object seedLock = new Object();
-  @Value("${app.demo.seed-on-startup:true}")
-  private boolean seedOnStartup = true;
+  @Value("${app.demo.transport-seed-on-startup:false}")
+  private boolean seedOnStartup;
   private volatile boolean scenarioSeeded;
 
   public DemoTransportScenarioInitializer(UserRepository userRepository,

@@ -6,7 +6,9 @@ import com.farm.sales.dto.AutoAssignApproveRequest;
 import com.farm.sales.dto.AutoAssignDriverRouteResponse;
 import com.farm.sales.dto.AutoAssignItemResponse;
 import com.farm.sales.dto.AutoAssignPreviewResponse;
+import com.farm.sales.dto.AutoAssignRouteGeometryRequest;
 import com.farm.sales.dto.AutoAssignResultResponse;
+import com.farm.sales.dto.AutoAssignRoutePathPointResponse;
 import com.farm.sales.dto.AutoAssignRoutePointResponse;
 import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderItemRequest;
@@ -418,7 +420,7 @@ public class OrderService {
           0,
           0.0,
           routingDrivers.stream()
-              .map(driver -> new AutoAssignDriverRouteResponse(driver.getId(), driver.getFullName(), 0, 0.0, 0.0, 0.0, List.of()))
+              .map(driver -> new AutoAssignDriverRouteResponse(driver.getId(), driver.getFullName(), 0, 0.0, 0.0, 0.0, List.of(), List.of()))
               .toList()
       );
     }
@@ -432,7 +434,7 @@ public class OrderService {
     );
     TransportPlan plan = solveClusteredPlan(planDrivers, approvedOrders, MOGILEV_SHARED_DEPOT);
 
-    List<AutoAssignDriverRouteResponse> routes = new ArrayList<>();
+    List<PreviewRouteDraft> routeDrafts = new ArrayList<>();
     Map<Integer, DriverRoutePlan> routeByDriverIndex = plan.routes().stream()
         .collect(Collectors.toMap(DriverRoutePlan::driverIndex, Function.identity()));
     for (int driverIndex = 0; driverIndex < planDrivers.size(); driverIndex++) {
@@ -457,18 +459,17 @@ public class OrderService {
                 );
               })
               .toList();
-      routes.add(new AutoAssignDriverRouteResponse(
-          driverNode.driver().getId(),
-          driverNode.driver().getFullName(),
-          points.size(),
-          roundDistance(route == null ? 0.0 : route.distanceKm()),
-          roundDistance(route == null ? 0.0 : route.totalWeightKg()),
-          roundDistance(route == null ? 0.0 : route.totalVolumeM3()),
-          points
-      ));
+      routeDrafts.add(new PreviewRouteDraft(driverIndex, driverNode, route, points));
     }
+    List<AutoAssignDriverRouteResponse> routes = routeDrafts.parallelStream()
+        .map(routeDraft -> Map.entry(routeDraft.driverIndex(), toPreviewRouteResponse(routeDraft)))
+        .sorted(Map.Entry.comparingByKey())
+        .map(Map.Entry::getValue)
+        .toList();
 
-    int plannedOrders = plan.assignments().size();
+    int plannedOrders = routes.stream()
+        .mapToInt(route -> route.points().size())
+        .sum();
     int totalApproved = approvedOrders.size();
     return new AutoAssignPreviewResponse(
         MOGILEV_SHARED_DEPOT_LABEL,
@@ -480,6 +481,17 @@ public class OrderService {
         roundDistance(plan.totalDistanceKm()),
         routes
     );
+  }
+
+  public List<AutoAssignRoutePathPointResponse> previewAutoAssignRouteGeometry(
+      Long logisticianId,
+      AutoAssignRouteGeometryRequest request
+  ) {
+    requireUserRole(logisticianId, Role.LOGISTICIAN, "Логист не найден");
+    if (request == null || request.points() == null || request.points().isEmpty()) {
+      return List.of();
+    }
+    return buildPreviewRoutePathFromCoordinates(request.points());
   }
 
   @Transactional
@@ -843,6 +855,56 @@ public class OrderService {
     return coordinate;
   }
 
+  private List<AutoAssignRoutePathPointResponse> buildPreviewRoutePath(List<AutoAssignRoutePointResponse> points) {
+    if (points == null || points.isEmpty()) {
+      return List.of();
+    }
+
+    return buildPreviewRoutePathFromCoordinates(
+        points.stream()
+            .sorted(Comparator.comparingInt(AutoAssignRoutePointResponse::stopSequence))
+            .map(point -> new AutoAssignRoutePathPointResponse(point.latitude(), point.longitude()))
+            .toList()
+    );
+  }
+
+  private List<AutoAssignRoutePathPointResponse> buildPreviewRoutePathFromCoordinates(
+      List<AutoAssignRoutePathPointResponse> points
+  ) {
+    if (points == null || points.isEmpty()) {
+      return List.of();
+    }
+
+    List<RoadRoutingService.RouteCoordinate> waypoints = new ArrayList<>(points.size() + 1);
+    waypoints.add(new RoadRoutingService.RouteCoordinate(MOGILEV_SHARED_DEPOT.latitude(), MOGILEV_SHARED_DEPOT.longitude()));
+    points.forEach(point -> waypoints.add(new RoadRoutingService.RouteCoordinate(point.latitude(), point.longitude())));
+
+    try {
+      return roadRoutingService.drivingRouteGeometry(waypoints).stream()
+          .map(point -> new AutoAssignRoutePathPointResponse(point.latitude(), point.longitude()))
+          .toList();
+    } catch (RuntimeException exception) {
+      log.warn("Road route geometry unavailable for preview, keeping stop markers only: {}", exception.getMessage());
+      return List.of();
+    }
+  }
+
+  private AutoAssignDriverRouteResponse toPreviewRouteResponse(PreviewRouteDraft routeDraft) {
+    DriverPlanNode driverNode = routeDraft.driverNode();
+    DriverRoutePlan route = routeDraft.route();
+    List<AutoAssignRoutePointResponse> points = routeDraft.points();
+    return new AutoAssignDriverRouteResponse(
+        driverNode.driver().getId(),
+        driverNode.driver().getFullName(),
+        points.size(),
+        roundDistance(route == null ? 0.0 : route.distanceKm()),
+        roundDistance(route == null ? 0.0 : route.totalWeightKg()),
+        roundDistance(route == null ? 0.0 : route.totalVolumeM3()),
+        points,
+        List.of()
+    );
+  }
+
   private TransportPlan solveClusteredPlan(List<DriverPlanNode> drivers,
                                            List<Order> orders,
                                            Coordinate fallbackCoordinate) {
@@ -885,14 +947,13 @@ public class OrderService {
     for (int driverIdx = 0; driverIdx < drivers.size(); driverIdx++) {
       double currentWeight = 0.0;
       double currentVolume = 0.0;
-      int currentAssignedOrders = 0;
+      int currentAssignedStops = 0;
       int driverCapacity = Math.max(0, drivers.get(driverIdx).capacity());
       
       java.util.Iterator<DeliveryPoint> it = remainingPoints.iterator();
       while (it.hasNext()) {
         DeliveryPoint point = it.next();
-        int pointOrders = point.orderIndexes().size();
-        if ((driverCapacity == 0 || currentAssignedOrders + pointOrders > driverCapacity)
+        if ((driverCapacity == 0 || currentAssignedStops + 1 > driverCapacity)
             || currentWeight + point.totalWeightKg() > VEHICLE_MAX_WEIGHT_KG
             || currentVolume + point.totalVolumeM3() > VEHICLE_MAX_VOLUME_M3) {
           continue;
@@ -905,7 +966,7 @@ public class OrderService {
           assignments.add(new TransportAssignment(pointIdxInOriginalList, driverIdx));
           currentWeight += point.totalWeightKg();
           currentVolume += point.totalVolumeM3();
-          currentAssignedOrders += pointOrders;
+          currentAssignedStops += 1;
           it.remove();
         }
       }
@@ -1033,31 +1094,15 @@ public class OrderService {
     if (destinations.isEmpty()) {
       return List.of();
     }
-    try {
-      return roadRoutingService.drivingDistancesKm(
-          new RoadRoutingService.RouteCoordinate(source.latitude(), source.longitude()),
-          destinations.stream()
-              .map(destination -> new RoadRoutingService.RouteCoordinate(destination.latitude(), destination.longitude()))
-              .toList()
-      );
-    } catch (RuntimeException exception) {
-      log.warn("Road distance matrix unavailable, falling back to haversine: {}", exception.getMessage());
-      return destinations.stream()
-          .map(destination -> haversineKm(source, destination))
-          .toList();
-    }
+    // Haversine is enough for plan construction and keeps preview responsive.
+    // Road geometry is still requested separately for the map preview.
+    return destinations.stream()
+        .map(destination -> haversineKm(source, destination))
+        .toList();
   }
 
   private double distanceKm(Coordinate from, Coordinate to) {
-    try {
-      return roadRoutingService.drivingDistanceKm(
-          new RoadRoutingService.RouteCoordinate(from.latitude(), from.longitude()),
-          new RoadRoutingService.RouteCoordinate(to.latitude(), to.longitude())
-      );
-    } catch (RuntimeException exception) {
-      log.warn("Road routing unavailable for leg calculation, falling back to haversine: {}", exception.getMessage());
-      return haversineKm(from, to);
-    }
+    return haversineKm(from, to);
   }
 
   private double haversineKm(Coordinate from, Coordinate to) {
@@ -1218,6 +1263,12 @@ public class OrderService {
   }
 
   private record DriverRoutePlan(int driverIndex, List<RouteStop> stops, double distanceKm, double totalWeightKg, double totalVolumeM3) {
+  }
+
+  private record PreviewRouteDraft(int driverIndex,
+                                   DriverPlanNode driverNode,
+                                   DriverRoutePlan route,
+                                   List<AutoAssignRoutePointResponse> points) {
   }
 
   private record TransportPlan(List<TransportAssignment> assignments,

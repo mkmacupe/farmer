@@ -154,7 +154,122 @@ public class DataInitializer implements CommandLineRunner {
       Map.entry("wholewheat-flour", new CatalogDescriptor("Мука цельнозерновая 1 кг", "Хлеб и выпечка")),
       Map.entry("yogurt-fruit", new CatalogDescriptor("Йогурт фруктовый 500 мл", "Молочная продукция")),
       Map.entry("young-beet", new CatalogDescriptor("Свёкла молодая 700 г", "Овощи и зелень")),
-      Map.entry("zucchini", new CatalogDescriptor("Кабачки 1 кг", "Овощи и зелень"))
+      Map.entry("zucchini", new CatalogDescriptor("Кабачки 1 кг", "Овощи и зелень")),
+      Map.entry("1-10-30qe2l", new CatalogDescriptor("Яйца куриные отборные 10 шт", "Птица и яйца")),
+      Map.entry("1-13bsrlt", new CatalogDescriptor("Томаты красные 1 кг", "Овощи")),
+      Map.entry("1-15anhlx", new CatalogDescriptor("Лук белый 1 кг", "Овощи")),
+      Map.entry("1-16w6dop", new CatalogDescriptor("Курица домашняя 1 кг", "Мясо и птица")),
+      Map.entry("1-1ism8yi", new CatalogDescriptor("Говядина фермерская 1 кг", "Мясо и птица")),
+      Map.entry("1-dfapvz", new CatalogDescriptor("Морковь свежая 1 кг", "Овощи")),
+      Map.entry("1-j0s2dk", new CatalogDescriptor("Свинина фермерская 1 кг", "Мясо и птица")),
+      Map.entry("1-n7ve3", new CatalogDescriptor("Молоко пастеризованное 1 л", "Молочная продукция")),
+      Map.entry("1-wlcdb1", new CatalogDescriptor("Кефир 2.5% 1 л", "Молочная продукция")),
+      Map.entry("2-ew7mzr", new CatalogDescriptor("Картофель отборный 2 кг", "Овощи")),
+      Map.entry("20-400-jzg17w", new CatalogDescriptor("Сметана деревенская 20% 400 г", "Молочная продукция")),
+      Map.entry("500-1386zma", new CatalogDescriptor("Сыр фермерский 500 г", "Молочная продукция")),
+      Map.entry("500-16nazls", new CatalogDescriptor("Творог зернёный 500 г", "Молочная продукция")),
+      Map.entry("500-bs4v1c", new CatalogDescriptor("Йогурт классический 500 мл", "Молочная продукция")),
+      Map.entry("82-5-200-1jt74k3", new CatalogDescriptor("Масло крестьянское 82.5% 200 г", "Молочная продукция")),
+      Map.entry("mogilev-product-101", new CatalogDescriptor("Молоко пастеризованное 3.2% 1 л", "Молочная продукция")),
+      Map.entry("mogilev-product-102", new CatalogDescriptor("Молоко обезжиренное 1 л", "Молочная продукция")),
+      Map.entry("mogilev-product-103", new CatalogDescriptor("Кефир 3.2% 1 л", "Молочная продукция")),
+      Map.entry("mogilev-product-104", new CatalogDescriptor("Кефир термостатный 500 мл", "Молочная продукция")),
+      Map.entry("mogilev-product-105", new CatalogDescriptor("Йогурт питьевой черника 330 мл", "Молочная продукция")),
+      Map.entry("mogilev-product-106", new CatalogDescriptor("Йогурт питьевой малина 330 мл", "Молочная продукция")),
+      Map.entry("mogilev-product-107", new CatalogDescriptor("Творог 9% 300 г", "Молочная продукция")),
+      Map.entry("mogilev-product-108", new CatalogDescriptor("Творог 5% 300 г", "Молочная продукция")),
+      Map.entry("mogilev-product-109", new CatalogDescriptor("Сметана 15% 400 г", "Молочная продукция")),
+      Map.entry("mogilev-product-110", new CatalogDescriptor("Сливки 33% 300 мл", "Молочная продукция")),
+      Map.entry("mogilev-product-111", new CatalogDescriptor("Масло сливочное 72.5% 200 г", "Молочная продукция")),
+      Map.entry("mogilev-product-112", new CatalogDescriptor("Сыр фермерский молодой 400 г", "Молочная продукция")),
+      Map.entry("mogilev-product-113", new CatalogDescriptor("Сыр козий мягкий 200 г", "Молочная продукция")),
+      Map.entry("mogilev-product-114", new CatalogDescriptor("Брынза коровья 350 г", "Молочная продукция")),
+      Map.entry("mogilev-product-115", new CatalogDescriptor("Рикотта фермерская 250 г", "Молочная продукция")),
+      Map.entry("mogilev-product-116", new CatalogDescriptor("Простокваша 500 мл", "Молочная продукция")),
+      Map.entry("mogilev-product-117", new CatalogDescriptor("Пахта 500 мл", "Молочная продукция")),
+      Map.entry("mogilev-product-118", new CatalogDescriptor("Сыворотка молочная 1 л", "Молочная продукция")),
+      Map.entry("mogilev-product-119", new CatalogDescriptor("Топлёное молоко 500 мл", "Молочная продукция")),
+      Map.entry("mogilev-product-120", new CatalogDescriptor("Десерт творожный ваниль 180 г", "Молочная продукция")),
+      Map.entry("mogilev-product-121", new CatalogDescriptor("Куриные крылья 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-122", new CatalogDescriptor("Куриная голень 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-123", new CatalogDescriptor("Куриные сердечки 500 г", "Мясо и птица")),
+      Map.entry("mogilev-product-124", new CatalogDescriptor("Куриная печень 500 г", "Мясо и птица")),
+      Map.entry("mogilev-product-125", new CatalogDescriptor("Фарш куриный 700 г", "Мясо и птица")),
+      Map.entry("mogilev-product-126", new CatalogDescriptor("Индейка бедро 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-127", new CatalogDescriptor("Индейка голень 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-128", new CatalogDescriptor("Фарш индейки 700 г", "Мясо и птица")),
+      Map.entry("mogilev-product-129", new CatalogDescriptor("Свиной карбонад 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-130", new CatalogDescriptor("Свиная шея 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-131", new CatalogDescriptor("Свиная лопатка 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-132", new CatalogDescriptor("Свиная грудинка 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-133", new CatalogDescriptor("Говядина тазобедренная часть 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-134", new CatalogDescriptor("Говядина ребро 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-135", new CatalogDescriptor("Говяжий фарш 700 г", "Мясо и птица")),
+      Map.entry("mogilev-product-136", new CatalogDescriptor("Телятина вырезка 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-137", new CatalogDescriptor("Баранина лопатка 1 кг", "Мясо и птица")),
+      Map.entry("mogilev-product-138", new CatalogDescriptor("Колбаски домашние свиные 600 г", "Полуфабрикаты")),
+      Map.entry("mogilev-product-139", new CatalogDescriptor("Купаты куриные 600 г", "Полуфабрикаты")),
+      Map.entry("mogilev-product-140", new CatalogDescriptor("Пельмени фермерские 800 г", "Полуфабрикаты")),
+      Map.entry("mogilev-product-141", new CatalogDescriptor("Яйца куриные С2 10 шт", "Птица и яйца")),
+      Map.entry("mogilev-product-142", new CatalogDescriptor("Яйца куриные отборные 15 шт", "Птица и яйца")),
+      Map.entry("mogilev-product-143", new CatalogDescriptor("Яйца домашние 20 шт", "Птица и яйца")),
+      Map.entry("mogilev-product-144", new CatalogDescriptor("Хлеб зерновой 600 г", "Хлеб и выпечка")),
+      Map.entry("mogilev-product-145", new CatalogDescriptor("Булка с отрубями 350 г", "Хлеб и выпечка")),
+      Map.entry("mogilev-product-146", new CatalogDescriptor("Багет цельнозерновой 300 г", "Хлеб и выпечка")),
+      Map.entry("mogilev-product-147", new CatalogDescriptor("Лепёшка ржаная 250 г", "Хлеб и выпечка")),
+      Map.entry("mogilev-product-148", new CatalogDescriptor("Сухари пшеничные 200 г", "Хлеб и выпечка")),
+      Map.entry("mogilev-product-149", new CatalogDescriptor("Мука ржаная 1 кг", "Крупы")),
+      Map.entry("mogilev-product-150", new CatalogDescriptor("Мука пшеничная высший сорт 1 кг", "Крупы")),
+      Map.entry("mogilev-product-151", new CatalogDescriptor("Мука овсяная 800 г", "Крупы")),
+      Map.entry("mogilev-product-152", new CatalogDescriptor("Крупа перловая 1 кг", "Крупы")),
+      Map.entry("mogilev-product-153", new CatalogDescriptor("Крупа ячневая 1 кг", "Крупы")),
+      Map.entry("mogilev-product-154", new CatalogDescriptor("Овсяные хлопья 800 г", "Крупы")),
+      Map.entry("mogilev-product-155", new CatalogDescriptor("Манная крупа 800 г", "Крупы")),
+      Map.entry("mogilev-product-156", new CatalogDescriptor("Горох колотый 800 г", "Бобовые")),
+      Map.entry("mogilev-product-157", new CatalogDescriptor("Нут сушёный 800 г", "Бобовые")),
+      Map.entry("mogilev-product-158", new CatalogDescriptor("Фасоль белая 800 г", "Бобовые")),
+      Map.entry("mogilev-product-159", new CatalogDescriptor("Семена льна 300 г", "Крупы")),
+      Map.entry("mogilev-product-160", new CatalogDescriptor("Семечки подсолнечника очищенные 400 г", "Крупы")),
+      Map.entry("mogilev-product-161", new CatalogDescriptor("Картофель красный 2 кг", "Овощи")),
+      Map.entry("mogilev-product-162", new CatalogDescriptor("Картофель белый 2 кг", "Овощи")),
+      Map.entry("mogilev-product-163", new CatalogDescriptor("Морковь молодая 1 кг", "Овощи")),
+      Map.entry("mogilev-product-164", new CatalogDescriptor("Лук шалот 500 г", "Овощи")),
+      Map.entry("mogilev-product-165", new CatalogDescriptor("Лук зелёный 150 г", "Зелень")),
+      Map.entry("mogilev-product-166", new CatalogDescriptor("Капуста краснокочанная 1 кг", "Овощи")),
+      Map.entry("mogilev-product-167", new CatalogDescriptor("Капуста савойская 1 кг", "Овощи")),
+      Map.entry("mogilev-product-168", new CatalogDescriptor("Огурцы корнишоны 500 г", "Овощи")),
+      Map.entry("mogilev-product-169", new CatalogDescriptor("Огурцы тепличные 1 кг", "Овощи")),
+      Map.entry("mogilev-product-170", new CatalogDescriptor("Томаты сливовидные 1 кг", "Овощи")),
+      Map.entry("mogilev-product-171", new CatalogDescriptor("Томаты жёлтые 1 кг", "Овощи")),
+      Map.entry("mogilev-product-172", new CatalogDescriptor("Перец острый 200 г", "Овощи")),
+      Map.entry("mogilev-product-173", new CatalogDescriptor("Перец сладкий красный 1 кг", "Овощи")),
+      Map.entry("mogilev-product-174", new CatalogDescriptor("Кабачки цуккини 1 кг", "Овощи")),
+      Map.entry("mogilev-product-175", new CatalogDescriptor("Патиссоны 1 кг", "Овощи")),
+      Map.entry("mogilev-product-176", new CatalogDescriptor("Свекла запечная 1 кг", "Овощи")),
+      Map.entry("mogilev-product-177", new CatalogDescriptor("Сельдерей корневой 1 кг", "Овощи")),
+      Map.entry("mogilev-product-178", new CatalogDescriptor("Сельдерей стеблевой 300 г", "Овощи")),
+      Map.entry("mogilev-product-179", new CatalogDescriptor("Пастернак 700 г", "Овощи")),
+      Map.entry("mogilev-product-180", new CatalogDescriptor("Редька чёрная 1 кг", "Овощи")),
+      Map.entry("mogilev-product-181", new CatalogDescriptor("Репа столовая 1 кг", "Овощи")),
+      Map.entry("mogilev-product-182", new CatalogDescriptor("Тыква столовая 2 кг", "Овощи")),
+      Map.entry("mogilev-product-183", new CatalogDescriptor("Яблоки сладкие 1 кг", "Фрукты")),
+      Map.entry("mogilev-product-184", new CatalogDescriptor("Яблоки кисло-сладкие 1 кг", "Фрукты")),
+      Map.entry("mogilev-product-185", new CatalogDescriptor("Груши поздние 1 кг", "Фрукты")),
+      Map.entry("mogilev-product-186", new CatalogDescriptor("Слива жёлтая 1 кг", "Фрукты")),
+      Map.entry("mogilev-product-187", new CatalogDescriptor("Виноград тепличный 500 г", "Фрукты")),
+      Map.entry("mogilev-product-188", new CatalogDescriptor("Крыжовник 300 г", "Ягоды")),
+      Map.entry("mogilev-product-189", new CatalogDescriptor("Смесь салатная 150 г", "Зелень")),
+      Map.entry("mogilev-product-190", new CatalogDescriptor("Базилик свежий 100 г", "Зелень")),
+      Map.entry("mogilev-product-191", new CatalogDescriptor("Мёд разнотравье 1 кг", "Пчеловодство")),
+      Map.entry("mogilev-product-192", new CatalogDescriptor("Мёд гречишный 1 кг", "Пчеловодство")),
+      Map.entry("mogilev-product-193", new CatalogDescriptor("Варенье клубничное 300 г", "Консервация")),
+      Map.entry("mogilev-product-194", new CatalogDescriptor("Варенье малиновое 300 г", "Консервация")),
+      Map.entry("mogilev-product-195", new CatalogDescriptor("Джем яблочный 300 г", "Консервация")),
+      Map.entry("mogilev-product-196", new CatalogDescriptor("Компот яблочно-грушевый 1 л", "Напитки")),
+      Map.entry("mogilev-product-197", new CatalogDescriptor("Морс клюквенный 1 л", "Напитки")),
+      Map.entry("mogilev-product-198", new CatalogDescriptor("Масло льняное 500 мл", "Масла")),
+      Map.entry("mogilev-product-199", new CatalogDescriptor("Масло рапсовое 750 мл", "Масла")),
+      Map.entry("mogilev-product-200", new CatalogDescriptor("Квашеная капуста 900 г", "Консервация"))
   );
   private static final String[] FALLBACK_DAIRY_BASES = {
       "Молоко деревенское",
@@ -329,15 +444,14 @@ public class DataInitializer implements CommandLineRunner {
     String photoUrl = PRODUCT_IMAGE_BASE + img;
     Product existingByName = productRepository.findByNameIgnoreCase(name).orElse(null);
     Product existingByPhoto = productRepository.findByPhotoUrlIgnoreCase(photoUrl).orElse(null);
-    Product existing = existingByName != null ? existingByName : existingByPhoto;
+    Product existing = existingByPhoto != null
+        ? existingByPhoto
+        : shouldReuseSeedProductByName(existingByName, photoUrl)
+            ? existingByName
+            : null;
     double weight = parseWeight(name);
     double volume = parseVolume(name);
-    boolean photoTakenByAnotherProduct =
-        existingByPhoto != null
-            && existing != null
-            && existingByPhoto.getId() != null
-            && !existingByPhoto.getId().equals(existing.getId());
-    String normalizedPhotoUrl = photoTakenByAnotherProduct ? null : photoUrl;
+    String normalizedPhotoUrl = photoUrl;
 
     if (existing == null) {
       Product p = new Product(name, cat, name, normalizedPhotoUrl, new BigDecimal(price), stock, weight, volume);
@@ -356,6 +470,11 @@ public class DataInitializer implements CommandLineRunner {
         existing.setDescription(name);
         changed = true;
       }
+      BigDecimal normalizedPrice = new BigDecimal(price);
+      if (existing.getPrice() == null || existing.getPrice().compareTo(normalizedPrice) != 0) {
+        existing.setPrice(normalizedPrice);
+        changed = true;
+      }
       if (normalizedPhotoUrl != null && !normalizedPhotoUrl.equals(existing.getPhotoUrl())) {
         existing.setPhotoUrl(normalizedPhotoUrl);
         changed = true;
@@ -370,6 +489,17 @@ public class DataInitializer implements CommandLineRunner {
       }
       if (changed) productRepository.save(existing);
     }
+  }
+
+  private boolean shouldReuseSeedProductByName(Product existingByName, String photoUrl) {
+    if (existingByName == null) {
+      return false;
+    }
+    String existingPhotoUrl = existingByName.getPhotoUrl();
+    if (existingPhotoUrl == null || existingPhotoUrl.isBlank()) {
+      return true;
+    }
+    return existingPhotoUrl.equalsIgnoreCase(photoUrl);
   }
 
   private void seedCatalogProducts() {
@@ -400,7 +530,7 @@ public class DataInitializer implements CommandLineRunner {
       seedProduct(
           descriptor.name(),
           descriptor.category(),
-          resolveCatalogPrice(imageName),
+          resolveCatalogPrice(imageName, descriptor),
           resolveCatalogStock(imageName),
           imageName
       );
@@ -457,6 +587,14 @@ public class DataInitializer implements CommandLineRunner {
       }
       if (!descriptor.name().equals(product.getDescription())) {
         product.setDescription(descriptor.name());
+        changed = true;
+      }
+      BigDecimal normalizedPrice = new BigDecimal(resolveCatalogPrice(
+          imageName != null ? imageName : "fallback-" + fallbackIndex,
+          descriptor
+      ));
+      if (product.getPrice() == null || product.getPrice().compareTo(normalizedPrice) != 0) {
+        product.setPrice(normalizedPrice);
         changed = true;
       }
       double weight = parseWeight(descriptor.name());
@@ -671,11 +809,86 @@ public class DataInitializer implements CommandLineRunner {
     return false;
   }
 
-  private String resolveCatalogPrice(String imageName) {
-    int hash = Math.floorMod(imageName.hashCode(), 1600);
-    BigDecimal price = BigDecimal.valueOf(2.50 + (hash / 100.0))
-        .setScale(2, RoundingMode.HALF_UP);
+  private String resolveCatalogPrice(String imageName, CatalogDescriptor descriptor) {
+    String normalizedName = descriptor == null ? "" : descriptor.name().toLowerCase(Locale.ROOT);
+    String normalizedCategory = descriptor == null ? "" : descriptor.category().toLowerCase(Locale.ROOT);
+    String priceSeed = String.valueOf(imageName) + "|" + normalizedName + "|" + normalizedCategory;
+
+    BigDecimal price = switch (normalizedCategory) {
+      case "молочная продукция" -> {
+        if (containsAny(normalizedName, "масло")) {
+          yield rangedPrice(priceSeed, 6.20, 7.40, 0.20);
+        }
+        if (containsAny(normalizedName, "сыр", "брынза", "рикотта")) {
+          yield rangedPrice(priceSeed, 7.50, 13.90, 0.40);
+        }
+        if (containsAny(normalizedName, "творог", "десерт")) {
+          yield rangedPrice(priceSeed, 4.20, 6.20, 0.20);
+        }
+        if (containsAny(normalizedName, "сметан")) {
+          yield rangedPrice(priceSeed, 4.10, 5.10, 0.20);
+        }
+        if (containsAny(normalizedName, "сливк")) {
+          yield rangedPrice(priceSeed, 4.80, 6.00, 0.20);
+        }
+        if (containsAny(normalizedName, "йогурт")) {
+          yield rangedPrice(priceSeed, 3.60, 5.60, 0.20);
+        }
+        yield rangedPrice(priceSeed, 3.20, 4.90, 0.10);
+      }
+      case "мясо и птица" -> {
+        if (containsAny(normalizedName, "кури")) {
+          yield rangedPrice(priceSeed, 8.10, 10.40, 0.30);
+        }
+        if (containsAny(normalizedName, "индей")) {
+          yield rangedPrice(priceSeed, 12.50, 14.50, 0.20);
+        }
+        if (containsAny(normalizedName, "говяж", "говядин", "телят")) {
+          yield rangedPrice(priceSeed, 9.40, 17.90, 0.50);
+        }
+        if (containsAny(normalizedName, "свин", "карбонад", "шея", "лопатка", "грудин")) {
+          yield rangedPrice(priceSeed, 11.00, 13.90, 0.30);
+        }
+        if (containsAny(normalizedName, "утк", "кролик", "баран")) {
+          yield rangedPrice(priceSeed, 13.00, 16.20, 0.40);
+        }
+        if (containsAny(normalizedName, "сердеч", "печен")) {
+          yield rangedPrice(priceSeed, 7.40, 9.80, 0.20);
+        }
+        if (containsAny(normalizedName, "фарш")) {
+          yield rangedPrice(priceSeed, 10.80, 13.40, 0.20);
+        }
+        yield rangedPrice(priceSeed, 9.50, 14.00, 0.30);
+      }
+      case "полуфабрикаты" -> rangedPrice(priceSeed, 7.80, 10.20, 0.20);
+      case "птица и яйца" -> rangedPrice(priceSeed, 3.70, 6.20, 0.10);
+      case "овощи", "овощи и зелень" -> {
+        if (containsAny(normalizedName, "укроп", "петруш", "базилик", "салат", "шпинат", "лук зел")) {
+          yield rangedPrice(priceSeed, 0.90, 2.60, 0.10);
+        }
+        if (containsAny(normalizedName, "картоф", "лук", "капуст", "свекл", "репа", "редьк", "пастернак")) {
+          yield rangedPrice(priceSeed, 1.80, 3.60, 0.10);
+        }
+        yield rangedPrice(priceSeed, 2.20, 5.80, 0.20);
+      }
+      case "зелень" -> rangedPrice(priceSeed, 0.90, 2.60, 0.10);
+      case "фрукты" -> rangedPrice(priceSeed, 3.20, 5.80, 0.10);
+      case "ягоды" -> rangedPrice(priceSeed, 5.20, 7.20, 0.10);
+      case "пчеловодство" -> rangedPrice(priceSeed, 11.50, 13.50, 0.10);
+      case "хлеб и выпечка" -> rangedPrice(priceSeed, 1.60, 3.40, 0.10);
+      case "крупы", "крупы и бобовые", "бобовые" -> rangedPrice(priceSeed, 2.20, 4.40, 0.10);
+      case "напитки" -> rangedPrice(priceSeed, 2.40, 4.60, 0.10);
+      case "масла" -> rangedPrice(priceSeed, 6.20, 8.20, 0.10);
+      case "консервация" -> rangedPrice(priceSeed, 3.80, 6.20, 0.10);
+      default -> rangedPrice(priceSeed, 2.50, 7.50, 0.10);
+    };
     return price.toPlainString();
+  }
+
+  private BigDecimal rangedPrice(String seed, double min, double max, double step) {
+    int slots = Math.max(1, (int) Math.round((max - min) / step));
+    int slotIndex = Math.floorMod(seed.hashCode(), slots + 1);
+    return BigDecimal.valueOf(min + slotIndex * step).setScale(2, RoundingMode.HALF_UP);
   }
 
   private int resolveCatalogStock(String imageName) {

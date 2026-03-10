@@ -9,6 +9,7 @@ public record AutoAssignDriverRouteResponse(
     double estimatedRouteDistanceKm,
     double totalWeightKg,
     double totalVolumeM3,
-    List<AutoAssignRoutePointResponse> points
+    List<AutoAssignRoutePointResponse> points,
+    List<AutoAssignRoutePathPointResponse> path
 ) {
 }

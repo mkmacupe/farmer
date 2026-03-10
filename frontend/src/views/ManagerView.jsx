@@ -90,6 +90,7 @@ const STATUS_LABELS = {
   ASSIGNED: "Назначен",
   DELIVERED: "Доставлен",
 };
+const REPORT_STATUS_ALL = "__ALL__";
 
 function formatLocalDateValue(value) {
   const date = new Date(value);
@@ -110,6 +111,10 @@ function isMethodNotAllowedError(error) {
 
 function statusLabel(status) {
   return STATUS_LABELS[status] || status || "-";
+}
+
+function reportStatusLabel(status) {
+  return status === REPORT_STATUS_ALL ? "Все статусы" : statusLabel(status);
 }
 
 function formatDateTime(value) {
@@ -140,13 +145,20 @@ function orderInitials(order) {
   return parts.map((part) => part[0]?.toUpperCase() || "").join("");
 }
 
+function stabilizeProductLabel(value) {
+  return String(value || "").replace(
+    /(\d+(?:[.,]\d+)?)\s+(кг|г|л|мл|шт|%)/giu,
+    "$1\u00a0$2",
+  ).replace(/\s+×\s+(\d+)/gu, "\u00a0×\u00a0$1");
+}
+
 function orderAmountBreakdown(items) {
   if (!Array.isArray(items) || !items.length) {
     return [];
   }
   return items.map((item, index) => ({
     key: `${item.productId ?? "item"}-${index}`,
-    label: `${item.productName || "Товар"} × ${item.quantity || 0}`,
+    label: `${stabilizeProductLabel(item.productName || "Товар")} × ${item.quantity || 0}`,
     total: `${formatMoney(item.lineTotal)} BYN`,
   }));
 }
@@ -175,6 +187,9 @@ const KanbanCard = memo(function KanbanCard({
       }
       onDragEnd={dragEnabled ? onDragEnd : undefined}
       sx={{
+        height: "100%",
+        display: "flex",
+        flexDirection: "column",
         border: "1px solid",
         borderColor:
           draggingOrderId === order.id
@@ -194,7 +209,9 @@ const KanbanCard = memo(function KanbanCard({
         },
       }}
     >
-      <CardContent sx={{ pb: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
+      <CardContent
+        sx={{ pb: 1.5, display: "flex", flexDirection: "column", gap: 1.5, flex: 1 }}
+      >
         <Stack
           direction="row"
           alignItems="flex-start"
@@ -275,19 +292,41 @@ const KanbanCard = memo(function KanbanCard({
           <Stack spacing={0.5}>
             {amountBreakdown.length ? (
               amountBreakdown.map((row) => (
-                <Stack
+                <Box
                   key={row.key}
-                  direction="row"
-                  justifyContent="space-between"
-                  spacing={1}
+                  sx={{
+                    display: "grid",
+                    gridTemplateColumns: "minmax(0, 1fr) auto",
+                    columnGap: 1.25,
+                    alignItems: "start",
+                    minHeight: 44,
+                  }}
                 >
-                  <Typography variant="body2" sx={{ minWidth: 0 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      minWidth: 0,
+                      lineHeight: 1.4,
+                      overflowWrap: "normal",
+                      wordBreak: "keep-all",
+                      hyphens: "none",
+                      whiteSpace: "normal",
+                    }}
+                  >
                     {row.label}
                   </Typography>
-                  <Typography variant="body2" fontWeight={600} sx={{ whiteSpace: "nowrap" }}>
+                  <Typography
+                    variant="body2"
+                    fontWeight={600}
+                    sx={{
+                      whiteSpace: "nowrap",
+                      textAlign: "right",
+                      minWidth: 88,
+                    }}
+                  >
                     {row.total}
                   </Typography>
-                </Stack>
+                </Box>
               ))
             ) : (
               <Typography variant="body2" color="text.secondary">
@@ -320,6 +359,7 @@ const KanbanCard = memo(function KanbanCard({
         sx={{
           px: 2,
           pb: 2,
+          mt: "auto",
           display: "grid",
           gridTemplateColumns: "repeat(auto-fit, minmax(152px, 1fr))",
           gap: 1,
@@ -451,7 +491,7 @@ export default function ManagerView({ token, activeSection }) {
 
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
-  const [reportStatus, setReportStatus] = useState("");
+  const [reportStatus, setReportStatus] = useState(REPORT_STATUS_ALL);
 
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineOrderId, setTimelineOrderId] = useState(null);
@@ -1179,7 +1219,7 @@ export default function ManagerView({ token, activeSection }) {
       const blob = await downloadOrdersReport(token, {
         from: reportFrom || null,
         to: reportTo || null,
-        status: reportStatus || null,
+        status: reportStatus === REPORT_STATUS_ALL ? null : reportStatus,
       });
       url = URL.createObjectURL(blob);
       const link = document.createElement("a");
@@ -1809,12 +1849,15 @@ export default function ManagerView({ token, activeSection }) {
             {KANBAN_COLUMNS.map((column) => {
               const isApprovalDropZone = !isMobile && column.id === "APPROVED";
               return (
-              <Grid size={{ xs: 12, md: 3 }} key={column.id}>
+              <Grid size={{ xs: 12, md: 6, xl: 3 }} key={column.id}>
                 <Paper
                   variant="outlined"
                   onDragOver={isApprovalDropZone ? (event) => event.preventDefault() : undefined}
                   onDrop={isApprovalDropZone ? (event) => handleDrop(event, column.id) : undefined}
                   sx={{
+                    height: "100%",
+                    display: "flex",
+                    flexDirection: "column",
                     p: 2,
                     borderRadius: 3,
                     minHeight: { xs: 260, md: 420 },
@@ -1844,7 +1887,7 @@ export default function ManagerView({ token, activeSection }) {
                       color={column.color}
                     />
                   </Stack>
-                  <Stack spacing={1.5}>
+                  <Stack spacing={1.5} sx={{ flex: 1 }}>
                     {(ordersByStatus[column.id] || []).map((order) => (
                       <KanbanCard
                         key={order.id}
@@ -2229,9 +2272,14 @@ export default function ManagerView({ token, activeSection }) {
                 label="Статус заказа"
                 fullWidth
                 value={reportStatus}
+                InputLabelProps={{ shrink: true }}
+                SelectProps={{
+                  displayEmpty: true,
+                  renderValue: (value) => reportStatusLabel(value),
+                }}
                 onChange={(e) => setReportStatus(e.target.value)}
               >
-                <MenuItem value="">Все статусы</MenuItem>
+                <MenuItem value={REPORT_STATUS_ALL}>Все статусы</MenuItem>
                 <MenuItem value="CREATED">Создан</MenuItem>
                 <MenuItem value="APPROVED">Одобрен</MenuItem>
                 <MenuItem value="ASSIGNED">Назначен</MenuItem>
@@ -2331,9 +2379,6 @@ export default function ManagerView({ token, activeSection }) {
               borderRadius={1}
             />
           </Box>
-          <Typography variant="caption" color="text.secondary">
-            В карточке товара отображается название вместо фотографии.
-          </Typography>
           <Stack direction="row" spacing={1} justifyContent="flex-end">
             <Button onClick={() => setProductDrawerOpen(false)}>Отмена</Button>
             <Button

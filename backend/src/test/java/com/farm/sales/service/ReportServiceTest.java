@@ -82,12 +82,14 @@ class ReportServiceTest {
       assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("Отчёт по заказам");
       assertThat(sheet.getRow(1).getCell(0).getStringCellValue())
           .contains("01.02.2026 - 10.02.2026")
-          .contains("Статус: DELIVERED")
-          .contains("Строк: 1");
+          .contains("Статус: Доставлен")
+          .contains("Строк: 1")
+          .contains("Сумма: 120.50 BYN")
+          .contains("Сформирован:");
       assertThat(sheet.getRow(3).getCell(0).getStringCellValue()).isEqualTo("ID заказа");
       assertThat(sheet.getRow(4).getCell(0).getNumericCellValue()).isEqualTo(1001d);
       assertThat(sheet.getRow(4).getCell(1).getStringCellValue()).isEqualTo("Магазин Берёзка");
-      assertThat(sheet.getRow(4).getCell(2).getStringCellValue()).isEqualTo("DELIVERED");
+      assertThat(sheet.getRow(4).getCell(2).getStringCellValue()).isEqualTo("Доставлен");
       assertThat(sheet.getRow(4).getCell(4).getNumericCellValue()).isEqualTo(120.50d);
       assertThat(sheet.getRow(4).getCell(5).getNumericCellValue()).isEqualTo(3d);
       assertThat(sheet.getRow(4).getCell(7).getStringCellValue()).isEqualTo("Водитель 1");

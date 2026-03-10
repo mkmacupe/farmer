@@ -13,6 +13,8 @@ import com.farm.sales.dto.AutoAssignApproveRequest;
 import com.farm.sales.dto.AutoAssignDriverRouteResponse;
 import com.farm.sales.dto.AutoAssignItemResponse;
 import com.farm.sales.dto.AutoAssignPreviewResponse;
+import com.farm.sales.dto.AutoAssignRouteGeometryRequest;
+import com.farm.sales.dto.AutoAssignRoutePathPointResponse;
 import com.farm.sales.dto.AutoAssignResultResponse;
 import com.farm.sales.dto.AutoAssignRoutePointResponse;
 import com.farm.sales.dto.DriverAssignRequest;
@@ -159,10 +161,18 @@ class OrderControllerTest {
             12.1,
             10.5,
             0.05,
-            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 4.5))
+            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 4.5)),
+            List.of()
         ))
     );
     when(orderService.previewAutoAssignPlan(18L)).thenReturn(preview);
+    AutoAssignRouteGeometryRequest geometryRequest =
+        new AutoAssignRouteGeometryRequest(List.of(new AutoAssignRoutePathPointResponse(53.91, 30.34)));
+    List<AutoAssignRoutePathPointResponse> geometry = List.of(
+        new AutoAssignRoutePathPointResponse(53.897127, 30.332041),
+        new AutoAssignRoutePathPointResponse(53.91, 30.34)
+    );
+    when(orderService.previewAutoAssignRouteGeometry(18L, geometryRequest)).thenReturn(geometry);
 
     AutoAssignApproveRequest request = new AutoAssignApproveRequest(
         List.of(new AutoAssignApproveItemRequest(1L, 31L, 1))
@@ -177,13 +187,17 @@ class OrderControllerTest {
     when(orderService.approveAutoAssignPlan(18L, request)).thenReturn(approved);
 
     var previewResponse = controller.autoAssignPreview(jwt);
+    var geometryResponse = controller.autoAssignRouteGeometry(jwt, geometryRequest);
     var approveResponse = controller.approveAutoAssign(jwt, request);
 
     assertThat(previewResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(previewResponse.getBody()).isEqualTo(preview);
+    assertThat(geometryResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(geometryResponse.getBody()).isEqualTo(geometry);
     assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(approveResponse.getBody()).isEqualTo(approved);
     verify(orderService).previewAutoAssignPlan(18L);
+    verify(orderService).previewAutoAssignRouteGeometry(18L, geometryRequest);
     verify(orderService).approveAutoAssignPlan(18L, request);
   }
 

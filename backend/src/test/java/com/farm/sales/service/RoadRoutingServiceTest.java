@@ -37,6 +37,10 @@ class RoadRoutingServiceTest {
 
     when(restClient.get()).thenReturn(uriSpec);
     when(uriSpec.uri(any(java.util.function.Function.class))).thenReturn(headersSpec);
+    when(uriSpec.uri(org.mockito.ArgumentMatchers.anyString())).thenReturn(headersSpec);
+    when(uriSpec.uri(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.<Object[]>any()))
+        .thenReturn(headersSpec);
+    when(uriSpec.uri(any(java.net.URI.class))).thenReturn(headersSpec);
     when(headersSpec.retrieve()).thenReturn(responseSpec);
 
     service = new RoadRoutingService(restClient, 60_000, 100, 50);
@@ -58,6 +62,66 @@ class RoadRoutingServiceTest {
     List<Double> distances = service.drivingDistancesKm(source, destinations);
 
     assertThat(distances).containsExactly(1.5, 2.75);
+  }
+
+  @Test
+  void drivingRouteGeometryReturnsFullPolylineWithExactEndpoints() throws Exception {
+    JsonNode payload = objectMapper.readTree("""
+        {
+          "code":"Ok",
+          "routes":[
+            {
+              "geometry":{
+                "coordinates":[
+                  [30.3321000,53.8972000],
+                  [30.3365000,53.9180000],
+                  [30.3401000,53.9401000]
+                ]
+              }
+            }
+          ]
+        }
+        """);
+    when(responseSpec.body(JsonNode.class)).thenReturn(payload);
+
+    var source = new RoadRoutingService.RouteCoordinate(53.8971270, 30.3320410);
+    var destination = new RoadRoutingService.RouteCoordinate(53.9400000, 30.3400000);
+
+    List<RoadRoutingService.RouteCoordinate> geometry = service.drivingRouteGeometry(List.of(source, destination));
+
+    assertThat(geometry).isNotEmpty();
+    assertThat(geometry.getFirst()).isEqualTo(source);
+    assertThat(geometry.getLast()).isEqualTo(destination);
+  }
+
+  @Test
+  void drivingRouteGeometryUsesCacheForRepeatedWaypoints() throws Exception {
+    JsonNode payload = objectMapper.readTree("""
+        {
+          "code":"Ok",
+          "routes":[
+            {
+              "geometry":{
+                "coordinates":[
+                  [30.3321000,53.8972000],
+                  [30.3365000,53.9180000],
+                  [30.3401000,53.9401000]
+                ]
+              }
+            }
+          ]
+        }
+        """);
+    when(responseSpec.body(JsonNode.class)).thenReturn(payload);
+
+    var source = new RoadRoutingService.RouteCoordinate(53.8971270, 30.3320410);
+    var destination = new RoadRoutingService.RouteCoordinate(53.9400000, 30.3400000);
+
+    List<RoadRoutingService.RouteCoordinate> first = service.drivingRouteGeometry(List.of(source, destination));
+    List<RoadRoutingService.RouteCoordinate> second = service.drivingRouteGeometry(List.of(source, destination));
+
+    assertThat(first).isEqualTo(second);
+    verify(responseSpec, times(1)).body(JsonNode.class);
   }
 
   @Test
@@ -105,6 +169,41 @@ class RoadRoutingServiceTest {
     assertStatus(() -> service.drivingDistancesKm(source, destinations), HttpStatus.BAD_GATEWAY);
 
     verify(responseSpec, times(1)).body(JsonNode.class);
+  }
+
+  @Test
+  void drivingRouteGeometryIsNotBlockedByDistanceCooldown() throws Exception {
+    var source = new RoadRoutingService.RouteCoordinate(53.8971270, 30.3320410);
+    var destination = new RoadRoutingService.RouteCoordinate(53.9400000, 30.3400000);
+
+    JsonNode geometryPayload = objectMapper.readTree("""
+        {
+          "code":"Ok",
+          "routes":[
+            {
+              "geometry":{
+                "coordinates":[
+                  [30.3321000,53.8972000],
+                  [30.3365000,53.9180000],
+                  [30.3401000,53.9401000]
+                ]
+              }
+            }
+          ]
+        }
+        """);
+    when(responseSpec.body(JsonNode.class))
+        .thenThrow(new RestClientException("osrm-down"))
+        .thenReturn(geometryPayload);
+
+    assertStatus(() -> service.drivingDistancesKm(source, List.of(destination)), HttpStatus.BAD_GATEWAY);
+
+    List<RoadRoutingService.RouteCoordinate> geometry = service.drivingRouteGeometry(List.of(source, destination));
+
+    assertThat(geometry).isNotEmpty();
+    assertThat(geometry.getFirst()).isEqualTo(source);
+    assertThat(geometry.getLast()).isEqualTo(destination);
+    verify(responseSpec, times(2)).body(JsonNode.class);
   }
 
   private void assertStatus(Runnable runnable, HttpStatus status) {

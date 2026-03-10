@@ -43,7 +43,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import RouteOutlinedIcon from '@mui/icons-material/RouteOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 
-import RoutePlanMap from '../components/RoutePlanMap.jsx';
+const RoutePlanMap = lazy(() => import('../components/RoutePlanMap.jsx'));
 
 function statusLabel(status) {
   const labels = {
@@ -123,6 +123,7 @@ export default function LogisticianView({ token, activeSection }) {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const [routePlan, setRoutePlan] = useState(null);
   const [routePlanOpen, setRoutePlanOpen] = useState(false);
+  const [routePlanLoading, setRoutePlanLoading] = useState(false);
 
   // Timeline Dialog
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -246,15 +247,19 @@ export default function LogisticianView({ token, activeSection }) {
 
   const handleAutoAssign = async () => {
     setActionLoading(true);
+    setRoutePlan(null);
+    setRoutePlanOpen(true);
+    setRoutePlanLoading(true);
     try {
       const result = await previewAutoAssignOrders(token);
       if (result.totalApprovedOrders === 0) {
+        setRoutePlanOpen(false);
         showMessage('Нет одобренных заказов для распределения', 'info');
       } else if (result.plannedOrders === 0) {
+        setRoutePlanOpen(false);
         showMessage('Не удалось построить маршрутный план для текущего набора заказов', 'warning');
       } else {
         setRoutePlan(result);
-        setRoutePlanOpen(true);
         showMessage(
           `План построен: ${result.plannedOrders}/${result.totalApprovedOrders}, ` +
           `оценка пути ${result.estimatedTotalDistanceKm} км`,
@@ -262,8 +267,11 @@ export default function LogisticianView({ token, activeSection }) {
         );
       }
     } catch (err) {
+      setRoutePlanOpen(false);
+      setRoutePlan(null);
       showMessage(err.message || 'Не удалось выполнить автоназначение', 'error');
     } finally {
+      setRoutePlanLoading(false);
       setActionLoading(false);
     }
   };
@@ -291,6 +299,9 @@ export default function LogisticianView({ token, activeSection }) {
   };
 
   const handleRejectRoutePlan = () => {
+    if (routePlanLoading) {
+      return;
+    }
     setRoutePlanOpen(false);
     setRoutePlan(null);
     showMessage('Маршрутный план отклонен, назначения не сохранены', 'info');
@@ -474,7 +485,7 @@ export default function LogisticianView({ token, activeSection }) {
 
       <Dialog
         open={routePlanOpen}
-        onClose={actionLoading ? undefined : handleRejectRoutePlan}
+        onClose={actionLoading || routePlanLoading ? undefined : handleRejectRoutePlan}
         maxWidth="md"
         fullWidth
         fullScreen={isMobile}
@@ -487,7 +498,23 @@ export default function LogisticianView({ token, activeSection }) {
       >
         <DialogTitle data-testid="auto-assign-dialog-title">Предпросмотр транспортной задачи</DialogTitle>
         <DialogContent dividers sx={{ overflow: 'hidden', py: 1.5 }}>
-          {routePlan ? (
+          {routePlanLoading ? (
+            <Stack
+              spacing={1.5}
+              alignItems="center"
+              justifyContent="center"
+              sx={{ minHeight: { xs: 260, sm: 340 }, textAlign: 'center' }}
+            >
+              <CircularProgress size={34} />
+              <Typography variant="subtitle1" fontWeight={700}>
+                Строим транспортный план
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420 }}>
+                Считаем распределение заказов между водителями и подтягиваем дорожную геометрию
+                для карты.
+              </Typography>
+            </Stack>
+          ) : routePlan ? (
             <Stack spacing={1.5}>
               <Alert severity="info" icon={<RouteOutlinedIcon fontSize="inherit" />}>
                 <strong>Старт для всех 3 водителей:</strong> {routePlan.depotLabel}. План можно
@@ -516,7 +543,29 @@ export default function LogisticianView({ token, activeSection }) {
                 </Grid>
               </Grid>
 
-              <RoutePlanMap plan={routePlan} />
+              <Suspense
+                fallback={
+                  <Paper
+                    variant="outlined"
+                    sx={{
+                      height: { xs: 210, md: 250 },
+                      borderRadius: 2,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}
+                  >
+                    <Stack spacing={1} alignItems="center">
+                      <CircularProgress size={26} />
+                      <Typography variant="body2" color="text.secondary">
+                        Загружаем карту маршрутов
+                      </Typography>
+                    </Stack>
+                  </Paper>
+                }
+              >
+                <RoutePlanMap plan={routePlan} token={token} />
+              </Suspense>
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
@@ -605,11 +654,15 @@ export default function LogisticianView({ token, activeSection }) {
               </Paper>
             </Stack>
           ) : (
-            <Typography color="text.secondary">План не построен.</Typography>
+            <Alert severity="info">План маршрутов пока не сформирован.</Alert>
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleRejectRoutePlan} disabled={actionLoading} data-testid="reject-route-plan-button">
+          <Button
+            onClick={handleRejectRoutePlan}
+            disabled={actionLoading || routePlanLoading}
+            data-testid="reject-route-plan-button"
+          >
             Отклонить
           </Button>
           <Button
