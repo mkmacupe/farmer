@@ -21,6 +21,9 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.Font;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.streaming.SXSSFCell;
@@ -49,7 +52,7 @@ class ReportServiceTest {
     Instant createdAt = Instant.parse("2026-02-01T09:30:00Z");
     OrderRepository.ReportRow row = reportRow(
         1001L,
-        "ОАО Могилевхимволокно",
+        "Магазин Берёзка",
         OrderStatus.DELIVERED,
         createdAt,
         new BigDecimal("120.50"),
@@ -76,13 +79,20 @@ class ReportServiceTest {
     assertThat(payload).isNotEmpty();
     try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(payload))) {
       Sheet sheet = workbook.getSheetAt(0);
-      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("ID заказа");
-      assertThat(sheet.getRow(1).getCell(0).getNumericCellValue()).isEqualTo(1001d);
-      assertThat(sheet.getRow(1).getCell(1).getStringCellValue()).isEqualTo("ОАО Могилевхимволокно");
-      assertThat(sheet.getRow(1).getCell(2).getStringCellValue()).isEqualTo("DELIVERED");
-      assertThat(sheet.getRow(1).getCell(4).getNumericCellValue()).isEqualTo(120.50d);
-      assertThat(sheet.getRow(1).getCell(5).getNumericCellValue()).isEqualTo(3d);
-      assertThat(sheet.getRow(1).getCell(7).getStringCellValue()).isEqualTo("Водитель 1");
+      assertThat(sheet.getRow(0).getCell(0).getStringCellValue()).isEqualTo("Отчёт по заказам");
+      assertThat(sheet.getRow(1).getCell(0).getStringCellValue())
+          .contains("01.02.2026 - 10.02.2026")
+          .contains("Статус: DELIVERED")
+          .contains("Строк: 1");
+      assertThat(sheet.getRow(3).getCell(0).getStringCellValue()).isEqualTo("ID заказа");
+      assertThat(sheet.getRow(4).getCell(0).getNumericCellValue()).isEqualTo(1001d);
+      assertThat(sheet.getRow(4).getCell(1).getStringCellValue()).isEqualTo("Магазин Берёзка");
+      assertThat(sheet.getRow(4).getCell(2).getStringCellValue()).isEqualTo("DELIVERED");
+      assertThat(sheet.getRow(4).getCell(4).getNumericCellValue()).isEqualTo(120.50d);
+      assertThat(sheet.getRow(4).getCell(5).getNumericCellValue()).isEqualTo(3d);
+      assertThat(sheet.getRow(4).getCell(7).getStringCellValue()).isEqualTo("Водитель 1");
+      assertThat(sheet.getPaneInformation()).isNotNull();
+      assertThat(sheet.getPaneInformation().isFreezePane()).isTrue();
     }
   }
 
@@ -106,8 +116,7 @@ class ReportServiceTest {
         eq(false),
         eq(false),
         any(org.springframework.data.domain.Pageable.class)
-    ))
-        .thenReturn(List.of(row));
+    )).thenReturn(List.of(row));
 
     byte[] payload = service.buildOrdersReport(null, null, "   ");
 
@@ -122,10 +131,13 @@ class ReportServiceTest {
     );
     try (Workbook workbook = new XSSFWorkbook(new ByteArrayInputStream(payload))) {
       Sheet sheet = workbook.getSheetAt(0);
-      assertThat(sheet.getRow(1).getCell(0).getNumericCellValue()).isEqualTo(0d);
-      assertThat(sheet.getRow(1).getCell(5).getNumericCellValue()).isEqualTo(0d);
-      assertThat(sheet.getRow(1).getCell(6).getStringCellValue()).isEqualTo("-");
-      assertThat(sheet.getRow(1).getCell(7).getStringCellValue()).isEqualTo("-");
+      assertThat(sheet.getRow(1).getCell(0).getStringCellValue())
+          .contains("с начала - сейчас")
+          .contains("все статусы");
+      assertThat(sheet.getRow(4).getCell(0).getNumericCellValue()).isEqualTo(0d);
+      assertThat(sheet.getRow(4).getCell(5).getNumericCellValue()).isEqualTo(0d);
+      assertThat(sheet.getRow(4).getCell(6).getStringCellValue()).isEqualTo("-");
+      assertThat(sheet.getRow(4).getCell(7).getStringCellValue()).isEqualTo("-");
     }
   }
 
@@ -150,14 +162,20 @@ class ReportServiceTest {
         eq(false),
         eq(false),
         any(org.springframework.data.domain.Pageable.class)
-    ))
-        .thenReturn(List.of());
+    )).thenReturn(List.of());
 
     try (MockedConstruction<SXSSFWorkbook> mocked = mockConstruction(SXSSFWorkbook.class, (workbook, context) -> {
       SXSSFSheet sheet = mock(SXSSFSheet.class);
       SXSSFRow row = mock(SXSSFRow.class);
       SXSSFCell cell = mock(SXSSFCell.class);
+      CellStyle style = mock(CellStyle.class);
+      Font font = mock(Font.class);
+      DataFormat dataFormat = mock(DataFormat.class);
       when(workbook.createSheet(anyString())).thenReturn(sheet);
+      when(workbook.createCellStyle()).thenReturn(style);
+      when(workbook.createFont()).thenReturn(font);
+      when(workbook.createDataFormat()).thenReturn(dataFormat);
+      when(dataFormat.getFormat(anyString())).thenReturn((short) 0);
       when(sheet.createRow(anyInt())).thenReturn(row);
       when(row.createCell(anyInt())).thenReturn(cell);
       doThrow(new IOException("boom")).when(workbook).write(any(ByteArrayOutputStream.class));

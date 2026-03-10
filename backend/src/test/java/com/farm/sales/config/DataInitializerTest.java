@@ -16,6 +16,8 @@ import com.farm.sales.model.User;
 import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
+import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 import org.mockito.ArgumentCaptor;
@@ -47,13 +49,14 @@ class DataInitializerTest {
       String rawPassword = invocation.getArgument(0, String.class);
       return "encoded::" + rawPassword;
     });
+    when(productRepository.findByPhotoUrlIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.findAll()).thenReturn(List.of());
   }
 
   @Test
   void runCreatesDemoDataWhenEntitiesMissing() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
-    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
     when(productRepository.count()).thenReturn(20L);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
 
@@ -86,7 +89,6 @@ class DataInitializerTest {
   void seedDemoDataCallsRun() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
-    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
     when(productRepository.count()).thenReturn(20L);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
     when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -104,7 +106,6 @@ class DataInitializerTest {
   void seedDemoDataWithoutAddressesDoesNotCreateStoreAddresses() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
-    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(false);
     when(productRepository.count()).thenReturn(20L);
 
     AtomicLong userIds = new AtomicLong(100);
@@ -123,12 +124,31 @@ class DataInitializerTest {
   }
 
   @Test
-  void runFallsBackToNullPhotoWhenImageAlreadyTaken() {
+  void runNormalizesExistingCatalogProductFoundByPhoto() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
-    when(productRepository.existsByPhotoUrlIgnoreCase(any())).thenReturn(true);
     when(productRepository.count()).thenReturn(20L);
     when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
+
+    Product legacyCatalogProduct = new Product(
+        "Каталожный товар 101",
+        "Каталог",
+        "Каталожный товар 101",
+        "/images/products/mogilev-product-101.webp",
+        new BigDecimal("4.10"),
+        24
+    );
+    legacyCatalogProduct.setId(501L);
+    legacyCatalogProduct.setWeightKg(1.0);
+    legacyCatalogProduct.setVolumeM3(0.001);
+    when(productRepository.findByPhotoUrlIgnoreCase(any())).thenAnswer(invocation -> {
+      String photoUrl = invocation.getArgument(0, String.class);
+      if ("/images/products/mogilev-product-101.webp".equals(photoUrl)) {
+        return Optional.of(legacyCatalogProduct);
+      }
+      return Optional.empty();
+    });
+    when(productRepository.findAll()).thenReturn(List.of(legacyCatalogProduct));
 
     AtomicLong userIds = new AtomicLong(100);
     when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
@@ -143,8 +163,9 @@ class DataInitializerTest {
 
     dataInitializer.run();
 
-    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-    verify(productRepository, atLeast(200)).save(productCaptor.capture());
-    assertThat(productCaptor.getAllValues()).allMatch(product -> product.getPhotoUrl() == null);
+    assertThat(legacyCatalogProduct.getName()).isNotEqualTo("Каталожный товар 101");
+    assertThat(legacyCatalogProduct.getCategory()).isNotEqualTo("Каталог");
+    assertThat(legacyCatalogProduct.getPhotoUrl()).isEqualTo("/images/products/mogilev-product-101.webp");
+    verify(productRepository, atLeast(1)).save(any(Product.class));
   }
 }

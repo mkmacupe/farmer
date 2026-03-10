@@ -5,12 +5,13 @@ import 'leaflet/dist/leaflet.css';
 
 const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
 const OSRM_PUBLIC_ROUTE_API = 'https://router.project-osrm.org/route/v1/driving';
-const ROAD_ROUTE_SEGMENT_TIMEOUT_MS = 1800;
+const ROAD_ROUTE_SEGMENT_TIMEOUT_MS = 3200;
 const ROAD_ROUTE_CACHE_TTL_MS = 10 * 60 * 1000;
 const ROAD_ROUTE_CACHE_MAX_ITEMS = 180;
 const ROAD_ROUTE_CACHE = new Map();
 const ROAD_ROUTE_PENDING = new Map();
 const ROUTE_POINT_EPSILON = 0.00001;
+const MAX_ROUTE_CONNECTOR_METERS = 18;
 
 function routeColor(routeIndex) {
   return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
@@ -47,6 +48,19 @@ function pointsEqual(left, right) {
     Math.abs(Number(left[0]) - Number(right[0])) <= ROUTE_POINT_EPSILON &&
     Math.abs(Number(left[1]) - Number(right[1])) <= ROUTE_POINT_EPSILON
   );
+}
+
+function distanceBetweenPointsMeters(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right) || left.length < 2 || right.length < 2) {
+    return Number.POSITIVE_INFINITY;
+  }
+
+  const latFactor = 111_320;
+  const avgLatRadians = ((Number(left[0]) + Number(right[0])) / 2) * (Math.PI / 180);
+  const lonFactor = Math.cos(avgLatRadians) * 111_320;
+  const latDelta = (Number(left[0]) - Number(right[0])) * latFactor;
+  const lonDelta = (Number(left[1]) - Number(right[1])) * lonFactor;
+  return Math.hypot(latDelta, lonDelta);
 }
 
 function createStopOrderIcon(stopSequence, color) {
@@ -172,10 +186,16 @@ async function requestRoadRoute(points, signal, timeoutMs) {
       const exactStart = points[0];
       const exactEnd = points[points.length - 1];
 
-      if (!pointsEqual(exactPolyline[0], exactStart)) {
+      if (
+        !pointsEqual(exactPolyline[0], exactStart) &&
+        distanceBetweenPointsMeters(exactPolyline[0], exactStart) <= MAX_ROUTE_CONNECTOR_METERS
+      ) {
         exactPolyline.unshift(exactStart);
       }
-      if (!pointsEqual(exactPolyline[exactPolyline.length - 1], exactEnd)) {
+      if (
+        !pointsEqual(exactPolyline[exactPolyline.length - 1], exactEnd) &&
+        distanceBetweenPointsMeters(exactPolyline[exactPolyline.length - 1], exactEnd) <= MAX_ROUTE_CONNECTOR_METERS
+      ) {
         exactPolyline.push(exactEnd);
       }
 
@@ -205,7 +225,7 @@ async function resolveRoadPolylines(points, signal) {
     const from = points[index];
     const to = points[index + 1];
     segmentTasks.push(
-      requestRoadRoute([from, to], signal, ROAD_ROUTE_SEGMENT_TIMEOUT_MS).catch(() => [from, to])
+      requestRoadRoute([from, to], signal, ROAD_ROUTE_SEGMENT_TIMEOUT_MS).catch(() => null)
     );
   }
 

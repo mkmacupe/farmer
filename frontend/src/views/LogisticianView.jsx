@@ -423,6 +423,7 @@ export default function LogisticianView({ token, activeSection }) {
           <OrdersTable
             orders={orders}
             loading={loading}
+            compactView
             emptyText="Заказы отсутствуют."
             actionRenderer={renderOrderActions}
             maxRendered={orders.length}

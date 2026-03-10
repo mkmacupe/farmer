@@ -437,9 +437,6 @@ export default function DirectorView({ token, activeSection }) {
   const handleAddressDelete = async (id) => {
     setError("");
     setSuccess("");
-    if (!window.confirm("Удалить точку доставки?")) {
-      return;
-    }
     try {
       setLoading(true);
       await deleteDirectorAddress(token, id);
@@ -1511,6 +1508,7 @@ export default function DirectorView({ token, activeSection }) {
             orders={orders}
             loading={loading && !orders.length}
             showCustomer={false}
+            compactView
             emptyText="История заказов пуста."
             actionRenderer={renderOrderActions}
             maxRendered={orders.length}

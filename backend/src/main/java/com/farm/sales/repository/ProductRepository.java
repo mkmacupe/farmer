@@ -51,6 +51,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
   boolean existsByPhotoUrlIgnoreCase(String photoUrl);
 
+  Optional<Product> findByPhotoUrlIgnoreCase(String photoUrl);
+
   boolean existsByPhotoUrlIgnoreCaseAndIdNot(String photoUrl, Long id);
 
   @Query("""

@@ -74,6 +74,163 @@ public class DataInitializer implements CommandLineRunner {
       "driver2", "Drv2B8m3Y7",
       "driver3", "Drv3C7n4X8"
   );
+  private static final Map<String, CatalogDescriptor> CATALOG_PRODUCT_BY_BASENAME = Map.ofEntries(
+      Map.entry("adyghe-cheese", new CatalogDescriptor("Сыр адыгейский 300 г", "Молочная продукция")),
+      Map.entry("apple-antonovka", new CatalogDescriptor("Яблоки Антоновка 1 кг", "Фрукты")),
+      Map.entry("apple-juice", new CatalogDescriptor("Сок яблочный 1 л", "Напитки")),
+      Map.entry("apple-white", new CatalogDescriptor("Яблоки Белый налив 1 кг", "Фрукты")),
+      Map.entry("baked-milk", new CatalogDescriptor("Молоко топлёное 1 л", "Молочная продукция")),
+      Map.entry("beef", new CatalogDescriptor("Говядина охлаждённая 1 кг", "Мясо и птица")),
+      Map.entry("beef-liver", new CatalogDescriptor("Печень говяжья 600 г", "Мясо и птица")),
+      Map.entry("beet", new CatalogDescriptor("Свёкла столовая 1 кг", "Овощи и зелень")),
+      Map.entry("bell-pepper", new CatalogDescriptor("Перец сладкий 1 кг", "Овощи и зелень")),
+      Map.entry("blackcurrant", new CatalogDescriptor("Смородина чёрная 300 г", "Ягоды")),
+      Map.entry("blueberry", new CatalogDescriptor("Голубика свежая 300 г", "Ягоды")),
+      Map.entry("brined-cheese", new CatalogDescriptor("Сыр рассольный 300 г", "Молочная продукция")),
+      Map.entry("broccoli", new CatalogDescriptor("Брокколи 400 г", "Овощи и зелень")),
+      Map.entry("cabbage", new CatalogDescriptor("Капуста белокочанная 1 кг", "Овощи и зелень")),
+      Map.entry("cauliflower", new CatalogDescriptor("Капуста цветная 1 кг", "Овощи и зелень")),
+      Map.entry("cheese-hard", new CatalogDescriptor("Сыр твёрдый 300 г", "Молочная продукция")),
+      Map.entry("cherry", new CatalogDescriptor("Вишня свежая 500 г", "Ягоды")),
+      Map.entry("chicken-fillet", new CatalogDescriptor("Филе куриное 700 г", "Мясо и птица")),
+      Map.entry("chicken-thigh", new CatalogDescriptor("Бедро куриное 1 кг", "Мясо и птица")),
+      Map.entry("chinese-cabbage", new CatalogDescriptor("Капуста пекинская 1 кг", "Овощи и зелень")),
+      Map.entry("cranberry", new CatalogDescriptor("Клюква 300 г", "Ягоды")),
+      Map.entry("cream-20", new CatalogDescriptor("Сливки 20% 500 мл", "Молочная продукция")),
+      Map.entry("curd-cheese", new CatalogDescriptor("Сыр творожный 200 г", "Молочная продукция")),
+      Map.entry("curd-raisin", new CatalogDescriptor("Творожная масса с изюмом 250 г", "Молочная продукция")),
+      Map.entry("dill", new CatalogDescriptor("Укроп свежий 100 г", "Овощи и зелень")),
+      Map.entry("dill-dry", new CatalogDescriptor("Укроп сушёный 50 г", "Овощи и зелень")),
+      Map.entry("duck", new CatalogDescriptor("Утка фермерская 1 кг", "Мясо и птица")),
+      Map.entry("egg-c0", new CatalogDescriptor("Яйца куриные С0 10 шт", "Птица и яйца")),
+      Map.entry("eggplant", new CatalogDescriptor("Баклажаны 1 кг", "Овощи и зелень")),
+      Map.entry("garlic", new CatalogDescriptor("Чеснок молодой 250 г", "Овощи и зелень")),
+      Map.entry("ghee", new CatalogDescriptor("Масло топлёное 250 г", "Молочная продукция")),
+      Map.entry("goat-bryndza", new CatalogDescriptor("Брынза козья 250 г", "Молочная продукция")),
+      Map.entry("green-lentils", new CatalogDescriptor("Чечевица зелёная 800 г", "Крупы и бобовые")),
+      Map.entry("herb-soft-cheese", new CatalogDescriptor("Сыр мягкий с зеленью 200 г", "Молочная продукция")),
+      Map.entry("honey-buckwheat", new CatalogDescriptor("Мёд гречишный 500 г", "Пчеловодство")),
+      Map.entry("honey-linden", new CatalogDescriptor("Мёд липовый 500 г", "Пчеловодство")),
+      Map.entry("linden-honey", new CatalogDescriptor("Мёд липовый 500 г", "Пчеловодство")),
+      Map.entry("lingonberry", new CatalogDescriptor("Брусника 300 г", "Ягоды")),
+      Map.entry("milk-2l", new CatalogDescriptor("Молоко фермерское 2 л", "Молочная продукция")),
+      Map.entry("milk-whole-2l", new CatalogDescriptor("Молоко цельное 2 л", "Молочная продукция")),
+      Map.entry("millet", new CatalogDescriptor("Пшено шлифованное 900 г", "Крупы и бобовые")),
+      Map.entry("mixed-mince", new CatalogDescriptor("Фарш домашний 800 г", "Мясо и птица")),
+      Map.entry("parsley", new CatalogDescriptor("Петрушка свежая 100 г", "Овощи и зелень")),
+      Map.entry("parsley-root", new CatalogDescriptor("Корень петрушки 300 г", "Овощи и зелень")),
+      Map.entry("pear", new CatalogDescriptor("Груши садовые 1 кг", "Фрукты")),
+      Map.entry("pear-conference", new CatalogDescriptor("Груши Конференция 1 кг", "Фрукты")),
+      Map.entry("plum", new CatalogDescriptor("Сливы садовые 1 кг", "Фрукты")),
+      Map.entry("plum-tomato", new CatalogDescriptor("Томаты сливовидные 500 г", "Овощи и зелень")),
+      Map.entry("pork", new CatalogDescriptor("Свинина охлаждённая 1 кг", "Мясо и птица")),
+      Map.entry("pork-ribs", new CatalogDescriptor("Рёбра свиные 1 кг", "Мясо и птица")),
+      Map.entry("potato-bake", new CatalogDescriptor("Картофель для запекания 2 кг", "Овощи и зелень")),
+      Map.entry("potato-mash", new CatalogDescriptor("Картофель для пюре 2 кг", "Овощи и зелень")),
+      Map.entry("prostokvasha", new CatalogDescriptor("Простокваша 900 мл", "Молочная продукция")),
+      Map.entry("pumpkin", new CatalogDescriptor("Тыква мускатная 1 кг", "Овощи и зелень")),
+      Map.entry("quail-eggs", new CatalogDescriptor("Яйца перепелиные 20 шт", "Птица и яйца")),
+      Map.entry("quail-eggs-30", new CatalogDescriptor("Яйца перепелиные 30 шт", "Птица и яйца")),
+      Map.entry("rabbit", new CatalogDescriptor("Кролик фермерский 1 кг", "Мясо и птица")),
+      Map.entry("radish", new CatalogDescriptor("Редис свежий 300 г", "Овощи и зелень")),
+      Map.entry("raspberry", new CatalogDescriptor("Малина 250 г", "Ягоды")),
+      Map.entry("red-beans", new CatalogDescriptor("Фасоль красная 800 г", "Крупы и бобовые")),
+      Map.entry("red-onion", new CatalogDescriptor("Лук красный 1 кг", "Овощи и зелень")),
+      Map.entry("redcurrant", new CatalogDescriptor("Смородина красная 300 г", "Ягоды")),
+      Map.entry("rice", new CatalogDescriptor("Рис длиннозёрный 900 г", "Крупы и бобовые")),
+      Map.entry("romaine", new CatalogDescriptor("Салат ромэн 1 шт", "Овощи и зелень")),
+      Map.entry("sea-buckthorn", new CatalogDescriptor("Облепиха 300 г", "Ягоды")),
+      Map.entry("short-cucumber", new CatalogDescriptor("Огурцы короткоплодные 1 кг", "Овощи и зелень")),
+      Map.entry("spinach", new CatalogDescriptor("Шпинат свежий 150 г", "Овощи и зелень")),
+      Map.entry("strawberry", new CatalogDescriptor("Клубника 250 г", "Ягоды")),
+      Map.entry("sunflower-oil", new CatalogDescriptor("Масло подсолнечное 1 л", "Масла")),
+      Map.entry("sweet-cherry", new CatalogDescriptor("Черешня свежая 500 г", "Фрукты")),
+      Map.entry("tomato-cherry", new CatalogDescriptor("Томаты черри 250 г", "Овощи и зелень")),
+      Map.entry("turkey-breast", new CatalogDescriptor("Грудка индейки 700 г", "Мясо и птица")),
+      Map.entry("turkey-fillet", new CatalogDescriptor("Филе индейки 700 г", "Мясо и птица")),
+      Map.entry("washed-carrot", new CatalogDescriptor("Морковь мытая 1 кг", "Овощи и зелень")),
+      Map.entry("water", new CatalogDescriptor("Вода питьевая 1 л", "Напитки")),
+      Map.entry("wheat-rye-bread", new CatalogDescriptor("Хлеб пшенично-ржаной 600 г", "Хлеб и выпечка")),
+      Map.entry("wholewheat-flour", new CatalogDescriptor("Мука цельнозерновая 1 кг", "Хлеб и выпечка")),
+      Map.entry("yogurt-fruit", new CatalogDescriptor("Йогурт фруктовый 500 мл", "Молочная продукция")),
+      Map.entry("young-beet", new CatalogDescriptor("Свёкла молодая 700 г", "Овощи и зелень")),
+      Map.entry("zucchini", new CatalogDescriptor("Кабачки 1 кг", "Овощи и зелень"))
+  );
+  private static final String[] FALLBACK_DAIRY_BASES = {
+      "Молоко деревенское",
+      "Кефир био",
+      "Ряженка томлёная",
+      "Йогурт сливочный",
+      "Творог зернёный",
+      "Сыр молодой"
+  };
+  private static final String[] FALLBACK_DAIRY_PACKS = {"900 мл", "1 л", "500 мл", "500 г", "250 г"};
+  private static final String[] FALLBACK_MEAT_BASES = {
+      "Шницель куриный",
+      "Гуляш говяжий",
+      "Окорок свиной",
+      "Фрикадельки домашние",
+      "Стейк индейки",
+      "Тушка утки"
+  };
+  private static final String[] FALLBACK_MEAT_PACKS = {"600 г", "700 г", "800 г", "1 кг", "500 г"};
+  private static final String[] FALLBACK_VEGETABLE_BASES = {
+      "Картофель белый",
+      "Морковь хрустящая",
+      "Лук шалот",
+      "Капуста ранняя",
+      "Огурцы тепличные",
+      "Томаты мясистые"
+  };
+  private static final String[] FALLBACK_VEGETABLE_PACKS = {"1 кг", "2 кг", "500 г", "700 г", "1 шт"};
+  private static final String[] FALLBACK_FRUIT_BASES = {
+      "Яблоки медовые",
+      "Груши летние",
+      "Сливы янтарные",
+      "Персики бархатные",
+      "Абрикосы южные",
+      "Нектарины сладкие"
+  };
+  private static final String[] FALLBACK_FRUIT_PACKS = {"1 кг", "500 г", "700 г", "250 г", "1 л"};
+  private static final String[] FALLBACK_BERRY_BASES = {
+      "Клубника луговая",
+      "Малина отборная",
+      "Голубика лесная",
+      "Смородина рубиновая",
+      "Клюква лесная",
+      "Ежевика садовая"
+  };
+  private static final String[] FALLBACK_BERRY_PACKS = {"250 г", "300 г", "400 г", "500 г"};
+  private static final String[] FALLBACK_BAKERY_BASES = {
+      "Хлеб зерновой",
+      "Булочки пшеничные",
+      "Лаваш тонкий",
+      "Крекеры солодовые",
+      "Мука хлебопекарная",
+      "Лепёшка деревенская"
+  };
+  private static final String[] FALLBACK_BAKERY_PACKS = {"400 г", "500 г", "600 г", "700 г", "1 кг"};
+  private static final String[] FALLBACK_GRAIN_BASES = {
+      "Киноа белая",
+      "Перловка отборная",
+      "Булгур золотистый",
+      "Рис жасмин",
+      "Фасоль белая",
+      "Овсяные хлопья"
+  };
+  private static final String[] FALLBACK_GRAIN_PACKS = {"800 г", "900 г", "1 кг", "700 г"};
+  private static final String[] FALLBACK_PANTRY_BASES = {
+      "Мёд луговой",
+      "Масло кукурузное",
+      "Вода родниковая",
+      "Сок облепиховый",
+      "Сироп ягодный",
+      "Масло горчичное"
+  };
+  private static final String[] FALLBACK_PANTRY_PACKS = {"500 г", "700 г", "1 л", "900 мл", "250 г"};
+
+  private record CatalogDescriptor(String name, String category) {
+  }
 
   private final UserRepository userRepository;
   private final ProductRepository productRepository;
@@ -156,6 +313,7 @@ public class DataInitializer implements CommandLineRunner {
       seedProduct("Батон деревенский 400 г", "Хлеб и выпечка", "2.10", 100, "baguette.webp");
       seedProduct("Гречка ядрица 1 кг", "Крупы", "3.00", 90, "buckwheat.webp");
       seedCatalogProducts();
+      normalizeCatalogProducts();
 
       demoSeeded = true;
     }
@@ -168,11 +326,17 @@ public class DataInitializer implements CommandLineRunner {
   }
 
   private void seedProduct(String name, String cat, String price, int stock, String img) {
-    Product existing = productRepository.findByNameIgnoreCase(name).orElse(null);
+    String photoUrl = PRODUCT_IMAGE_BASE + img;
+    Product existingByName = productRepository.findByNameIgnoreCase(name).orElse(null);
+    Product existingByPhoto = productRepository.findByPhotoUrlIgnoreCase(photoUrl).orElse(null);
+    Product existing = existingByName != null ? existingByName : existingByPhoto;
     double weight = parseWeight(name);
     double volume = parseVolume(name);
-    String photoUrl = PRODUCT_IMAGE_BASE + img;
-    boolean photoTakenByAnotherProduct = photoUrl != null && productRepository.existsByPhotoUrlIgnoreCase(photoUrl);
+    boolean photoTakenByAnotherProduct =
+        existingByPhoto != null
+            && existing != null
+            && existingByPhoto.getId() != null
+            && !existingByPhoto.getId().equals(existing.getId());
     String normalizedPhotoUrl = photoTakenByAnotherProduct ? null : photoUrl;
 
     if (existing == null) {
@@ -180,7 +344,19 @@ public class DataInitializer implements CommandLineRunner {
       productRepository.save(p);
     } else {
       boolean changed = false;
-      if (existing.getPhotoUrl() == null && normalizedPhotoUrl != null) {
+      if (!name.equals(existing.getName())) {
+        existing.setName(name);
+        changed = true;
+      }
+      if (!cat.equals(existing.getCategory())) {
+        existing.setCategory(cat);
+        changed = true;
+      }
+      if (!name.equals(existing.getDescription())) {
+        existing.setDescription(name);
+        changed = true;
+      }
+      if (normalizedPhotoUrl != null && !normalizedPhotoUrl.equals(existing.getPhotoUrl())) {
         existing.setPhotoUrl(normalizedPhotoUrl);
         changed = true;
       }
@@ -220,9 +396,10 @@ public class DataInitializer implements CommandLineRunner {
         break;
       }
       int catalogIndex = (int) existingCount + seededSupplemental + 1;
+      CatalogDescriptor descriptor = describeCatalogProduct(imageName, catalogIndex);
       seedProduct(
-          buildCatalogProductName(imageName, catalogIndex),
-          resolveCatalogCategory(imageName),
+          descriptor.name(),
+          descriptor.category(),
           resolveCatalogPrice(imageName),
           resolveCatalogStock(imageName),
           imageName
@@ -241,6 +418,66 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     log.info("Seeded {} supplemental demo products to restore the full demo catalog.", seededSupplemental);
+  }
+
+  private void normalizeCatalogProducts() {
+    List<Product> products = productRepository.findAll().stream()
+        .sorted(Comparator.comparing(Product::getId, Comparator.nullsLast(Long::compareTo)))
+        .collect(Collectors.toList());
+    if (products.isEmpty()) {
+      return;
+    }
+
+    int fallbackIndex = DEMO_PRODUCT_TARGET_COUNT + 1;
+    int normalizedCount = 0;
+    for (Product product : products) {
+      String imageName = extractImageName(product.getPhotoUrl());
+      boolean supplementalByPhoto = imageName != null && !CORE_PRODUCT_IMAGES.contains(imageName);
+      boolean needsRepair = supplementalByPhoto
+          || String.valueOf(product.getName()).startsWith("Каталожный товар")
+          || "Каталог".equalsIgnoreCase(product.getCategory());
+      if (!needsRepair) {
+        continue;
+      }
+
+      CatalogDescriptor descriptor = describeCatalogProduct(
+          imageName != null ? imageName : "fallback-" + fallbackIndex,
+          extractCatalogIndex(imageName, fallbackIndex)
+      );
+      fallbackIndex++;
+
+      boolean changed = false;
+      if (!descriptor.name().equals(product.getName())) {
+        product.setName(descriptor.name());
+        changed = true;
+      }
+      if (!descriptor.category().equals(product.getCategory())) {
+        product.setCategory(descriptor.category());
+        changed = true;
+      }
+      if (!descriptor.name().equals(product.getDescription())) {
+        product.setDescription(descriptor.name());
+        changed = true;
+      }
+      double weight = parseWeight(descriptor.name());
+      if (product.getWeightKg() == null || Math.abs(product.getWeightKg() - weight) > 0.001) {
+        product.setWeightKg(weight);
+        changed = true;
+      }
+      double volume = parseVolume(descriptor.name());
+      if (product.getVolumeM3() == null || Math.abs(product.getVolumeM3() - volume) > 0.001) {
+        product.setVolumeM3(volume);
+        changed = true;
+      }
+      if (changed) {
+        productRepository.save(product);
+        normalizedCount++;
+      }
+    }
+
+    if (normalizedCount > 0) {
+      log.info("Normalized {} demo catalog products with readable names.", normalizedCount);
+    }
   }
 
   private Path resolveProductImagesDirectory() {
@@ -272,37 +509,112 @@ public class DataInitializer implements CommandLineRunner {
     return imageName.toLowerCase(Locale.ROOT).endsWith(".webp");
   }
 
-  private String buildCatalogProductName(String imageName, int catalogIndex) {
-    String baseName = imageName.substring(0, imageName.length() - ".webp".length());
-    if (baseName.startsWith("mogilev-product-")) {
-      return "Каталожный товар " + baseName.substring("mogilev-product-".length());
-    }
-    if (!baseName.isEmpty() && Character.isDigit(baseName.charAt(0))) {
-      return String.format(Locale.ROOT, "Каталожный товар %03d", catalogIndex);
+  private CatalogDescriptor describeCatalogProduct(String imageName, int catalogIndex) {
+    String baseName = imageName == null
+        ? ""
+        : imageName.toLowerCase(Locale.ROOT).endsWith(".webp")
+            ? imageName.substring(0, imageName.length() - ".webp".length())
+            : imageName;
+    CatalogDescriptor exactDescriptor = CATALOG_PRODUCT_BY_BASENAME.get(baseName);
+    if (exactDescriptor != null) {
+      return exactDescriptor;
     }
 
-    String readableName = Arrays.stream(baseName.split("-"))
-        .filter(token -> !token.isBlank())
-        .map(this::formatCatalogToken)
-        .collect(Collectors.joining(" "));
+    int resolvedIndex = extractCatalogIndex(baseName, catalogIndex);
+    if (baseName.isBlank() || baseName.startsWith("mogilev-product-")
+        || Character.isDigit(baseName.charAt(0))) {
+      return fallbackCatalogDescriptor(resolvedIndex);
+    }
 
+    CatalogDescriptor fallbackDescriptor = fallbackCatalogDescriptor(resolvedIndex);
+    String category = resolveCatalogCategory(baseName, fallbackDescriptor.category());
+    String readableName = applyDefaultCatalogPackage(
+        Arrays.stream(baseName.split("-"))
+            .filter(token -> !token.isBlank())
+            .map(this::formatCatalogToken)
+            .collect(Collectors.joining(" ")),
+        category
+    );
     if (readableName.isBlank()) {
-      return String.format(Locale.ROOT, "Каталожный товар %03d", catalogIndex);
+      return fallbackDescriptor;
     }
-    return readableName;
+    return new CatalogDescriptor(readableName, category);
+  }
+
+  private int extractCatalogIndex(String baseName, int fallbackIndex) {
+    if (baseName != null && baseName.startsWith("mogilev-product-")) {
+      try {
+        return Integer.parseInt(baseName.substring("mogilev-product-".length()));
+      } catch (NumberFormatException ignored) {
+        return fallbackIndex;
+      }
+    }
+    return fallbackIndex;
+  }
+
+  private CatalogDescriptor fallbackCatalogDescriptor(int catalogIndex) {
+    int normalizedIndex = Math.max(0, catalogIndex - 1);
+    int family = normalizedIndex % 8;
+    int familyIndex = normalizedIndex / 8;
+    return switch (family) {
+      case 0 -> buildCatalogDescriptor("Молочная продукция", FALLBACK_DAIRY_BASES, FALLBACK_DAIRY_PACKS, familyIndex);
+      case 1 -> buildCatalogDescriptor("Мясо и птица", FALLBACK_MEAT_BASES, FALLBACK_MEAT_PACKS, familyIndex);
+      case 2 -> buildCatalogDescriptor("Овощи и зелень", FALLBACK_VEGETABLE_BASES, FALLBACK_VEGETABLE_PACKS, familyIndex);
+      case 3 -> buildCatalogDescriptor("Фрукты", FALLBACK_FRUIT_BASES, FALLBACK_FRUIT_PACKS, familyIndex);
+      case 4 -> buildCatalogDescriptor("Ягоды", FALLBACK_BERRY_BASES, FALLBACK_BERRY_PACKS, familyIndex);
+      case 5 -> buildCatalogDescriptor("Хлеб и выпечка", FALLBACK_BAKERY_BASES, FALLBACK_BAKERY_PACKS, familyIndex);
+      case 6 -> buildCatalogDescriptor("Крупы и бобовые", FALLBACK_GRAIN_BASES, FALLBACK_GRAIN_PACKS, familyIndex);
+      default -> buildPantryCatalogDescriptor(familyIndex);
+    };
+  }
+
+  private CatalogDescriptor buildCatalogDescriptor(String category, String[] bases, String[] packs, int index) {
+    String base = bases[Math.floorMod(index, bases.length)];
+    String pack = packs[Math.floorMod(index / bases.length, packs.length)];
+    return new CatalogDescriptor(base + " " + pack, category);
+  }
+
+  private CatalogDescriptor buildPantryCatalogDescriptor(int index) {
+    String base = FALLBACK_PANTRY_BASES[Math.floorMod(index, FALLBACK_PANTRY_BASES.length)];
+    String pack = FALLBACK_PANTRY_PACKS[Math.floorMod(index / FALLBACK_PANTRY_BASES.length, FALLBACK_PANTRY_PACKS.length)];
+    return new CatalogDescriptor(base + " " + pack, resolveCatalogCategory(base, "Напитки"));
   }
 
   private String formatCatalogToken(String token) {
-    if (token.chars().allMatch(Character::isDigit)) {
-      return token;
-    }
-    if (token.length() == 1) {
-      return token.toUpperCase(Locale.ROOT);
-    }
-    return Character.toUpperCase(token.charAt(0)) + token.substring(1);
+    return switch (token.toLowerCase(Locale.ROOT)) {
+      case "apple" -> "Яблоки";
+      case "pear" -> "Груши";
+      case "plum" -> "Сливы";
+      case "beef" -> "Говядина";
+      case "pork" -> "Свинина";
+      case "duck" -> "Утка";
+      case "rabbit" -> "Кролик";
+      case "broccoli" -> "Брокколи";
+      case "spinach" -> "Шпинат";
+      case "water" -> "Вода";
+      default -> Character.toUpperCase(token.charAt(0)) + token.substring(1);
+    };
   }
 
-  private String resolveCatalogCategory(String imageName) {
+  private String applyDefaultCatalogPackage(String name, String category) {
+    String normalizedName = name == null ? "" : name.trim();
+    if (normalizedName.isBlank() || normalizedName.matches(".*\\d.*")) {
+      return normalizedName;
+    }
+    return switch (category) {
+      case "Молочная продукция" -> normalizedName + " 500 г";
+      case "Мясо и птица" -> normalizedName + " 1 кг";
+      case "Овощи и зелень", "Фрукты" -> normalizedName + " 1 кг";
+      case "Ягоды" -> normalizedName + " 300 г";
+      case "Птица и яйца" -> normalizedName + " 10 шт";
+      case "Напитки", "Масла", "Напитки и бакалея" -> normalizedName + " 1 л";
+      case "Хлеб и выпечка", "Крупы и бобовые" -> normalizedName + " 1 кг";
+      case "Пчеловодство" -> normalizedName + " 500 г";
+      default -> normalizedName;
+    };
+  }
+
+  private String resolveCatalogCategory(String imageName, String fallbackCategory) {
     String normalized = imageName.toLowerCase(Locale.ROOT);
     if (containsAny(normalized, "milk", "kefir", "yogurt", "cream", "butter", "cheese", "curd", "bryndza", "ghee")) {
       return "Молочная продукция";
@@ -317,7 +629,7 @@ public class DataInitializer implements CommandLineRunner {
         "beet", "pumpkin", "radish", "zucchini", "garlic", "pepper", "cauliflower", "spinach", "dill", "parsley")) {
       return "Овощи и зелень";
     }
-    if (containsAny(normalized, "apple", "pear", "plum")) {
+    if (containsAny(normalized, "apple", "pear", "plum", "sweet-cherry")) {
       return "Фрукты";
     }
     if (containsAny(normalized, "strawberry", "raspberry", "blueberry", "currant", "cranberry", "lingonberry",
@@ -339,7 +651,15 @@ public class DataInitializer implements CommandLineRunner {
     if (containsAny(normalized, "oil")) {
       return "Масла";
     }
-    return "Каталог";
+    return fallbackCategory;
+  }
+
+  private String extractImageName(String photoUrl) {
+    if (photoUrl == null || photoUrl.isBlank()) {
+      return null;
+    }
+    int separatorIndex = photoUrl.lastIndexOf('/');
+    return separatorIndex >= 0 ? photoUrl.substring(separatorIndex + 1) : photoUrl;
   }
 
   private boolean containsAny(String value, String... fragments) {
@@ -385,21 +705,43 @@ public class DataInitializer implements CommandLineRunner {
 
   private double parseWeight(String name) {
     String l = name.toLowerCase(Locale.ROOT);
+    if (l.contains("1.5 л") || l.contains("1.5 кг")) return 1.5;
     if (l.contains("1 л") || l.contains("1 кг")) return 1.0;
     if (l.contains("2 л") || l.contains("2 кг")) return 2.0;
+    if (l.contains("900 мл") || l.contains("900 г")) return 0.9;
+    if (l.contains("800 г")) return 0.8;
+    if (l.contains("700 г")) return 0.7;
+    if (l.contains("600 г")) return 0.6;
     if (l.contains("500 мл") || l.contains("500 г")) return 0.5;
     if (l.contains("400 г")) return 0.4;
+    if (l.contains("300 г")) return 0.3;
     if (l.contains("200 г") || l.contains("250 г")) return 0.25;
+    if (l.contains("150 г")) return 0.15;
+    if (l.contains("100 г")) return 0.1;
+    if (l.contains("50 г")) return 0.05;
     if (l.contains("10 шт")) return 0.6;
-    if (l.contains("600 г") || l.contains("700 г")) return 0.7;
+    if (l.contains("20 шт")) return 0.4;
+    if (l.contains("30 шт")) return 0.6;
     return 1.0;
   }
 
   private double parseVolume(String name) {
     String l = name.toLowerCase(Locale.ROOT);
+    if (l.contains("1.5 л") || l.contains("1.5 кг")) return 0.0018;
     if (l.contains("1 л") || l.contains("1 кг")) return 0.0012;
     if (l.contains("2 л") || l.contains("2 кг")) return 0.0025;
+    if (l.contains("900 мл") || l.contains("900 г")) return 0.0011;
+    if (l.contains("800 г")) return 0.00095;
+    if (l.contains("700 г")) return 0.00085;
+    if (l.contains("600 г")) return 0.00075;
     if (l.contains("500 мл") || l.contains("500 г")) return 0.0006;
+    if (l.contains("400 г")) return 0.0005;
+    if (l.contains("300 г")) return 0.0004;
+    if (l.contains("250 г")) return 0.0003;
+    if (l.contains("200 г")) return 0.00025;
+    if (l.contains("150 г")) return 0.0002;
+    if (l.contains("100 г")) return 0.00015;
+    if (l.contains("50 г")) return 0.0001;
     return 0.001;
   }
 

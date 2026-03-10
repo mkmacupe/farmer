@@ -8,10 +8,19 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
-import org.apache.poi.xssf.streaming.SXSSFWorkbook;
+import org.apache.poi.ss.usermodel.BorderStyle;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.DataFormat;
+import org.apache.poi.ss.usermodel.FillPatternType;
+import org.apache.poi.ss.usermodel.Font;
+import org.apache.poi.ss.usermodel.HorizontalAlignment;
+import org.apache.poi.ss.usermodel.IndexedColors;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.VerticalAlignment;
+import org.apache.poi.ss.util.CellRangeAddress;
+import org.apache.poi.xssf.streaming.SXSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
@@ -25,10 +34,32 @@ public class ReportService {
   private static final Logger log = LoggerFactory.getLogger(ReportService.class);
   private static final int REPORT_ROW_WINDOW = 200;
   private static final int MAX_REPORT_ROWS = 20_000;
+  private static final int TITLE_ROW_INDEX = 0;
+  private static final int FILTER_ROW_INDEX = 1;
+  private static final int HEADER_ROW_INDEX = 3;
+  private static final int DATA_START_ROW_INDEX = 4;
   private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
       .withLocale(Locale.US)
       .withZone(ZoneOffset.UTC);
+  private static final DateTimeFormatter FILTER_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+      .withLocale(Locale.forLanguageTag("ru-RU"))
+      .withZone(ZoneOffset.UTC);
   private final OrderRepository orderRepository;
+
+  private record ReportStyles(
+      CellStyle title,
+      CellStyle meta,
+      CellStyle header,
+      CellStyle body,
+      CellStyle bodyAlt,
+      CellStyle date,
+      CellStyle dateAlt,
+      CellStyle currency,
+      CellStyle currencyAlt,
+      CellStyle number,
+      CellStyle numberAlt
+  ) {
+  }
 
   public ReportService(OrderRepository orderRepository) {
     this.orderRepository = orderRepository;
@@ -60,20 +91,17 @@ public class ReportService {
     try (SXSSFWorkbook workbook = new SXSSFWorkbook(REPORT_ROW_WINDOW);
          ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
       Sheet sheet = workbook.createSheet("Заказы");
-      createHeader(sheet);
+      ReportStyles styles = createStyles(workbook);
+      createHeader(sheet, styles);
+      createReportMeta(sheet, styles, from, to, status, orders.size());
       setColumnWidths(sheet);
+      sheet.createFreezePane(0, DATA_START_ROW_INDEX);
+      sheet.setAutoFilter(new CellRangeAddress(HEADER_ROW_INDEX, HEADER_ROW_INDEX, 0, 7));
 
-      int rowIndex = 1;
+      int rowIndex = DATA_START_ROW_INDEX;
       for (OrderRepository.ReportRow order : orders) {
-        Row row = sheet.createRow(rowIndex++);
-        row.createCell(0).setCellValue(order.getOrderId() == null ? 0 : order.getOrderId());
-        row.createCell(1).setCellValue(order.getStoreName() == null ? "-" : order.getStoreName());
-        row.createCell(2).setCellValue(order.getStatus() == null ? "-" : order.getStatus().name());
-        row.createCell(3).setCellValue(order.getCreatedAt() == null ? "-" : REPORT_DATE_FORMATTER.format(order.getCreatedAt()));
-        row.createCell(4).setCellValue(order.getTotalAmount() == null ? 0d : order.getTotalAmount().doubleValue());
-        row.createCell(5).setCellValue(order.getItemCount() == null ? 0d : order.getItemCount().doubleValue());
-        row.createCell(6).setCellValue(order.getDeliveryAddressText() == null ? "-" : order.getDeliveryAddressText());
-        row.createCell(7).setCellValue(order.getDriverName() == null ? "-" : order.getDriverName());
+        createOrderRow(sheet.createRow(rowIndex), rowIndex, order, styles);
+        rowIndex++;
       }
 
       workbook.write(outputStream);
@@ -84,27 +112,203 @@ public class ReportService {
     }
   }
 
-  private void createHeader(Sheet sheet) {
-    Row header = sheet.createRow(0);
-    Cell cell0 = header.createCell(0);
-    cell0.setCellValue("ID заказа");
-    header.createCell(1).setCellValue("Магазин");
-    header.createCell(2).setCellValue("Статус");
-    header.createCell(3).setCellValue("Создан");
-    header.createCell(4).setCellValue("Сумма");
-    header.createCell(5).setCellValue("Количество позиций");
-    header.createCell(6).setCellValue("Адрес доставки");
-    header.createCell(7).setCellValue("Водитель");
+  private void createHeader(Sheet sheet, ReportStyles styles) {
+    Row titleRow = sheet.createRow(TITLE_ROW_INDEX);
+    titleRow.setHeightInPoints(24);
+    Cell titleCell = titleRow.createCell(0);
+    titleCell.setCellValue("Отчёт по заказам");
+    titleCell.setCellStyle(styles.title());
+    sheet.addMergedRegion(new CellRangeAddress(TITLE_ROW_INDEX, TITLE_ROW_INDEX, 0, 7));
+
+    Row spacerRow = sheet.createRow(2);
+    spacerRow.setHeightInPoints(8);
+
+    Row headerRow = sheet.createRow(HEADER_ROW_INDEX);
+    createHeaderCell(headerRow, 0, "ID заказа", styles.header());
+    createHeaderCell(headerRow, 1, "Магазин", styles.header());
+    createHeaderCell(headerRow, 2, "Статус", styles.header());
+    createHeaderCell(headerRow, 3, "Создан", styles.header());
+    createHeaderCell(headerRow, 4, "Сумма", styles.header());
+    createHeaderCell(headerRow, 5, "Количество позиций", styles.header());
+    createHeaderCell(headerRow, 6, "Адрес доставки", styles.header());
+    createHeaderCell(headerRow, 7, "Водитель", styles.header());
+  }
+
+  private void createHeaderCell(Row row, int index, String value, CellStyle style) {
+    Cell cell = row.createCell(index);
+    cell.setCellValue(value);
+    cell.setCellStyle(style);
+  }
+
+  private void createReportMeta(Sheet sheet,
+                                ReportStyles styles,
+                                Instant from,
+                                Instant to,
+                                OrderStatus status,
+                                int rowsCount) {
+    Row metaRow = sheet.createRow(FILTER_ROW_INDEX);
+    metaRow.setHeightInPoints(34);
+    Cell metaCell = metaRow.createCell(0);
+    metaCell.setCellValue(buildFilterSummary(from, to, status, rowsCount));
+    metaCell.setCellStyle(styles.meta());
+    sheet.addMergedRegion(new CellRangeAddress(FILTER_ROW_INDEX, FILTER_ROW_INDEX, 0, 7));
+  }
+
+  private String buildFilterSummary(Instant from, Instant to, OrderStatus status, int rowsCount) {
+    String fromLabel = from == null ? "с начала" : FILTER_DATE_FORMATTER.format(from);
+    String toLabel = to == null ? "сейчас" : FILTER_DATE_FORMATTER.format(to);
+    String statusLabel = status == null ? "все статусы" : status.name();
+    return "Период: " + fromLabel + " - " + toLabel
+        + " | Статус: " + statusLabel
+        + " | Строк: " + rowsCount;
+  }
+
+  private void createOrderRow(Row row, int rowIndex, OrderRepository.ReportRow order, ReportStyles styles) {
+    boolean alternate = (rowIndex - DATA_START_ROW_INDEX) % 2 != 0;
+    CellStyle bodyStyle = alternate ? styles.bodyAlt() : styles.body();
+    CellStyle dateStyle = alternate ? styles.dateAlt() : styles.date();
+    CellStyle currencyStyle = alternate ? styles.currencyAlt() : styles.currency();
+    CellStyle numberStyle = alternate ? styles.numberAlt() : styles.number();
+
+    row.setHeightInPoints(22);
+
+    Cell idCell = row.createCell(0);
+    idCell.setCellValue(order.getOrderId() == null ? 0 : order.getOrderId());
+    idCell.setCellStyle(numberStyle);
+
+    Cell storeCell = row.createCell(1);
+    storeCell.setCellValue(order.getStoreName() == null ? "-" : order.getStoreName());
+    storeCell.setCellStyle(bodyStyle);
+
+    Cell statusCell = row.createCell(2);
+    statusCell.setCellValue(order.getStatus() == null ? "-" : order.getStatus().name());
+    statusCell.setCellStyle(bodyStyle);
+
+    Cell createdCell = row.createCell(3);
+    createdCell.setCellValue(order.getCreatedAt() == null ? "-" : REPORT_DATE_FORMATTER.format(order.getCreatedAt()));
+    createdCell.setCellStyle(dateStyle);
+
+    Cell amountCell = row.createCell(4);
+    amountCell.setCellValue(order.getTotalAmount() == null ? 0d : order.getTotalAmount().doubleValue());
+    amountCell.setCellStyle(currencyStyle);
+
+    Cell itemCountCell = row.createCell(5);
+    itemCountCell.setCellValue(order.getItemCount() == null ? 0d : order.getItemCount().doubleValue());
+    itemCountCell.setCellStyle(numberStyle);
+
+    Cell addressCell = row.createCell(6);
+    addressCell.setCellValue(order.getDeliveryAddressText() == null ? "-" : order.getDeliveryAddressText());
+    addressCell.setCellStyle(bodyStyle);
+
+    Cell driverCell = row.createCell(7);
+    driverCell.setCellValue(order.getDriverName() == null ? "-" : order.getDriverName());
+    driverCell.setCellStyle(bodyStyle);
+  }
+
+  private ReportStyles createStyles(SXSSFWorkbook workbook) {
+    DataFormat dataFormat = workbook.createDataFormat();
+
+    Font titleFont = workbook.createFont();
+    titleFont.setBold(true);
+    titleFont.setFontHeightInPoints((short) 15);
+    titleFont.setColor(IndexedColors.DARK_GREEN.getIndex());
+
+    Font metaFont = workbook.createFont();
+    metaFont.setFontHeightInPoints((short) 10);
+    metaFont.setColor(IndexedColors.GREY_80_PERCENT.getIndex());
+
+    Font headerFont = workbook.createFont();
+    headerFont.setBold(true);
+    headerFont.setColor(IndexedColors.WHITE.getIndex());
+
+    CellStyle titleStyle = workbook.createCellStyle();
+    titleStyle.setFont(titleFont);
+    titleStyle.setAlignment(HorizontalAlignment.LEFT);
+    titleStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+
+    CellStyle metaStyle = workbook.createCellStyle();
+    metaStyle.setFont(metaFont);
+    metaStyle.setWrapText(true);
+    metaStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+    metaStyle.setFillForegroundColor(IndexedColors.GREY_25_PERCENT.getIndex());
+    metaStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+    CellStyle headerStyle = workbook.createCellStyle();
+    headerStyle.setFont(headerFont);
+    headerStyle.setAlignment(HorizontalAlignment.CENTER);
+    headerStyle.setVerticalAlignment(VerticalAlignment.CENTER);
+    headerStyle.setFillForegroundColor(IndexedColors.SEA_GREEN.getIndex());
+    headerStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+    applyBorders(headerStyle);
+
+    CellStyle bodyStyle = workbook.createCellStyle();
+    bodyStyle.setWrapText(true);
+    bodyStyle.setVerticalAlignment(VerticalAlignment.TOP);
+    applyBorders(bodyStyle);
+
+    CellStyle bodyAltStyle = workbook.createCellStyle();
+    bodyAltStyle.cloneStyleFrom(bodyStyle);
+    bodyAltStyle.setFillForegroundColor(IndexedColors.LEMON_CHIFFON.getIndex());
+    bodyAltStyle.setFillPattern(FillPatternType.SOLID_FOREGROUND);
+
+    CellStyle dateStyle = workbook.createCellStyle();
+    dateStyle.cloneStyleFrom(bodyStyle);
+    dateStyle.setDataFormat(dataFormat.getFormat("yyyy-mm-dd hh:mm"));
+
+    CellStyle dateAltStyle = workbook.createCellStyle();
+    dateAltStyle.cloneStyleFrom(bodyAltStyle);
+    dateAltStyle.setDataFormat(dataFormat.getFormat("yyyy-mm-dd hh:mm"));
+
+    CellStyle currencyStyle = workbook.createCellStyle();
+    currencyStyle.cloneStyleFrom(bodyStyle);
+    currencyStyle.setAlignment(HorizontalAlignment.RIGHT);
+    currencyStyle.setDataFormat(dataFormat.getFormat("#,##0.00\" BYN\""));
+
+    CellStyle currencyAltStyle = workbook.createCellStyle();
+    currencyAltStyle.cloneStyleFrom(bodyAltStyle);
+    currencyAltStyle.setAlignment(HorizontalAlignment.RIGHT);
+    currencyAltStyle.setDataFormat(dataFormat.getFormat("#,##0.00\" BYN\""));
+
+    CellStyle numberStyle = workbook.createCellStyle();
+    numberStyle.cloneStyleFrom(bodyStyle);
+    numberStyle.setAlignment(HorizontalAlignment.CENTER);
+    numberStyle.setDataFormat(dataFormat.getFormat("0"));
+
+    CellStyle numberAltStyle = workbook.createCellStyle();
+    numberAltStyle.cloneStyleFrom(bodyAltStyle);
+    numberAltStyle.setAlignment(HorizontalAlignment.CENTER);
+    numberAltStyle.setDataFormat(dataFormat.getFormat("0"));
+
+    return new ReportStyles(
+        titleStyle,
+        metaStyle,
+        headerStyle,
+        bodyStyle,
+        bodyAltStyle,
+        dateStyle,
+        dateAltStyle,
+        currencyStyle,
+        currencyAltStyle,
+        numberStyle,
+        numberAltStyle
+    );
+  }
+
+  private void applyBorders(CellStyle style) {
+    style.setBorderBottom(BorderStyle.THIN);
+    style.setBorderTop(BorderStyle.THIN);
+    style.setBorderLeft(BorderStyle.THIN);
+    style.setBorderRight(BorderStyle.THIN);
   }
 
   private void setColumnWidths(Sheet sheet) {
     sheet.setColumnWidth(0, 12 * 256);
     sheet.setColumnWidth(1, 30 * 256);
-    sheet.setColumnWidth(2, 14 * 256);
+    sheet.setColumnWidth(2, 16 * 256);
     sheet.setColumnWidth(3, 20 * 256);
-    sheet.setColumnWidth(4, 14 * 256);
+    sheet.setColumnWidth(4, 16 * 256);
     sheet.setColumnWidth(5, 20 * 256);
-    sheet.setColumnWidth(6, 48 * 256);
+    sheet.setColumnWidth(6, 52 * 256);
     sheet.setColumnWidth(7, 24 * 256);
   }
 

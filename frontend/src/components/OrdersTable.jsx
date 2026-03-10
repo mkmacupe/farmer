@@ -99,7 +99,13 @@ function secondaryCustomerLabel(order) {
   return `Директор: ${order.customerName}`;
 }
 
-const OrderMobileCard = memo(function OrderMobileCard({ order, showCustomer, actionRenderer, onShowDetails }) {
+const OrderMobileCard = memo(function OrderMobileCard({
+  order,
+  showCustomer,
+  actionRenderer,
+  onShowDetails,
+  compactView,
+}) {
   const statusMeta = STATUS_META[order.status] || {};
   const hasActions = typeof actionRenderer === "function";
 
@@ -149,38 +155,42 @@ const OrderMobileCard = memo(function OrderMobileCard({ order, showCustomer, act
         >
           Подробнее
         </Button>
-        <Stack direction="row" justifyContent="space-between">
-          <Typography variant="caption" color="text.secondary">
-            Водитель
-          </Typography>
-          <Typography variant="body2">
-            {order.assignedDriverName || "—"}
-          </Typography>
-        </Stack>
-        <Divider />
-        <Stack direction="row" justifyContent="space-between">
-          <Typography variant="caption" color="text.secondary">
-            Сумма
-          </Typography>
-          <Typography variant="subtitle2" fontWeight={600}>
-            {formatMoney(order.totalAmount)} BYN
-          </Typography>
-        </Stack>
-        <Stack direction="row" justifyContent="space-between">
-          <Typography variant="caption" color="text.secondary">
-            Позиций
-          </Typography>
-          <Chip
-            label={order.items?.length || 0}
-            size="small"
-            sx={{
-              minWidth: 32,
-              height: 22,
-              fontWeight: 600,
-              fontSize: "0.75rem",
-            }}
-          />
-        </Stack>
+        {!compactView && (
+          <>
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="caption" color="text.secondary">
+                Водитель
+              </Typography>
+              <Typography variant="body2">
+                {order.assignedDriverName || "—"}
+              </Typography>
+            </Stack>
+            <Divider />
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="caption" color="text.secondary">
+                Сумма
+              </Typography>
+              <Typography variant="subtitle2" fontWeight={600}>
+                {formatMoney(order.totalAmount)} BYN
+              </Typography>
+            </Stack>
+            <Stack direction="row" justifyContent="space-between">
+              <Typography variant="caption" color="text.secondary">
+                Позиций
+              </Typography>
+              <Chip
+                label={order.items?.length || 0}
+                size="small"
+                sx={{
+                  minWidth: 32,
+                  height: 22,
+                  fontWeight: 600,
+                  fontSize: "0.75rem",
+                }}
+              />
+            </Stack>
+          </>
+        )}
         <Typography variant="caption" color="text.secondary">
           {formatDateTime(order.createdAt)}
         </Typography>
@@ -192,7 +202,13 @@ const OrderMobileCard = memo(function OrderMobileCard({ order, showCustomer, act
   );
 });
 
-const OrderTableRow = memo(function OrderTableRow({ order, showCustomer, actionRenderer, onShowDetails }) {
+const OrderTableRow = memo(function OrderTableRow({
+  order,
+  showCustomer,
+  actionRenderer,
+  onShowDetails,
+  compactView,
+}) {
   const statusMeta = STATUS_META[order.status] || {};
   const hasActions = typeof actionRenderer === "function";
 
@@ -269,14 +285,16 @@ const OrderTableRow = memo(function OrderTableRow({ order, showCustomer, actionR
           </Button>
         </Stack>
       </TableCell>
-      <TableCell>
-        <Typography
-          variant="body2"
-          color={order.assignedDriverName ? "text.primary" : "text.disabled"}
-        >
-          {order.assignedDriverName || "—"}
-        </Typography>
-      </TableCell>
+      {!compactView && (
+        <TableCell>
+          <Typography
+            variant="body2"
+            color={order.assignedDriverName ? "text.primary" : "text.disabled"}
+          >
+            {order.assignedDriverName || "—"}
+          </Typography>
+        </TableCell>
+      )}
       <TableCell>
         <Chip
           label={statusMeta.label || order.status}
@@ -291,18 +309,22 @@ const OrderTableRow = memo(function OrderTableRow({ order, showCustomer, actionR
           {formatDateTime(order.createdAt)}
         </Typography>
       </TableCell>
-      <TableCell align="right">
-        <Typography variant="subtitle2" fontWeight={600}>
-          {formatMoney(order.totalAmount)}
-        </Typography>
-      </TableCell>
-      <TableCell align="center">
-        <Chip
-          label={order.items?.length || 0}
-          size="small"
-          sx={{ minWidth: 32, height: 24, fontWeight: 600, fontSize: "0.75rem" }}
-        />
-      </TableCell>
+      {!compactView && (
+        <>
+          <TableCell align="right">
+            <Typography variant="subtitle2" fontWeight={600}>
+              {formatMoney(order.totalAmount)}
+            </Typography>
+          </TableCell>
+          <TableCell align="center">
+            <Chip
+              label={order.items?.length || 0}
+              size="small"
+              sx={{ minWidth: 32, height: 24, fontWeight: 600, fontSize: "0.75rem" }}
+            />
+          </TableCell>
+        </>
+      )}
       {hasActions && (
         <TableCell sx={{ minWidth: 280, verticalAlign: "top" }}>
           {actionRenderer(order)}
@@ -320,6 +342,7 @@ export default memo(function OrdersTable({
   searchEnabled = true,
   loading = false,
   maxRendered = DEFAULT_MAX_RENDERED_ORDERS,
+  compactView = false,
 }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -679,6 +702,7 @@ export default memo(function OrdersTable({
                 showCustomer={showCustomer}
                 actionRenderer={actionRenderer}
                 onShowDetails={setDetailsOrder}
+                compactView={compactView}
               />
             ))}
           </Stack>
@@ -734,17 +758,23 @@ export default memo(function OrdersTable({
                 <TableCell sx={{ fontWeight: 600 }}>Директор</TableCell>
               )}
               <TableCell sx={{ fontWeight: 600 }}>Адрес доставки</TableCell>
-              <TableCell sx={{ fontWeight: 600, width: 140 }}>
-                Водитель
-              </TableCell>
+              {!compactView && (
+                <TableCell sx={{ fontWeight: 600, width: 140 }}>
+                  Водитель
+                </TableCell>
+              )}
               <TableCell sx={{ fontWeight: 600, width: 120 }}>Статус</TableCell>
               <TableCell sx={{ fontWeight: 600, width: 140 }}>Дата</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600, width: 100 }}>
-                Сумма
-              </TableCell>
-              <TableCell align="center" sx={{ fontWeight: 600, width: 70 }}>
-                Поз.
-              </TableCell>
+              {!compactView && (
+                <>
+                  <TableCell align="right" sx={{ fontWeight: 600, width: 100 }}>
+                    Сумма
+                  </TableCell>
+                  <TableCell align="center" sx={{ fontWeight: 600, width: 70 }}>
+                    Поз.
+                  </TableCell>
+                </>
+              )}
               {hasActions && (
                 <TableCell sx={{ fontWeight: 600, width: 280, minWidth: 280 }}>
                   Действия
@@ -760,6 +790,7 @@ export default memo(function OrdersTable({
                 showCustomer={showCustomer}
                 actionRenderer={actionRenderer}
                 onShowDetails={setDetailsOrder}
+                compactView={compactView}
               />
             ))}
           </TableBody>

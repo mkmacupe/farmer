@@ -127,22 +127,6 @@ function orderDirectorName(order) {
   return order?.customerName || "Директор магазина";
 }
 
-function orderTotalUnits(items) {
-  return (items || []).reduce(
-    (sum, item) => sum + Number(item?.quantity || 0),
-    0,
-  );
-}
-
-function orderComposition(items) {
-  if (!Array.isArray(items) || !items.length) {
-    return "Состав не указан";
-  }
-  return items
-    .map((item) => `${item.productName || "Товар"} × ${item.quantity || 0}`)
-    .join(", ");
-}
-
 function orderInitials(order) {
   const source = orderStoreName(order).replace(/["«»]/g, " ");
   const parts = source
@@ -176,7 +160,6 @@ const KanbanCard = memo(function KanbanCard({
   onDragEnd,
   onApprove,
   onLoadTimeline,
-  onOpenDetails,
 }) {
   const theme = useTheme();
   const hasQuickApprove = order.status === "CREATED";
@@ -338,7 +321,7 @@ const KanbanCard = memo(function KanbanCard({
           px: 2,
           pb: 2,
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(152px, 1fr))",
           gap: 1,
         }}
       >
@@ -354,15 +337,6 @@ const KanbanCard = memo(function KanbanCard({
             Одобрить
           </Button>
         )}
-        <Button
-          size="small"
-          variant="outlined"
-          onClick={() => onOpenDetails(order)}
-          disabled={actionLoading}
-          fullWidth
-        >
-          Подробнее
-        </Button>
         <Button
           size="small"
           variant="outlined"
@@ -482,7 +456,6 @@ export default function ManagerView({ token, activeSection }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [timelineOrderId, setTimelineOrderId] = useState(null);
   const [timeline, setTimeline] = useState([]);
-  const [detailsOrder, setDetailsOrder] = useState(null);
 
   const [productDrawerOpen, setProductDrawerOpen] = useState(false);
   const [editingProductId, setEditingProductId] = useState(null);
@@ -908,15 +881,21 @@ export default function ManagerView({ token, activeSection }) {
     }
   };
 
+  const refreshOperationalData = async (signal) => {
+    await Promise.all([
+      loadOrders(signal),
+      loadDashboard(signal),
+      loadDashboardTrends(signal),
+      loadDashboardCategories(signal),
+    ]);
+  };
+
   const loadForSection = async (sectionId, signal) => {
     const tasks = [];
     if (sectionId === "manager-dashboard") {
       tasks.push(
-        loadOrders,
+        refreshOperationalData,
         loadProductsAndCategories,
-        loadDashboard,
-        loadDashboardTrends,
-        loadDashboardCategories,
       );
     } else if (sectionId === "manager-orders") {
       tasks.push(loadOrders);
@@ -952,19 +931,22 @@ export default function ManagerView({ token, activeSection }) {
     const sectionId = activeSection || "manager-dashboard";
     loadForSection(sectionId, controller.signal);
     return () => controller.abort();
-  }, [token, activeSection]);
+  }, [token, activeSection, dashboardFrom, dashboardTo]);
 
   useEffect(() => {
+    const controller = new AbortController();
     const unsubscribe = subscribeNotifications(token, {
       onNotification: (payload) => {
         setNotifications((prev) => [payload, ...prev].slice(0, 20));
         showMessage(`Новое событие: ${payload.title || "Уведомление"}`, "info");
-        const sectionId = activeSection || "manager-dashboard";
-        void loadForSection(sectionId);
+        void refreshOperationalData(controller.signal);
       },
     });
-    return () => unsubscribe();
-  }, [token, activeSection]);
+    return () => {
+      controller.abort();
+      unsubscribe();
+    };
+  }, [token, dashboardFrom, dashboardTo]);
 
   const handleApproveRef = useRef(null);
   handleApproveRef.current = async (orderId) => {
@@ -972,7 +954,7 @@ export default function ManagerView({ token, activeSection }) {
     try {
       await approveOrder(token, orderId);
       showMessage(`Заказ #${orderId} одобрен`);
-      await Promise.all([loadOrders(), loadDashboard()]);
+      await refreshOperationalData();
     } catch (err) {
       showMessage(err.message || "Не удалось одобрить заказ", "error");
     } finally {
@@ -993,7 +975,7 @@ export default function ManagerView({ token, activeSection }) {
     try {
       await approveAllOrders(token);
       showMessage(`Все новые заказы одобрены`);
-      await Promise.all([loadOrders(), loadDashboard()]);
+      await refreshOperationalData();
     } catch (err) {
       showMessage(err.message || "Не удалось одобрить все заказы", "error");
     } finally {
@@ -1019,12 +1001,6 @@ export default function ManagerView({ token, activeSection }) {
     (orderId) => handleLoadTimelineRef.current(orderId),
     [],
   );
-  const handleOpenOrderDetails = useCallback((order) => {
-    setDetailsOrder(order);
-  }, []);
-  const handleCloseOrderDetails = useCallback(() => {
-    setDetailsOrder(null);
-  }, []);
 
   const handleDragStart = useCallback((event, orderId) => {
     event.dataTransfer.setData("text/plain", String(orderId));
@@ -1880,7 +1856,6 @@ export default function ManagerView({ token, activeSection }) {
                         onDragEnd={handleDragEnd}
                         onApprove={handleApprove}
                         onLoadTimeline={handleLoadTimeline}
-                        onOpenDetails={handleOpenOrderDetails}
                       />
                     ))}
                     {!ordersByStatus[column.id]?.length && (
@@ -2371,148 +2346,6 @@ export default function ManagerView({ token, activeSection }) {
           </Stack>
         </Stack>
       </Drawer>
-
-      <Dialog
-        open={Boolean(detailsOrder)}
-        onClose={handleCloseOrderDetails}
-        maxWidth="md"
-        fullWidth
-        fullScreen={isMobile}
-      >
-        <DialogTitle>Заказ #{detailsOrder?.id ?? "—"}</DialogTitle>
-        <DialogContent dividers>
-          <Stack spacing={2}>
-            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-              <Typography variant="caption" color="text.secondary">
-                Магазин
-              </Typography>
-              <Typography variant="h6" fontWeight={700} sx={{ mt: 0.5 }}>
-                {orderStoreName(detailsOrder)}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-                Директор: {orderDirectorName(detailsOrder)}
-              </Typography>
-            </Paper>
-
-            <Box
-              sx={{
-                display: "grid",
-                gridTemplateColumns: {
-                  xs: "repeat(2, minmax(0, 1fr))",
-                  md: "repeat(5, minmax(0, 1fr))",
-                },
-                gap: 1.25,
-              }}
-            >
-              {[
-                {
-                  label: "Статус",
-                  value: statusLabel(detailsOrder?.status),
-                },
-                {
-                  label: "Сумма",
-                  value: `${formatMoney(detailsOrder?.totalAmount)} BYN`,
-                },
-                {
-                  label: "Позиций",
-                  value: detailsOrder?.items?.length || 0,
-                },
-                {
-                  label: "Товаров",
-                  value: `${orderTotalUnits(detailsOrder?.items)} шт.`,
-                },
-                {
-                  label: "Водитель",
-                  value: detailsOrder?.assignedDriverName || "Не назначен",
-                },
-              ].map((metric) => (
-                <Paper
-                  key={metric.label}
-                  variant="outlined"
-                  sx={{ p: 1.5, borderRadius: 2.5 }}
-                >
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {metric.label}
-                  </Typography>
-                  <Typography variant="body2" fontWeight={700} sx={{ mt: 0.4 }}>
-                    {metric.value}
-                  </Typography>
-                </Paper>
-              ))}
-            </Box>
-
-            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-              <Typography variant="caption" color="text.secondary" display="block">
-                Адрес доставки
-              </Typography>
-              <Typography variant="body1" sx={{ mt: 0.5 }}>
-                {detailsOrder?.deliveryAddressText || "Адрес не указан"}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-                Создан
-              </Typography>
-              <Typography variant="body2">
-                {formatDateTime(detailsOrder?.createdAt) || "—"}
-              </Typography>
-            </Paper>
-
-            <Paper variant="outlined" sx={{ p: 2, borderRadius: 3 }}>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                Расчёт суммы заказа
-              </Typography>
-              <Stack spacing={1}>
-                {orderAmountBreakdown(detailsOrder?.items).length ? (
-                  orderAmountBreakdown(detailsOrder?.items).map((row, index) => (
-                    <Box
-                      key={row.key}
-                      sx={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        gap: 2,
-                        pt: index ? 1 : 0,
-                        borderTop: index ? "1px dashed" : "none",
-                        borderColor: "divider",
-                      }}
-                    >
-                      <Typography variant="body2" sx={{ minWidth: 0 }}>
-                        {row.label}
-                      </Typography>
-                      <Typography variant="body2" fontWeight={700} sx={{ whiteSpace: "nowrap" }}>
-                        {row.total}
-                      </Typography>
-                    </Box>
-                  ))
-                ) : (
-                  <Typography variant="body2" color="text.secondary">
-                    Нет позиций для расчёта
-                  </Typography>
-                )}
-                <Box
-                  sx={{
-                    mt: 0.5,
-                    pt: 1,
-                    borderTop: "1px dashed",
-                    borderColor: "divider",
-                    display: "flex",
-                    justifyContent: "space-between",
-                    gap: 2,
-                  }}
-                >
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    Итого
-                  </Typography>
-                  <Typography variant="subtitle2" fontWeight={700}>
-                    {formatMoney(detailsOrder?.totalAmount)} BYN
-                  </Typography>
-                </Box>
-              </Stack>
-            </Paper>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleCloseOrderDetails}>Закрыть</Button>
-        </DialogActions>
-      </Dialog>
 
       <Dialog
         open={timelineOpen}
