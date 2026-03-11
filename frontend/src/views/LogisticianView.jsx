@@ -99,27 +99,6 @@ function routeColor(routeIndex) {
   return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
 }
 
-function compactAddress(address) {
-  if (!address) {
-    return '-';
-  }
-  return address.replace(/^Могил[её]в,\s*/i, '').trim();
-}
-
-function routeTimelineText(route, depotLabel) {
-  const orderedStops = [...(route?.points || [])].sort((left, right) => left.stopSequence - right.stopSequence);
-  const timeline = [depotLabel || 'База'];
-  let activeTripNumber = 1;
-  orderedStops.forEach((point) => {
-    if ((point.tripNumber || 1) !== activeTripNumber) {
-      activeTripNumber = point.tripNumber || 1;
-      timeline.push(`${depotLabel || 'База'} (рейс ${activeTripNumber})`);
-    }
-    timeline.push(`#${point.stopSequence} ${compactAddress(point.deliveryAddress)}`);
-  });
-  return timeline.join(' → ');
-}
-
 function routeTripLoad(route) {
   const trips = Array.isArray(route?.trips) ? route.trips : [];
   if (!trips.length) {
@@ -706,19 +685,9 @@ export default function LogisticianView({ token, activeSection }) {
                             Пик объема за рейс: {tripLoad.maxTripVolumeM3} / 12 м³
                           </Typography>
                         </Stack>
-                        <Typography variant="caption" color="text.secondary">
-                          Суммарно по маршруту: {route.totalWeightKg} кг • {route.totalVolumeM3} м³
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                          Итого: {route.totalWeightKg} кг • {route.totalVolumeM3} м³
                         </Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {route.points.length
-                            ? `Старт: ${routePlan.depotLabel || 'База'}`
-                            : 'Маршрут пуст'}
-                        </Typography>
-                        {!!route.points.length && (
-                          <Typography variant="caption" component="div" color="text.secondary" sx={{ mt: 0.5 }}>
-                            {routeTimelineText(route, routePlan.depotLabel)}
-                          </Typography>
-                        )}
                       </Box>
                     </Grid>
                     );
