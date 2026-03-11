@@ -507,7 +507,7 @@ class OrderServiceTest {
         .containsExactlyInAnyOrder(201L, 202L);
     assertThat(preview.routes())
         .filteredOn(route -> !route.points().isEmpty())
-        .allSatisfy(route -> assertThat(route.path()).isEmpty());
+        .allSatisfy(route -> assertThat(route.path()).hasSizeGreaterThanOrEqualTo(2));
 
     assertThat(firstApproved.getStatus()).isEqualTo(OrderStatus.APPROVED);
     assertThat(secondApproved.getStatus()).isEqualTo(OrderStatus.APPROVED);
@@ -599,6 +599,42 @@ class OrderServiceTest {
         .containsEntry(601L, 3L)
         .containsEntry(602L, 4L)
         .containsEntry(603L, 5L);
+  }
+
+  @Test
+  void previewAutoAssignPlanReordersDriverStopsByPureNearestDistanceAfterAssignment() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driverNorth = user(3L, "Driver 1", Role.DRIVER);
+    User driverSouthEast = user(4L, "Driver 2", Role.DRIVER);
+    driverNorth.setUsername("driver1");
+    driverSouthEast.setUsername("driver2");
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Order northButFarther = orderWithCoordinates(701L, director, OrderStatus.APPROVED, "54.0100000", "30.3400000");
+    Order crossZoneButCloser = orderWithCoordinates(702L, director, OrderStatus.APPROVED, "53.8900000", "30.3800000");
+    Order southEastAnchor = orderWithCoordinates(703L, director, OrderStatus.APPROVED, "53.8700000", "30.4150000");
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(northButFarther, crossZoneButCloser, southEastAnchor));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER))
+        .thenReturn(List.of(driverNorth, driverSouthEast));
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+
+    var northRoute = preview.routes().stream()
+        .filter(route -> route.driverId().equals(3L))
+        .findFirst()
+        .orElseThrow();
+
+    assertThat(northRoute.points())
+        .extracting(point -> point.orderId())
+        .containsExactly(702L, 701L);
+    assertThat(northRoute.points())
+        .extracting(point -> point.stopSequence())
+        .containsExactly(1, 2);
+    assertThat(northRoute.points().get(0).distanceFromPreviousKm())
+        .isLessThan(northRoute.points().get(1).distanceFromPreviousKm());
   }
 
   @Test

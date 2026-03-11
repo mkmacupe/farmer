@@ -906,6 +906,9 @@ public class OrderService {
     DriverPlanNode driverNode = routeDraft.driverNode();
     DriverRoutePlan route = routeDraft.route();
     List<AutoAssignRoutePointResponse> points = routeDraft.points();
+    List<AutoAssignRoutePathPointResponse> path = points.isEmpty()
+        ? List.of()
+        : buildPreviewRoutePath(points);
     return new AutoAssignDriverRouteResponse(
         driverNode.driver().getId(),
         driverNode.driver().getFullName(),
@@ -914,7 +917,7 @@ public class OrderService {
         roundDistance(route == null ? 0.0 : route.totalWeightKg()),
         roundDistance(route == null ? 0.0 : route.totalVolumeM3()),
         points,
-        List.of()
+        path
     );
   }
 
@@ -1042,9 +1045,61 @@ public class OrderService {
       );
     }
 
-    List<DriverRoutePlan> routes = buildDriverRoutesForOrderedPoints(orderedPointsByDriver, drivers, deliveryPoints);
+    List<List<AssignedPoint>> optimizedPointsByDriver = reorderAssignedPointsByNearestNeighbor(
+        orderedPointsByDriver,
+        drivers,
+        deliveryPoints,
+        distanceMatrixBySource
+    );
+    List<DriverRoutePlan> routes = buildDriverRoutesForOrderedPoints(optimizedPointsByDriver, drivers, deliveryPoints);
     double totalDistanceKm = routes.stream().mapToDouble(DriverRoutePlan::distanceKm).sum();
     return new TransportPlan(assignments, routes, totalDistanceKm);
+  }
+
+  private List<List<AssignedPoint>> reorderAssignedPointsByNearestNeighbor(
+      List<List<AssignedPoint>> assignedPointsByDriver,
+      List<DriverPlanNode> drivers,
+      List<DeliveryPoint> points,
+      Map<Coordinate, Map<Integer, Double>> distanceMatrixBySource
+  ) {
+    List<List<AssignedPoint>> optimized = new ArrayList<>(assignedPointsByDriver.size());
+    for (int driverIndex = 0; driverIndex < assignedPointsByDriver.size(); driverIndex++) {
+      List<AssignedPoint> assignedPoints = assignedPointsByDriver.get(driverIndex);
+      if (assignedPoints == null || assignedPoints.size() <= 1) {
+        optimized.add(assignedPoints == null ? List.of() : List.copyOf(assignedPoints));
+        continue;
+      }
+
+      List<Integer> remainingPointIndexes = assignedPoints.stream()
+          .map(AssignedPoint::pointIndex)
+          .collect(Collectors.toCollection(ArrayList::new));
+      List<AssignedPoint> route = new ArrayList<>(assignedPoints.size());
+      Coordinate currentCoordinate = drivers.get(driverIndex).startCoordinate();
+
+      while (!remainingPointIndexes.isEmpty()) {
+        int bestOffset = 0;
+        int bestPointIndex = remainingPointIndexes.getFirst();
+        double bestDistanceKm = distanceFromMatrix(distanceMatrixBySource, currentCoordinate, bestPointIndex, points);
+
+        for (int offset = 1; offset < remainingPointIndexes.size(); offset++) {
+          int candidatePointIndex = remainingPointIndexes.get(offset);
+          double candidateDistanceKm = distanceFromMatrix(distanceMatrixBySource, currentCoordinate, candidatePointIndex, points);
+          if (candidateDistanceKm < bestDistanceKm - 1e-9
+              || (Math.abs(candidateDistanceKm - bestDistanceKm) <= 1e-9 && candidatePointIndex < bestPointIndex)) {
+            bestOffset = offset;
+            bestPointIndex = candidatePointIndex;
+            bestDistanceKm = candidateDistanceKm;
+          }
+        }
+
+        route.add(new AssignedPoint(bestPointIndex, bestDistanceKm));
+        currentCoordinate = points.get(bestPointIndex).coordinate();
+        remainingPointIndexes.remove(bestOffset);
+      }
+
+      optimized.add(List.copyOf(route));
+    }
+    return optimized;
   }
 
   private List<DriverRoutePlan> buildDriverRoutesForOrderedPoints(List<List<AssignedPoint>> pointIndexesByDriver,
