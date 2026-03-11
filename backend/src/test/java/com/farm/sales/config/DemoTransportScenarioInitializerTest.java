@@ -2,6 +2,7 @@ package com.farm.sales.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -19,8 +20,10 @@ import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 class DemoTransportScenarioInitializerTest {
   private UserRepository userRepository;
@@ -31,10 +34,10 @@ class DemoTransportScenarioInitializerTest {
 
   @BeforeEach
   void setUp() {
-    userRepository = org.mockito.Mockito.mock(UserRepository.class);
-    productRepository = org.mockito.Mockito.mock(ProductRepository.class);
-    storeAddressRepository = org.mockito.Mockito.mock(StoreAddressRepository.class);
-    orderRepository = org.mockito.Mockito.mock(OrderRepository.class);
+    userRepository = mock(UserRepository.class);
+    productRepository = mock(ProductRepository.class);
+    storeAddressRepository = mock(StoreAddressRepository.class);
+    orderRepository = mock(OrderRepository.class);
     initializer = new DemoTransportScenarioInitializer(
         userRepository,
         productRepository,
@@ -45,65 +48,80 @@ class DemoTransportScenarioInitializerTest {
 
   @Test
   void seedDemoScenarioCreatesThirtyPointsAndSixtyApprovedOrders() {
-    User berezka = user(1L, "berezka", Role.DIRECTOR);
-    User kvartal = user(2L, "kvartal", Role.DIRECTOR);
-    User yantar = user(3L, "yantar", Role.DIRECTOR);
-    User manager = user(10L, "manager", Role.MANAGER);
+    User berezka = user(1L, "berezka", "Берёзка");
+    User kvartal = user(2L, "kvartal", "Квартал");
+    User yantar = user(3L, "yantar", "Янтарь");
+    User manager = user(4L, "manager", "Менеджер");
 
     when(userRepository.findByUsername("berezka")).thenReturn(Optional.of(berezka));
     when(userRepository.findByUsername("kvartal")).thenReturn(Optional.of(kvartal));
     when(userRepository.findByUsername("yantar")).thenReturn(Optional.of(yantar));
     when(userRepository.findByUsername("manager")).thenReturn(Optional.of(manager));
     when(productRepository.findAll()).thenReturn(List.of(
-        product(101L, "Молоко", "3.20"),
-        product(102L, "Сыр", "7.40"),
-        product(103L, "Картофель", "2.10"),
-        product(104L, "Яблоки", "3.50"),
-        product(105L, "Мёд", "9.90"),
-        product(106L, "Кефир", "3.10")
+        product(101L, "Товар 1", "10.50"),
+        product(102L, "Товар 2", "11.20"),
+        product(103L, "Товар 3", "12.00"),
+        product(104L, "Товар 4", "13.40"),
+        product(105L, "Товар 5", "14.10"),
+        product(106L, "Товар 6", "9.90")
     ));
     when(orderRepository.count()).thenReturn(0L);
-    when(storeAddressRepository.save(any(StoreAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
-    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    AtomicLong addressIds = new AtomicLong(10);
+    when(storeAddressRepository.save(any(StoreAddress.class))).thenAnswer(invocation -> {
+      StoreAddress address = invocation.getArgument(0);
+      if (address.getId() == null) {
+        address.setId(addressIds.incrementAndGet());
+      }
+      return address;
+    });
+
+    AtomicLong orderIds = new AtomicLong(100);
+    when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
+      Order order = invocation.getArgument(0);
+      if (order.getId() == null) {
+        order.setId(orderIds.incrementAndGet());
+      }
+      return order;
+    });
 
     initializer.seedDemoScenario();
 
-    var addressCaptor = org.mockito.ArgumentCaptor.forClass(StoreAddress.class);
-    var orderCaptor = org.mockito.ArgumentCaptor.forClass(Order.class);
+    ArgumentCaptor<StoreAddress> addressCaptor = ArgumentCaptor.forClass(StoreAddress.class);
     verify(storeAddressRepository, times(30)).save(addressCaptor.capture());
-    verify(orderRepository, times(60)).save(orderCaptor.capture());
-
     assertThat(addressCaptor.getAllValues())
         .extracting(StoreAddress::getLabel)
         .contains("Точка 01", "Точка 15", "Точка 30");
+
+    ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+    verify(orderRepository, times(60)).save(orderCaptor.capture());
     assertThat(orderCaptor.getAllValues())
         .allSatisfy(order -> {
           assertThat(order.getStatus()).isEqualTo(OrderStatus.APPROVED);
           assertThat(order.getDeliveryAddress()).isNotNull();
-          assertThat(order.getItems()).isNotEmpty();
+          assertThat(order.getApprovedByManager()).isSameAs(manager);
+          assertThat(order.getItems()).hasSizeBetween(3, 5);
           assertThat(order.getTotalAmount()).isNotNull();
         });
   }
 
-  private static User user(Long id, String username, Role role) {
+  private User user(Long id, String username, String fullName) {
     User user = new User();
     user.setId(id);
     user.setUsername(username);
-    user.setRole(role);
-    user.setFullName(username);
+    user.setFullName(fullName);
+    user.setRole("manager".equals(username) ? Role.MANAGER : Role.DIRECTOR);
+    user.setPasswordHash("encoded");
     return user;
   }
 
-  private static Product product(Long id, String name, String price) {
+  private Product product(Long id, String name, String price) {
     Product product = new Product();
     product.setId(id);
     product.setName(name);
     product.setCategory("Категория");
-    product.setDescription(name);
     product.setPrice(new BigDecimal(price));
     product.setStockQuantity(100);
-    product.setWeightKg(1.0);
-    product.setVolumeM3(0.001);
     return product;
   }
 }
