@@ -93,7 +93,7 @@ public class DemoScenarioService {
     demoTransportScenarioInitializer.seedDemoScenario();
 
     return new DemoResetResponse(
-        "Демо-сценарий защиты Farm Sales",
+        "Транспортный demo-сценарий Farm Sales: 30 точек / 60 заказов",
         Instant.now(),
         userRepository.count(),
         userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR).size(),

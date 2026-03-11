@@ -116,7 +116,7 @@ class DemoScenarioServiceTest {
     inOrder.verify(dataInitializer).seedDemoDataWithoutAddresses();
     inOrder.verify(demoTransportScenarioInitializer).seedDemoScenario();
 
-    assertThat(response.scenarioName()).contains("Демо-сценарий");
+    assertThat(response.scenarioName()).contains("30 точек / 60 заказов");
     assertThat(response.totalUsers()).isEqualTo(8L);
     assertThat(response.directors()).isEqualTo(3L);
     assertThat(response.products()).isEqualTo(20L);
