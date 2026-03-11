@@ -15,9 +15,10 @@ import com.farm.sales.repository.StockMovementRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
 import java.time.Instant;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -26,19 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioService {
-  private static final String TRUNCATE_DEMO_DATA_SQL = """
-      TRUNCATE TABLE
-        realtime_notifications,
-        order_timeline_events,
-        stock_movements,
-        order_items,
-        orders,
-        store_addresses,
-        audit_logs,
-        users,
-        products
-      RESTART IDENTITY CASCADE
-      """;
+  private static final Logger log = LoggerFactory.getLogger(DemoScenarioService.class);
   private static final List<String> DEFENSE_FLOW = List.of(
       "Менеджер: выполнить demo reset и показать, что система загрузила 30 торговых точек и пакет одобренных заявок для логистики.",
       "Логист: открыть список APPROVED заказов, запустить preview автоназначения и показать распределение по 3 водителям.",
@@ -88,8 +77,15 @@ public class DemoScenarioService {
   @Transactional
   @CacheEvict(value = "users-by-role", allEntries = true)
   public DemoResetResponse resetDemoScenario() {
-    Query truncateQuery = entityManager.createNativeQuery(TRUNCATE_DEMO_DATA_SQL);
-    truncateQuery.executeUpdate();
+    realtimeNotificationRepository.deleteAllInBatch();
+    orderTimelineEventRepository.deleteAllInBatch();
+    stockMovementRepository.deleteAllInBatch();
+    auditLogRepository.deleteAllInBatch();
+    orderItemRepository.deleteAllInBatch();
+    orderRepository.deleteAllInBatch();
+    storeAddressRepository.deleteAllInBatch();
+    userRepository.deleteAllInBatch();
+    productRepository.deleteAllInBatch();
     entityManager.flush();
     entityManager.clear();
 
