@@ -468,7 +468,7 @@ export default function ManagerView({ token, activeSection }) {
   const [categoryTotals, setCategoryTotals] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const productPageSize = 20;
-  const ordersPageSize = 50;
+  const ordersPageSize = 200;
   const [productPage, setProductPage] = useState(0);
   const [productHasNext, setProductHasNext] = useState(false);
   const [productTotalItems, setProductTotalItems] = useState(0);

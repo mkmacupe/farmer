@@ -130,7 +130,7 @@ export default function LogisticianView({ token, activeSection }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [selectedTimelineOrderId, setSelectedTimelineOrderId] = useState(null);
   const [timeline, setTimeline] = useState([]);
-  const ordersPageSize = 50;
+  const ordersPageSize = 200;
 
   const pendingAssignmentCount = useMemo(() => {
     const loadedApproved = orders.filter((order) => order.status === 'APPROVED').length;
