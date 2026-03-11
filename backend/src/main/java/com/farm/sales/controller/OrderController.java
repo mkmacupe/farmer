@@ -11,11 +11,14 @@ import com.farm.sales.dto.OrderPageResponse;
 import com.farm.sales.dto.OrderResponse;
 import com.farm.sales.dto.OrderTimelineEventResponse;
 import com.farm.sales.model.Role;
+import com.farm.sales.model.User;
+import com.farm.sales.repository.UserRepository;
 import com.farm.sales.security.JwtClaimsReader;
 import com.farm.sales.service.OrderService;
 import com.farm.sales.service.OrderTimelineService;
 import jakarta.validation.Valid;
 import java.util.List;
+import java.util.Optional;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -34,19 +37,22 @@ public class OrderController {
   private final OrderService orderService;
   private final OrderTimelineService orderTimelineService;
   private final JwtClaimsReader jwtClaimsReader;
+  private final UserRepository userRepository;
 
   public OrderController(OrderService orderService,
                          OrderTimelineService orderTimelineService,
-                         JwtClaimsReader jwtClaimsReader) {
+                         JwtClaimsReader jwtClaimsReader,
+                         UserRepository userRepository) {
     this.orderService = orderService;
     this.orderTimelineService = orderTimelineService;
     this.jwtClaimsReader = jwtClaimsReader;
+    this.userRepository = userRepository;
   }
 
   @PostMapping
   public ResponseEntity<OrderResponse> create(@AuthenticationPrincipal Jwt jwt,
                                               @Valid @RequestBody OrderCreateRequest request) {
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, Role.DIRECTOR);
     OrderResponse response = orderService.createOrder(userId, request);
     return ResponseEntity.status(HttpStatus.CREATED).body(response);
   }
@@ -54,12 +60,12 @@ public class OrderController {
   @PostMapping("/{id}/repeat")
   public ResponseEntity<OrderResponse> repeat(@PathVariable Long id,
                                               @AuthenticationPrincipal Jwt jwt) {
-    return ResponseEntity.status(HttpStatus.CREATED).body(orderService.repeatOrder(jwtClaimsReader.requireUserId(jwt), id));
+    return ResponseEntity.status(HttpStatus.CREATED).body(orderService.repeatOrder(resolveCurrentUserId(jwt, Role.DIRECTOR), id));
   }
 
   @GetMapping("/my")
   public ResponseEntity<List<OrderResponse>> myOrders(@AuthenticationPrincipal Jwt jwt) {
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, Role.DIRECTOR);
     return ResponseEntity.ok(orderService.getOrdersForRole(Role.DIRECTOR, userId));
   }
 
@@ -67,13 +73,13 @@ public class OrderController {
   public ResponseEntity<OrderPageResponse> myOrdersPage(@AuthenticationPrincipal Jwt jwt,
                                                         @RequestParam(required = false) Integer page,
                                                         @RequestParam(required = false) Integer size) {
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, Role.DIRECTOR);
     return ResponseEntity.ok(orderService.getOrdersPageForRole(Role.DIRECTOR, userId, page, size));
   }
 
   @GetMapping("/assigned")
   public ResponseEntity<List<OrderResponse>> assignedOrders(@AuthenticationPrincipal Jwt jwt) {
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, Role.DRIVER);
     return ResponseEntity.ok(orderService.getOrdersForRole(Role.DRIVER, userId));
   }
 
@@ -81,14 +87,14 @@ public class OrderController {
   public ResponseEntity<OrderPageResponse> assignedOrdersPage(@AuthenticationPrincipal Jwt jwt,
                                                               @RequestParam(required = false) Integer page,
                                                               @RequestParam(required = false) Integer size) {
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, Role.DRIVER);
     return ResponseEntity.ok(orderService.getOrdersPageForRole(Role.DRIVER, userId, page, size));
   }
 
   @GetMapping
   public ResponseEntity<List<OrderResponse>> allOrders(@AuthenticationPrincipal Jwt jwt) {
     Role role = jwtClaimsReader.requireSingleRole(jwt);
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, role);
     return ResponseEntity.ok(orderService.getOrdersForRole(role, userId));
   }
 
@@ -97,36 +103,36 @@ public class OrderController {
                                                          @RequestParam(required = false) Integer page,
                                                          @RequestParam(required = false) Integer size) {
     Role role = jwtClaimsReader.requireSingleRole(jwt);
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, role);
     return ResponseEntity.ok(orderService.getOrdersPageForRole(role, userId, page, size));
   }
 
   @PostMapping("/{id}/approve")
   public ResponseEntity<OrderResponse> approve(@PathVariable Long id,
                                                @AuthenticationPrincipal Jwt jwt) {
-    return ResponseEntity.ok(orderService.approveOrder(id, jwtClaimsReader.requireUserId(jwt)));
+    return ResponseEntity.ok(orderService.approveOrder(id, resolveCurrentUserId(jwt, Role.MANAGER)));
   }
 
   @PostMapping("/approve-all")
   public ResponseEntity<List<OrderResponse>> approveAll(@AuthenticationPrincipal Jwt jwt) {
-    return ResponseEntity.ok(orderService.approveAllOrders(jwtClaimsReader.requireUserId(jwt)));
+    return ResponseEntity.ok(orderService.approveAllOrders(resolveCurrentUserId(jwt, Role.MANAGER)));
   }
 
   @PostMapping("/{id}/assign-driver")
   public ResponseEntity<OrderResponse> assignDriver(@PathVariable Long id,
                                                     @AuthenticationPrincipal Jwt jwt,
                                                     @Valid @RequestBody DriverAssignRequest request) {
-    return ResponseEntity.ok(orderService.assignDriver(id, jwtClaimsReader.requireUserId(jwt), request.driverId()));
+    return ResponseEntity.ok(orderService.assignDriver(id, resolveCurrentUserId(jwt, Role.LOGISTICIAN), request.driverId()));
   }
 
   @PostMapping("/auto-assign")
   public ResponseEntity<AutoAssignResultResponse> autoAssign(@AuthenticationPrincipal Jwt jwt) {
-    return ResponseEntity.ok(orderService.autoAssignApprovedOrders(jwtClaimsReader.requireUserId(jwt)));
+    return ResponseEntity.ok(orderService.autoAssignApprovedOrders(resolveCurrentUserId(jwt, Role.LOGISTICIAN)));
   }
 
   @PostMapping("/auto-assign/preview")
   public ResponseEntity<AutoAssignPreviewResponse> autoAssignPreview(@AuthenticationPrincipal Jwt jwt) {
-    return ResponseEntity.ok(orderService.previewAutoAssignPlan(jwtClaimsReader.requireUserId(jwt)));
+    return ResponseEntity.ok(orderService.previewAutoAssignPlan(resolveCurrentUserId(jwt, Role.LOGISTICIAN)));
   }
 
   @PostMapping("/auto-assign/route-geometry")
@@ -134,26 +140,60 @@ public class OrderController {
       @AuthenticationPrincipal Jwt jwt,
       @Valid @RequestBody AutoAssignRouteGeometryRequest request
   ) {
-    return ResponseEntity.ok(orderService.previewAutoAssignRouteGeometry(jwtClaimsReader.requireUserId(jwt), request));
+    return ResponseEntity.ok(orderService.previewAutoAssignRouteGeometry(resolveCurrentUserId(jwt, Role.LOGISTICIAN), request));
   }
 
   @PostMapping("/auto-assign/approve")
   public ResponseEntity<AutoAssignResultResponse> approveAutoAssign(@AuthenticationPrincipal Jwt jwt,
                                                                      @Valid @RequestBody AutoAssignApproveRequest request) {
-    return ResponseEntity.ok(orderService.approveAutoAssignPlan(jwtClaimsReader.requireUserId(jwt), request));
+    return ResponseEntity.ok(orderService.approveAutoAssignPlan(resolveCurrentUserId(jwt, Role.LOGISTICIAN), request));
   }
 
   @PostMapping("/{id}/deliver")
   public ResponseEntity<OrderResponse> deliver(@PathVariable Long id,
                                                @AuthenticationPrincipal Jwt jwt) {
-    return ResponseEntity.ok(orderService.markDelivered(id, jwtClaimsReader.requireUserId(jwt)));
+    return ResponseEntity.ok(orderService.markDelivered(id, resolveCurrentUserId(jwt, Role.DRIVER)));
   }
 
   @GetMapping("/{id}/timeline")
   public ResponseEntity<List<OrderTimelineEventResponse>> timeline(@PathVariable Long id,
                                                                    @AuthenticationPrincipal Jwt jwt) {
     Role role = jwtClaimsReader.requireSingleRole(jwt);
-    Long userId = jwtClaimsReader.requireUserId(jwt);
+    Long userId = resolveCurrentUserId(jwt, role);
     return ResponseEntity.ok(orderTimelineService.getTimeline(id, role, userId));
+  }
+
+  private Long resolveCurrentUserId(Jwt jwt, Role expectedRole) {
+    Long claimedUserId = jwtClaimsReader.requireUserId(jwt);
+    Optional<User> userById = safeFindById(claimedUserId);
+    if (userById.filter(user -> user.getRole() == expectedRole).isPresent()) {
+      return userById.get().getId();
+    }
+
+    String username = jwt == null ? null : jwt.getSubject();
+    if (username == null || username.isBlank()) {
+      return claimedUserId;
+    }
+
+    return safeFindByUsername(username.trim())
+        .filter(user -> user.getRole() == expectedRole)
+        .map(User::getId)
+        .orElse(claimedUserId);
+  }
+
+  private Optional<User> safeFindById(Long userId) {
+    if (userId == null) {
+      return Optional.empty();
+    }
+    Optional<User> resolved = userRepository.findById(userId);
+    return resolved == null ? Optional.empty() : resolved;
+  }
+
+  private Optional<User> safeFindByUsername(String username) {
+    if (username == null || username.isBlank()) {
+      return Optional.empty();
+    }
+    Optional<User> resolved = userRepository.findByUsername(username);
+    return resolved == null ? Optional.empty() : resolved;
   }
 }

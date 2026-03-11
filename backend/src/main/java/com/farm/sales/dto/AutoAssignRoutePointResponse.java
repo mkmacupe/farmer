@@ -5,6 +5,7 @@ public record AutoAssignRoutePointResponse(
     String deliveryAddress,
     double latitude,
     double longitude,
+    int tripNumber,
     int stopSequence,
     double distanceFromPreviousKm
 ) {

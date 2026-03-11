@@ -1,5 +1,5 @@
 :root {
-  font-family: "IBM Plex Sans", "Noto Sans", "Helvetica Neue", sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans", sans-serif;
   color: #1a1a1a;
   background-color: #ffffff;
 }
@@ -42,10 +42,8 @@ textarea {
   background-color: rgba(46, 91, 78, 0.12);
 }
 
-/* Page transition — GPU-accelerated */
 .page-enter {
-  animation: fadeSlideIn 0.25s ease-out;
-  will-change: opacity, transform;
+  animation: fadeSlideIn 0.18s ease-out;
 }
 
 @keyframes fadeSlideIn {
@@ -89,7 +87,6 @@ textarea {
   transform: translateY(0);
 }
 
-/* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
   .page-enter {
     animation: none;
@@ -103,20 +100,15 @@ textarea {
   }
 }
 
-/* Lazy render offscreen content for long scrollable views */
 .content-auto {
   content-visibility: auto;
   contain-intrinsic-size: auto 500px;
 }
 
-/* Layout containment for heavy isolated sections (cards, panels) */
 .contain-layout {
   contain: layout style;
 }
 
-/* Paint containment for scrollable containers */
 .contain-paint {
   contain: paint;
 }
-
-/* Keep image rendering predictable for critical above-the-fold content. */

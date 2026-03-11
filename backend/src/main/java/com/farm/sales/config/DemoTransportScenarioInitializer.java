@@ -30,6 +30,10 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DemoTransportScenarioInitializer.class);
   private static final List<String> DIRECTOR_USERNAMES = List.of("berezka", "kvartal", "yantar");
   private static final int ORDERS_PER_POINT = 2;
+  private static final int DEMO_ORDER_ITEM_COUNT = 2;
+  private static final double DEMO_ORDER_TARGET_WEIGHT_KG = 250.0;
+  private static final double MIN_ROUTING_DEMO_PRODUCT_WEIGHT_KG = 0.25;
+  private static final double DEFAULT_PRODUCT_WEIGHT_KG = 1.0;
   private static final List<DemoPoint> MOGILEV_POINTS = List.of(
       new DemoPoint("Точка 01", "Могилёв, ул. Первомайская 12", "53.9024300", "30.3358700"),
       new DemoPoint("Точка 02", "Могилёв, ул. Ленинская 31", "53.9011200", "30.3341000"),
@@ -121,13 +125,19 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
         log.warn("Пропуск demo-транспортного сида: в каталоге нет товаров с ценой.");
         return;
       }
+      List<Product> routingProducts = products.stream()
+          .filter(product -> effectiveProductWeightKg(product) >= MIN_ROUTING_DEMO_PRODUCT_WEIGHT_KG)
+          .toList();
+      if (routingProducts.isEmpty()) {
+        routingProducts = products;
+      }
 
       if (orderRepository.count() > 0) {
         log.info("Demo transport scenario skipped: orders already exist, destructive reseed disabled.");
         scenarioSeeded = true;
         return;
       }
-      seedOrdersForMogilev(directors, manager, products);
+      seedOrdersForMogilev(directors, manager, routingProducts);
       scenarioSeeded = true;
     }
   }
@@ -212,12 +222,20 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   }
 
   private List<OrderItem> buildOrderItems(Order order, List<Product> products, int pointIndex) {
-    int itemCount = 3 + (pointIndex % 3);
-    List<OrderItem> items = new ArrayList<>(itemCount);
+    List<OrderItem> items = new ArrayList<>(DEMO_ORDER_ITEM_COUNT);
+    double remainingTargetWeightKg = DEMO_ORDER_TARGET_WEIGHT_KG;
 
-    for (int offset = 0; offset < itemCount; offset++) {
-      Product product = products.get((pointIndex * 3 + offset) % products.size());
-      int quantity = 2 + ((pointIndex + offset) % 4);
+    // Wholesale demo orders should be heavy enough to force multiple trips in preview.
+    for (int offset = 0; offset < DEMO_ORDER_ITEM_COUNT; offset++) {
+      Product product = products.get((pointIndex * DEMO_ORDER_ITEM_COUNT + offset) % products.size());
+      double productWeightKg = effectiveProductWeightKg(product);
+      int remainingItemSlots = DEMO_ORDER_ITEM_COUNT - offset;
+      double itemTargetWeightKg = remainingItemSlots == 1
+          ? remainingTargetWeightKg
+          : remainingTargetWeightKg / remainingItemSlots;
+      int quantity = remainingItemSlots == 1
+          ? Math.max(1, (int) Math.round(itemTargetWeightKg / productWeightKg))
+          : Math.max(1, (int) Math.floor(itemTargetWeightKg / productWeightKg));
       BigDecimal price = product.getPrice();
 
       OrderItem item = new OrderItem();
@@ -227,9 +245,17 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
       item.setPrice(price);
       item.setLineTotal(price.multiply(BigDecimal.valueOf(quantity)));
       items.add(item);
+      remainingTargetWeightKg = Math.max(0.0, remainingTargetWeightKg - quantity * productWeightKg);
     }
 
     return items;
+  }
+
+  private double effectiveProductWeightKg(Product product) {
+    if (product == null || product.getWeightKg() == null || product.getWeightKg() <= 0) {
+      return DEFAULT_PRODUCT_WEIGHT_KG;
+    }
+    return product.getWeightKg();
   }
 
   private record DemoPoint(String label, String addressLine, String latitude, String longitude) {

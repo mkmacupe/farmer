@@ -1,4 +1,14 @@
-import { Suspense, lazy, memo, useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Suspense,
+  lazy,
+  memo,
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import {
   approveAutoAssignOrders,
   assignOrderDriver,
@@ -42,6 +52,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import HistoryIcon from '@mui/icons-material/History';
 import RouteOutlinedIcon from '@mui/icons-material/RouteOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
+import { useStableEvent } from '../utils/useStableEvent.js';
 
 const RoutePlanMap = lazy(() => import('../components/RoutePlanMap.jsx'));
 
@@ -83,7 +94,6 @@ const MetricCard = memo(function MetricCard({ title, value, icon, color }) {
 });
 
 const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
-const ROUTE_PLAN_DIALOG_LOADING_DELAY_MS = 350;
 
 function routeColor(routeIndex) {
   return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
@@ -99,10 +109,44 @@ function compactAddress(address) {
 function routeTimelineText(route, depotLabel) {
   const orderedStops = [...(route?.points || [])].sort((left, right) => left.stopSequence - right.stopSequence);
   const timeline = [depotLabel || 'База'];
+  let activeTripNumber = 1;
   orderedStops.forEach((point) => {
+    if ((point.tripNumber || 1) !== activeTripNumber) {
+      activeTripNumber = point.tripNumber || 1;
+      timeline.push(`${depotLabel || 'База'} (рейс ${activeTripNumber})`);
+    }
     timeline.push(`#${point.stopSequence} ${compactAddress(point.deliveryAddress)}`);
   });
   return timeline.join(' → ');
+}
+
+function routeTripLoad(route) {
+  const trips = Array.isArray(route?.trips) ? route.trips : [];
+  if (!trips.length) {
+    return {
+      tripCount: route?.points?.length ? 1 : 0,
+      maxTripWeightKg: Number(route?.totalWeightKg) || 0,
+      maxTripVolumeM3: Number(route?.totalVolumeM3) || 0
+    };
+  }
+  return {
+    tripCount: trips.length,
+    maxTripWeightKg: Math.max(...trips.map((trip) => Number(trip?.totalWeightKg) || 0)),
+    maxTripVolumeM3: Math.max(...trips.map((trip) => Number(trip?.totalVolumeM3) || 0))
+  };
+}
+
+function tripCountLabel(count) {
+  const normalized = Number.isFinite(Number(count)) ? Math.max(0, Math.trunc(Number(count))) : 0;
+  const mod10 = normalized % 10;
+  const mod100 = normalized % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${normalized} рейс`;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${normalized} рейса`;
+  }
+  return `${normalized} рейсов`;
 }
 
 export default function LogisticianView({ token, activeSection }) {
@@ -130,7 +174,8 @@ export default function LogisticianView({ token, activeSection }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [selectedTimelineOrderId, setSelectedTimelineOrderId] = useState(null);
   const [timeline, setTimeline] = useState([]);
-  const ordersPageSize = 200;
+  const ordersRefreshTimerRef = useRef(null);
+  const ordersPageSize = 100;
 
   const pendingAssignmentCount = useMemo(() => {
     const loadedApproved = orders.filter((order) => order.status === 'APPROVED').length;
@@ -146,6 +191,7 @@ export default function LogisticianView({ token, activeSection }) {
       return route.points.map((point) => ({
         orderId: point.orderId,
         driverId: route.driverId,
+        tripNumber: point.tripNumber || 1,
         stopSequence: point.stopSequence,
         estimatedDistanceKm: point.distanceFromPreviousKm
       }));
@@ -157,34 +203,26 @@ export default function LogisticianView({ token, activeSection }) {
     setSnackbar({ open: true, message, severity });
   };
 
-  const loadOrders = async () => {
-    setLoading(true);
-    try {
-      const ordersPageData = await getAllOrdersPage(token, { page: 0, size: ordersPageSize });
-      const items = Array.isArray(ordersPageData?.items) ? ordersPageData.items : [];
-      setOrders(items);
-      setOrdersPage(Number.isInteger(ordersPageData?.page) ? ordersPageData.page : 0);
-      setOrdersHasNext(Boolean(ordersPageData?.hasNext));
-      setOrdersTotalItems(Number.isFinite(ordersPageData?.totalItems) ? ordersPageData.totalItems : items.length);
-    } catch (err) {
-      showMessage(err.message || 'Не удалось обновить список заказов', 'error');
-    } finally {
-      setLoading(false);
-    }
+  const applyOrdersPage = (ordersPageData, fallbackPage = 0) => {
+    const items = Array.isArray(ordersPageData?.items) ? ordersPageData.items : [];
+    setOrders(items);
+    setOrdersPage(Number.isInteger(ordersPageData?.page) ? ordersPageData.page : fallbackPage);
+    setOrdersHasNext(Boolean(ordersPageData?.hasNext));
+    setOrdersTotalItems(
+      Number.isFinite(ordersPageData?.totalItems) ? ordersPageData.totalItems : items.length
+    );
   };
 
-  const load = async ({ includeDrivers = false } = {}) => {
-    setLoading(true);
+  const loadData = async ({ includeDrivers = false, showLoading = true } = {}) => {
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       const [ordersData, driversData] = await Promise.all([
         getAllOrdersPage(token, { page: 0, size: ordersPageSize }),
         includeDrivers || !driversLoaded ? getDrivers(token) : Promise.resolve(null)
       ]);
-      const items = Array.isArray(ordersData?.items) ? ordersData.items : [];
-      setOrders(items);
-      setOrdersPage(Number.isInteger(ordersData?.page) ? ordersData.page : 0);
-      setOrdersHasNext(Boolean(ordersData?.hasNext));
-      setOrdersTotalItems(Number.isFinite(ordersData?.totalItems) ? ordersData.totalItems : items.length);
+      applyOrdersPage(ordersData);
       if (driversData) {
         setDrivers(driversData);
         setDriversLoaded(true);
@@ -192,21 +230,47 @@ export default function LogisticianView({ token, activeSection }) {
     } catch (err) {
       showMessage(err.message || 'Не удалось загрузить данные', 'error');
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
   };
 
+  const refreshOrders = async () => {
+    await loadData({ showLoading: false });
+  };
+
+  const scheduleOrdersRefresh = useStableEvent(() => {
+    if (ordersRefreshTimerRef.current !== null) {
+      window.clearTimeout(ordersRefreshTimerRef.current);
+    }
+    ordersRefreshTimerRef.current = window.setTimeout(() => {
+      ordersRefreshTimerRef.current = null;
+      void loadData({ showLoading: false });
+    }, 600);
+  });
+
+  const handleRealtimeNotification = useStableEvent((payload) => {
+    startTransition(() => {
+      setNotifications((prev) => [payload, ...prev].slice(0, 10));
+    });
+    showMessage(`Новое событие: ${payload.title || 'Уведомление'}`, 'info');
+    scheduleOrdersRefresh();
+  });
+
   useEffect(() => {
     setDriversLoaded(false);
-    load({ includeDrivers: true });
+    void loadData({ includeDrivers: true });
     const unsubscribe = subscribeNotifications(token, {
-      onNotification: (payload) => {
-        setNotifications((prev) => [payload, ...prev].slice(0, 10));
-        showMessage(`Новое событие: ${payload.title || 'Уведомление'}`, 'info');
-        void loadOrders();
-      }
+      onNotification: handleRealtimeNotification
     });
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      if (ordersRefreshTimerRef.current !== null) {
+        window.clearTimeout(ordersRefreshTimerRef.current);
+        ordersRefreshTimerRef.current = null;
+      }
+    };
   }, [token]);
 
   const handleAssign = useCallback(async (orderId) => {
@@ -219,7 +283,7 @@ export default function LogisticianView({ token, activeSection }) {
     try {
       await assignOrderDriver(token, orderId, driverId);
       showMessage(`Водитель назначен на заказ #${orderId}`);
-      await loadOrders();
+      await refreshOrders();
     } catch (err) {
       showMessage(err.message || 'Не удалось назначить водителя', 'error');
     } finally {
@@ -239,7 +303,9 @@ export default function LogisticianView({ token, activeSection }) {
       setOrders((prev) => [...prev, ...items]);
       setOrdersPage(Number.isInteger(ordersPageData?.page) ? ordersPageData.page : nextPage);
       setOrdersHasNext(Boolean(ordersPageData?.hasNext));
-      setOrdersTotalItems(Number.isFinite(ordersPageData?.totalItems) ? ordersPageData.totalItems : ordersTotalItems);
+      setOrdersTotalItems((prev) => (
+        Number.isFinite(ordersPageData?.totalItems) ? ordersPageData.totalItems : prev
+      ));
     } catch (err) {
       showMessage(err.message || 'Не удалось загрузить ещё заказы', 'error');
     } finally {
@@ -250,18 +316,10 @@ export default function LogisticianView({ token, activeSection }) {
   const handleAutoAssign = async () => {
     setActionLoading(true);
     setRoutePlan(null);
-    let loadingDialogTimerId = null;
+    setRoutePlanOpen(true);
+    setRoutePlanLoading(true);
     try {
-      loadingDialogTimerId = window.setTimeout(() => {
-        setRoutePlanLoading(true);
-        setRoutePlanOpen(true);
-      }, ROUTE_PLAN_DIALOG_LOADING_DELAY_MS);
-
       const result = await previewAutoAssignOrders(token);
-      if (loadingDialogTimerId !== null) {
-        window.clearTimeout(loadingDialogTimerId);
-        loadingDialogTimerId = null;
-      }
       if (result.totalApprovedOrders === 0) {
         setRoutePlanOpen(false);
         showMessage('Нет одобренных заказов для распределения', 'info');
@@ -273,17 +331,10 @@ export default function LogisticianView({ token, activeSection }) {
         setRoutePlanOpen(true);
       }
     } catch (err) {
-      if (loadingDialogTimerId !== null) {
-        window.clearTimeout(loadingDialogTimerId);
-        loadingDialogTimerId = null;
-      }
       setRoutePlanOpen(false);
       setRoutePlan(null);
       showMessage(err.message || 'Не удалось выполнить автоназначение', 'error');
     } finally {
-      if (loadingDialogTimerId !== null) {
-        window.clearTimeout(loadingDialogTimerId);
-      }
       setRoutePlanLoading(false);
       setActionLoading(false);
     }
@@ -319,7 +370,7 @@ export default function LogisticianView({ token, activeSection }) {
       }
       setRoutePlanOpen(false);
       setRoutePlan(null);
-      void loadOrders();
+      void refreshOrders();
     } catch (err) {
       showMessage(err.message || 'Не удалось применить маршрутный план', 'error');
     } finally {
@@ -580,7 +631,7 @@ export default function LogisticianView({ token, activeSection }) {
                   </Paper>
                 }
               >
-                <RoutePlanMap plan={routePlan} token={token} />
+                <RoutePlanMap plan={routePlan} />
               </Suspense>
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
@@ -619,7 +670,9 @@ export default function LogisticianView({ token, activeSection }) {
                   ))}
                 </Stack>
                 <Grid container spacing={1}>
-                  {routePlan.routes.map((route, index) => (
+                  {routePlan.routes.map((route, index) => {
+                    const tripLoad = routeTripLoad(route);
+                    return (
                     <Grid key={`${route.driverId}-${index}`} size={{ xs: 12, md: 4 }}>
                       <Box
                         sx={{
@@ -635,24 +688,27 @@ export default function LogisticianView({ token, activeSection }) {
                           {route.driverName}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {route.assignedOrders} точек • {route.estimatedRouteDistanceKm} км
+                          {route.assignedOrders} точек • {route.estimatedRouteDistanceKm} км • {tripCountLabel(tripLoad.tripCount)}
                         </Typography>
                         <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
                           <Typography 
                             variant="caption" 
-                            color={route.totalWeightKg > 1400 ? 'error.main' : 'text.secondary'}
-                            sx={{ fontWeight: route.totalWeightKg > 1400 ? 700 : 400 }}
+                            color={tripLoad.maxTripWeightKg > 1400 ? 'error.main' : 'text.secondary'}
+                            sx={{ fontWeight: tripLoad.maxTripWeightKg > 1400 ? 700 : 400 }}
                           >
-                            Вес: {route.totalWeightKg} / 1500 кг
+                            Пик веса за рейс: {tripLoad.maxTripWeightKg} / 1500 кг
                           </Typography>
                           <Typography 
                             variant="caption" 
-                            color={route.totalVolumeM3 > 11 ? 'error.main' : 'text.secondary'}
-                            sx={{ fontWeight: route.totalVolumeM3 > 11 ? 700 : 400 }}
+                            color={tripLoad.maxTripVolumeM3 > 11 ? 'error.main' : 'text.secondary'}
+                            sx={{ fontWeight: tripLoad.maxTripVolumeM3 > 11 ? 700 : 400 }}
                           >
-                            Объем: {route.totalVolumeM3} / 12 м³
+                            Пик объема за рейс: {tripLoad.maxTripVolumeM3} / 12 м³
                           </Typography>
                         </Stack>
+                        <Typography variant="caption" color="text.secondary">
+                          Суммарно по маршруту: {route.totalWeightKg} кг • {route.totalVolumeM3} м³
+                        </Typography>
                         <Typography variant="caption" color="text.secondary">
                           {route.points.length
                             ? `Старт: ${routePlan.depotLabel || 'База'}`
@@ -665,7 +721,8 @@ export default function LogisticianView({ token, activeSection }) {
                         )}
                       </Box>
                     </Grid>
-                  ))}
+                    );
+                  })}
                 </Grid>
               </Paper>
             </Stack>

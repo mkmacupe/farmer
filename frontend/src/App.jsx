@@ -3,7 +3,6 @@ import {
   lazy,
   useCallback,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 import { demoLogin, LOGIN_LOADING_MESSAGE, login, primeBackendWarmup } from "./api.js";
@@ -99,10 +98,9 @@ function normalizeQuickLoginSpec(loginSpecOrUsername, fallbackPassword) {
 }
 
 export default function App() {
-  const initialAuth = useMemo(() => loadAuth(), []);
-  const [auth, setAuth] = useState(initialAuth);
+  const [auth, setAuth] = useState(() => loadAuth());
   const [activeSection, setActiveSection] = useState(() =>
-    defaultSectionForRole(initialAuth?.role),
+    defaultSectionForRole(loadAuth()?.role),
   );
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);

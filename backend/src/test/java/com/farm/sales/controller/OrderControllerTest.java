@@ -23,12 +23,15 @@ import com.farm.sales.dto.OrderItemRequest;
 import com.farm.sales.dto.OrderResponse;
 import com.farm.sales.dto.OrderTimelineEventResponse;
 import com.farm.sales.model.Role;
+import com.farm.sales.model.User;
+import com.farm.sales.repository.UserRepository;
 import com.farm.sales.security.JwtClaimsReader;
 import com.farm.sales.service.OrderService;
 import com.farm.sales.service.OrderTimelineService;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
@@ -39,6 +42,7 @@ class OrderControllerTest {
   private OrderService orderService;
   private OrderTimelineService orderTimelineService;
   private JwtClaimsReader jwtClaimsReader;
+  private UserRepository userRepository;
   private OrderController controller;
 
   @BeforeEach
@@ -46,7 +50,8 @@ class OrderControllerTest {
     orderService = mock(OrderService.class);
     orderTimelineService = mock(OrderTimelineService.class);
     jwtClaimsReader = mock(JwtClaimsReader.class);
-    controller = new OrderController(orderService, orderTimelineService, jwtClaimsReader);
+    userRepository = mock(UserRepository.class);
+    controller = new OrderController(orderService, orderTimelineService, jwtClaimsReader, userRepository);
   }
 
   @Test
@@ -145,6 +150,7 @@ class OrderControllerTest {
   void autoAssignPreviewAndApproveDelegateToService() {
     Jwt jwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(18L);
+    when(userRepository.findById(18L)).thenReturn(Optional.of(user(18L, "logistician", Role.LOGISTICIAN)));
 
     AutoAssignPreviewResponse preview = new AutoAssignPreviewResponse(
         "Могилёв, тестовая точка",
@@ -161,7 +167,8 @@ class OrderControllerTest {
             12.1,
             10.5,
             0.05,
-            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 4.5)),
+            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 1, 4.5)),
+            List.of(),
             List.of()
         ))
     );
@@ -175,7 +182,7 @@ class OrderControllerTest {
     when(orderService.previewAutoAssignRouteGeometry(18L, geometryRequest)).thenReturn(geometry);
 
     AutoAssignApproveRequest request = new AutoAssignApproveRequest(
-        List.of(new AutoAssignApproveItemRequest(1L, 31L, 1, 3.4))
+        List.of(new AutoAssignApproveItemRequest(1L, 31L, 1, 1, 3.4))
     );
     AutoAssignResultResponse approved = new AutoAssignResultResponse(
         2,
@@ -199,6 +206,34 @@ class OrderControllerTest {
     verify(orderService).previewAutoAssignPlan(18L);
     verify(orderService).previewAutoAssignRouteGeometry(18L, geometryRequest);
     verify(orderService).approveAutoAssignPlan(18L, request);
+  }
+
+  @Test
+  void autoAssignPreviewFallsBackToUsernameWhenTokenUserIdIsStale() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(18L);
+    when(jwt.getSubject()).thenReturn("logistician");
+    when(userRepository.findById(18L)).thenReturn(Optional.empty());
+    when(userRepository.findByUsername("logistician"))
+        .thenReturn(Optional.of(user(118L, "logistician", Role.LOGISTICIAN)));
+
+    AutoAssignPreviewResponse preview = new AutoAssignPreviewResponse(
+        "Могилёв, тестовая точка",
+        53.89,
+        30.33,
+        1,
+        1,
+        0,
+        6.2,
+        List.of()
+    );
+    when(orderService.previewAutoAssignPlan(118L)).thenReturn(preview);
+
+    var response = controller.autoAssignPreview(jwt);
+
+    assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(response.getBody()).isEqualTo(preview);
+    verify(orderService).previewAutoAssignPlan(118L);
   }
 
   @Test
@@ -303,5 +338,15 @@ class OrderControllerTest {
         new BigDecimal("99.99"),
         List.of()
     );
+  }
+
+  private User user(Long id, String username, Role role) {
+    User user = new User();
+    user.setId(id);
+    user.setUsername(username);
+    user.setRole(role);
+    user.setFullName(username);
+    user.setPasswordHash("hash");
+    return user;
   }
 }

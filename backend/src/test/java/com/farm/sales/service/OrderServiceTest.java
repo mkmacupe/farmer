@@ -611,12 +611,12 @@ class OrderServiceTest {
     User director = user(7L, "Director", Role.DIRECTOR);
 
     Order northButFarther = orderWithCoordinates(701L, director, OrderStatus.APPROVED, "54.0100000", "30.3400000");
-    Order crossZoneButCloser = orderWithCoordinates(702L, director, OrderStatus.APPROVED, "53.8900000", "30.3800000");
+    Order northButCloser = orderWithCoordinates(702L, director, OrderStatus.APPROVED, "53.9450000", "30.3420000");
     Order southEastAnchor = orderWithCoordinates(703L, director, OrderStatus.APPROVED, "53.8700000", "30.4150000");
 
     when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
     when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
-        .thenReturn(List.of(northButFarther, crossZoneButCloser, southEastAnchor));
+        .thenReturn(List.of(northButFarther, northButCloser, southEastAnchor));
     when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER))
         .thenReturn(List.of(driverNorth, driverSouthEast));
 
@@ -631,10 +631,70 @@ class OrderServiceTest {
         .extracting(point -> point.orderId())
         .containsExactly(702L, 701L);
     assertThat(northRoute.points())
+        .extracting(point -> point.tripNumber())
+        .containsExactly(1, 1);
+    assertThat(northRoute.points())
         .extracting(point -> point.stopSequence())
         .containsExactly(1, 2);
     assertThat(northRoute.points().get(0).distanceFromPreviousKm())
         .isLessThan(northRoute.points().get(1).distanceFromPreviousKm());
+  }
+
+  @Test
+  void previewAutoAssignPlanStartsAllTripsFromSharedDepotAndCreatesSecondTripWhenVehiclesFillUp() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driverNorth = user(3L, "Driver 1", Role.DRIVER);
+    User driverSouthEast = user(4L, "Driver 2", Role.DRIVER);
+    User driverSouthWest = user(5L, "Driver 3", Role.DRIVER);
+    driverNorth.setUsername("driver1");
+    driverSouthEast.setUsername("driver2");
+    driverSouthWest.setUsername("driver3");
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Product heavyLoad = product(10L, "Тяжелый груз", "8.00", 100);
+    heavyLoad.setWeightKg(1200.0);
+    heavyLoad.setVolumeM3(1.0);
+
+    Order northFirst = orderWithCoordinates(801L, director, OrderStatus.APPROVED, "53.9395000", "30.3410000");
+    northFirst.setItems(List.of(item(northFirst, heavyLoad, 1)));
+    Order southEast = orderWithCoordinates(802L, director, OrderStatus.APPROVED, "53.8710000", "30.4095000");
+    southEast.setItems(List.of(item(southEast, heavyLoad, 1)));
+    Order southWest = orderWithCoordinates(803L, director, OrderStatus.APPROVED, "53.8600000", "30.2605000");
+    southWest.setItems(List.of(item(southWest, heavyLoad, 1)));
+    Order northSecond = orderWithCoordinates(804L, director, OrderStatus.APPROVED, "53.9325000", "30.3460000");
+    northSecond.setItems(List.of(item(northSecond, heavyLoad, 1)));
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(northFirst, southEast, southWest, northSecond));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER))
+        .thenReturn(List.of(driverNorth, driverSouthEast, driverSouthWest));
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
+
+    AutoAssignRoutePathPointResponse depot = new AutoAssignRoutePathPointResponse(53.8971270, 30.3320410);
+    assertThat(preview.plannedOrders()).isEqualTo(4);
+    assertThat(preview.unplannedOrders()).isEqualTo(0);
+    assertThat(preview.routes())
+        .filteredOn(route -> !route.trips().isEmpty())
+        .allSatisfy(route -> assertThat(route.trips().getFirst().path().getFirst()).isEqualTo(depot));
+
+    var northRoute = preview.routes().stream()
+        .filter(route -> route.driverId().equals(3L))
+        .findFirst()
+        .orElseThrow();
+
+    assertThat(northRoute.trips()).hasSize(2);
+    assertThat(northRoute.trips().getFirst().returnsToDepot()).isTrue();
+    assertThat(northRoute.trips().getFirst().path().getLast()).isEqualTo(depot);
+    assertThat(northRoute.trips().get(1).returnsToDepot()).isFalse();
+    assertThat(northRoute.trips().get(1).path().getFirst()).isEqualTo(depot);
+    assertThat(northRoute.points())
+        .extracting(point -> point.tripNumber())
+        .containsExactly(1, 2);
+    assertThat(northRoute.points())
+        .extracting(point -> point.stopSequence())
+        .containsExactly(1, 2);
   }
 
   @Test
@@ -708,6 +768,7 @@ class OrderServiceTest {
         .map(point -> new AutoAssignApproveItemRequest(
             point.orderId(),
             route.driverId(),
+            point.tripNumber(),
             point.stopSequence(),
             point.distanceFromPreviousKm()
         )))

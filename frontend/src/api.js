@@ -37,7 +37,6 @@ const AUTH_WARMUP_MAX_WAIT_MS = 6 * 60_000;
 const AUTO_ASSIGN_TIMEOUT_MS = 90_000;
 const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
 const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
-export const LOGIN_LOADING_MESSAGE = 'Подключаем сервер. Если backend был в спящем режиме на Render Free, вход продолжится автоматически и может занять до 5 минут.';
 const WARMING_UP_TIMEOUT_MESSAGE = 'Сервер не проснулся за 6 минут. Повторите вход чуть позже.';
 const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
 const DEFAULT_RETRY_POLICY = Object.freeze({
@@ -115,6 +114,54 @@ function resolveBackendOrigin() {
   return '';
 }
 
+function isLocalOrPrivateHost(hostname) {
+  const normalized = String(hostname || '').trim().toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+
+  if (
+    normalized === 'localhost'
+    || normalized === '127.0.0.1'
+    || normalized === '::1'
+    || normalized.endsWith('.local')
+  ) {
+    return true;
+  }
+
+  if (normalized.startsWith('10.') || normalized.startsWith('192.168.')) {
+    return true;
+  }
+
+  const privateRange172 = normalized.match(/^172\.(\d{1,2})\./);
+  if (privateRange172) {
+    const segment = Number(privateRange172[1]);
+    if (segment >= 16 && segment <= 31) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function shouldUseColdStartWarmup() {
+  const backendOrigin = resolveBackendOrigin();
+  if (!backendOrigin || backendOrigin.startsWith('/')) {
+    return false;
+  }
+
+  try {
+    const { hostname } = new URL(backendOrigin);
+    return !isLocalOrPrivateHost(hostname);
+  } catch {
+    return false;
+  }
+}
+
+export const LOGIN_LOADING_MESSAGE = shouldUseColdStartWarmup()
+  ? 'Подключаем сервер. Если backend был в спящем режиме на Render Free, вход продолжится автоматически и может занять до 5 минут.'
+  : 'Выполняем вход...';
+
 async function checkBackendReadiness() {
   const backendOrigin = resolveBackendOrigin();
   if (!backendOrigin) {
@@ -157,6 +204,9 @@ async function waitForBackendReadinessUntil(deadlineAt) {
 }
 
 export function primeBackendWarmup() {
+  if (!shouldUseColdStartWarmup()) {
+    return Promise.resolve(true);
+  }
   if (backendWarmupPromise) {
     return backendWarmupPromise;
   }
@@ -170,6 +220,9 @@ export function primeBackendWarmup() {
 }
 
 async function waitForBackendWarmup(deadlineAt) {
+  if (!shouldUseColdStartWarmup()) {
+    return false;
+  }
   if (backendWarmupPromise) {
     try {
       if (await backendWarmupPromise) {
@@ -361,7 +414,67 @@ function authHeaders(token) {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
+function buildQuery(params = {}) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value == null || value === '') {
+      continue;
+    }
+    search.set(key, String(value));
+  }
+  return search.toString();
+}
+
+function buildApiUrl(path, params) {
+  const query = buildQuery(params);
+  const url = `${API_BASE}${path}`;
+  return query ? `${url}?${query}` : url;
+}
+
+async function requestJson(path, { token, params, headers, ...options } = {}) {
+  const response = await apiFetch(buildApiUrl(path, params), {
+    ...options,
+    headers: { ...authHeaders(token), ...(headers || {}) }
+  });
+  return handleResponse(response);
+}
+
+async function requestBlob(path, { token, params, headers, ...options } = {}) {
+  const response = await apiFetch(buildApiUrl(path, params), {
+    ...options,
+    headers: { ...authHeaders(token), ...(headers || {}) }
+  });
+  if (!response.ok) {
+    throw new Error(await readErrorMessage(response));
+  }
+  return response.blob();
+}
+
+function normalizePage(payload, fallbackPage = 0, fallbackSize = 50) {
+  if (payload && Array.isArray(payload.items)) {
+    return {
+      items: payload.items,
+      page: Number.isInteger(payload.page) ? payload.page : fallbackPage,
+      size: Number.isInteger(payload.size) ? payload.size : fallbackSize,
+      totalItems: Number.isFinite(payload.totalItems) ? payload.totalItems : payload.items.length,
+      totalPages: Number.isInteger(payload.totalPages) ? payload.totalPages : 1,
+      hasNext: Boolean(payload.hasNext)
+    };
+  }
+
+  const items = Array.isArray(payload) ? payload : [];
+  return {
+    items,
+    page: fallbackPage,
+    size: fallbackSize,
+    totalItems: items.length,
+    totalPages: items.length ? 1 : 0,
+    hasNext: false
+  };
+}
+
 async function authenticateWithWarmup(path, username, password, validatePayload = true) {
+  const useColdStartWarmup = shouldUseColdStartWarmup();
   const deadlineAt = Date.now() + AUTH_WARMUP_MAX_WAIT_MS;
 
   while (true) {
@@ -379,7 +492,7 @@ async function authenticateWithWarmup(path, username, password, validatePayload 
       }
       return payload;
     } catch (error) {
-      if (shouldRetryError(error)) {
+      if (useColdStartWarmup && shouldRetryError(error)) {
         if (Date.now() >= deadlineAt) {
           throw new Error(WARMING_UP_TIMEOUT_MESSAGE);
         }
@@ -403,50 +516,17 @@ export async function demoLogin(username, password) {
   return authenticateWithWarmup('demo-login', username, password, false);
 }
 
-function normalizeProductsPage(payload, fallbackPage = 0, fallbackSize = 24) {
-  if (payload && Array.isArray(payload.items)) {
-    return {
-      items: payload.items,
-      page: Number.isInteger(payload.page) ? payload.page : fallbackPage,
-      size: Number.isInteger(payload.size) ? payload.size : fallbackSize,
-      totalItems: Number.isFinite(payload.totalItems) ? payload.totalItems : payload.items.length,
-      totalPages: Number.isInteger(payload.totalPages) ? payload.totalPages : 1,
-      hasNext: Boolean(payload.hasNext)
-    };
-  }
-
-  const items = Array.isArray(payload) ? payload : [];
-  return {
-    items,
-    page: fallbackPage,
-    size: fallbackSize,
-    totalItems: items.length,
-    totalPages: items.length ? 1 : 0,
-    hasNext: false
-  };
-}
-
 export async function getProductsPage(token, params = {}) {
-  const search = new URLSearchParams();
-  if (params.category) {
-    search.set('category', params.category);
-  }
-  if (params.q) {
-    search.set('q', params.q);
-  }
-  if (params.page != null) {
-    search.set('page', String(params.page));
-  }
-  if (params.size != null) {
-    search.set('size', String(params.size));
-  }
-  const query = search.toString();
-  const url = query ? `${API_BASE}/products?${query}` : `${API_BASE}/products`;
-  const response = await apiFetch(url, {
-    headers: { ...authHeaders(token) }
+  const payload = await requestJson('/products', {
+    token,
+    params: {
+      category: params.category,
+      q: params.q,
+      page: params.page,
+      size: params.size
+    }
   });
-  const payload = await handleResponse(response);
-  return normalizeProductsPage(payload, params.page ?? 0, params.size ?? 24);
+  return normalizePage(payload, params.page ?? 0, params.size ?? 24);
 }
 
 export async function getProducts(token, params = {}) {
@@ -456,11 +536,11 @@ export async function getProducts(token, params = {}) {
 
 export async function getProductCategories(token, options = {}) {
   const { headers: extraHeaders, ...restOptions } = options || {};
-  const response = await apiFetch(`${API_BASE}/products/categories`, {
+  return requestJson('/products/categories', {
+    token,
     ...restOptions,
-    headers: { ...authHeaders(token), ...(extraHeaders || {}) }
+    headers: extraHeaders
   });
-  return handleResponse(response);
 }
 
 export async function createProduct(token, payload) {
@@ -539,19 +619,17 @@ export async function deleteDirectorAddress(token, id) {
 }
 
 export async function lookupGeo(token, query, limit = 5) {
-  const search = new URLSearchParams({ q: query, limit: String(limit) });
-  const response = await apiFetch(`${API_BASE}/geo/lookup?${search.toString()}`, {
-    headers: { ...authHeaders(token) }
+  return requestJson('/geo/lookup', {
+    token,
+    params: { q: query, limit }
   });
-  return handleResponse(response);
 }
 
 export async function reverseGeo(token, latitude, longitude) {
-  const search = new URLSearchParams({ lat: String(latitude), lon: String(longitude) });
-  const response = await apiFetch(`${API_BASE}/geo/reverse?${search.toString()}`, {
-    headers: { ...authHeaders(token) }
+  return requestJson('/geo/reverse', {
+    token,
+    params: { lat: latitude, lon: longitude }
   });
-  return handleResponse(response);
 }
 
 export async function createOrder(token, payload) {
@@ -579,20 +657,14 @@ export async function getMyOrders(token) {
 }
 
 export async function getMyOrdersPage(token, params = {}) {
-  const search = new URLSearchParams();
-  if (params.page != null) {
-    search.set('page', String(params.page));
-  }
-  if (params.size != null) {
-    search.set('size', String(params.size));
-  }
-  const query = search.toString();
-  const url = query ? `${API_BASE}/orders/my/page?${query}` : `${API_BASE}/orders/my/page`;
-  const response = await apiFetch(url, {
-    headers: { ...authHeaders(token) }
+  const payload = await requestJson('/orders/my/page', {
+    token,
+    params: {
+      page: params.page,
+      size: params.size
+    }
   });
-  const payload = await handleResponse(response);
-  return normalizeOrdersPage(payload, params.page ?? 0, params.size ?? 50);
+  return normalizePage(payload, params.page ?? 0, params.size ?? 50);
 }
 
 export async function getAssignedOrders(token) {
@@ -603,20 +675,14 @@ export async function getAssignedOrders(token) {
 }
 
 export async function getAssignedOrdersPage(token, params = {}) {
-  const search = new URLSearchParams();
-  if (params.page != null) {
-    search.set('page', String(params.page));
-  }
-  if (params.size != null) {
-    search.set('size', String(params.size));
-  }
-  const query = search.toString();
-  const url = query ? `${API_BASE}/orders/assigned/page?${query}` : `${API_BASE}/orders/assigned/page`;
-  const response = await apiFetch(url, {
-    headers: { ...authHeaders(token) }
+  const payload = await requestJson('/orders/assigned/page', {
+    token,
+    params: {
+      page: params.page,
+      size: params.size
+    }
   });
-  const payload = await handleResponse(response);
-  return normalizeOrdersPage(payload, params.page ?? 0, params.size ?? 50);
+  return normalizePage(payload, params.page ?? 0, params.size ?? 50);
 }
 
 export async function getAllOrders(token) {
@@ -627,20 +693,14 @@ export async function getAllOrders(token) {
 }
 
 export async function getAllOrdersPage(token, params = {}) {
-  const search = new URLSearchParams();
-  if (params.page != null) {
-    search.set('page', String(params.page));
-  }
-  if (params.size != null) {
-    search.set('size', String(params.size));
-  }
-  const query = search.toString();
-  const url = query ? `${API_BASE}/orders/page?${query}` : `${API_BASE}/orders/page`;
-  const response = await apiFetch(url, {
-    headers: { ...authHeaders(token) }
+  const payload = await requestJson('/orders/page', {
+    token,
+    params: {
+      page: params.page,
+      size: params.size
+    }
   });
-  const payload = await handleResponse(response);
-  return normalizeOrdersPage(payload, params.page ?? 0, params.size ?? 50);
+  return normalizePage(payload, params.page ?? 0, params.size ?? 50);
 }
 
 export async function approveOrder(token, id) {
@@ -672,51 +732,11 @@ export async function autoAssignOrders(token) {
   return previewAutoAssignOrders(token);
 }
 
-function normalizeOrdersPage(payload, fallbackPage = 0, fallbackSize = 50) {
-  if (payload && Array.isArray(payload.items)) {
-    return {
-      items: payload.items,
-      page: Number.isInteger(payload.page) ? payload.page : fallbackPage,
-      size: Number.isInteger(payload.size) ? payload.size : fallbackSize,
-      totalItems: Number.isFinite(payload.totalItems) ? payload.totalItems : payload.items.length,
-      totalPages: Number.isInteger(payload.totalPages) ? payload.totalPages : 1,
-      hasNext: Boolean(payload.hasNext)
-    };
-  }
-
-  const items = Array.isArray(payload) ? payload : [];
-  return {
-    items,
-    page: fallbackPage,
-    size: fallbackSize,
-    totalItems: items.length,
-    totalPages: items.length ? 1 : 0,
-    hasNext: false
-  };
-}
-
 export async function previewAutoAssignOrders(token) {
   const response = await apiFetch(`${API_BASE}/orders/auto-assign/preview`, {
     method: 'POST',
     timeoutMs: AUTO_ASSIGN_TIMEOUT_MS,
     headers: { ...authHeaders(token) }
-  });
-  return handleResponse(response);
-}
-
-export async function previewAutoAssignRouteGeometry(token, points) {
-  const response = await apiFetch(`${API_BASE}/orders/auto-assign/route-geometry`, {
-    method: 'POST',
-    timeoutMs: AUTO_ASSIGN_TIMEOUT_MS,
-    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
-    body: JSON.stringify({
-      points: Array.isArray(points)
-        ? points.map((point) => ({
-            latitude: Number(point?.latitude),
-            longitude: Number(point?.longitude)
-          }))
-        : []
-    })
   });
   return handleResponse(response);
 }
@@ -770,18 +790,14 @@ export async function getDrivers(token) {
 }
 
 export async function downloadOrdersReport(token, params) {
-  const search = new URLSearchParams();
-  if (params?.from) search.set('from', params.from);
-  if (params?.to) search.set('to', params.to);
-  if (params?.status) search.set('status', params.status);
-
-  const response = await apiFetch(`${API_BASE}/reports/orders?${search.toString()}`, {
-    headers: { ...authHeaders(token) }
+  return requestBlob('/reports/orders', {
+    token,
+    params: {
+      from: params?.from,
+      to: params?.to,
+      status: params?.status
+    }
   });
-  if (!response.ok) {
-    throw new Error(await readErrorMessage(response));
-  }
-  return response.blob();
 }
 
 export async function getAuditLogs(token) {
@@ -792,49 +808,45 @@ export async function getAuditLogs(token) {
 }
 
 export async function getDashboardSummary(token, params) {
-  const search = new URLSearchParams();
-  if (params?.from) search.set('from', params.from);
-  if (params?.to) search.set('to', params.to);
-
-  const response = await apiFetch(`${API_BASE}/dashboard/summary?${search.toString()}`, {
-    headers: { ...authHeaders(token) }
+  return requestJson('/dashboard/summary', {
+    token,
+    params: {
+      from: params?.from,
+      to: params?.to
+    }
   });
-  return handleResponse(response);
 }
 
 export async function getDashboardTrends(token, params) {
-  const search = new URLSearchParams();
-  if (params?.from) search.set('from', params.from);
-  if (params?.to) search.set('to', params.to);
-
-  const response = await apiFetch(`${API_BASE}/dashboard/trends?${search.toString()}`, {
-    headers: { ...authHeaders(token) }
+  return requestJson('/dashboard/trends', {
+    token,
+    params: {
+      from: params?.from,
+      to: params?.to
+    }
   });
-  return handleResponse(response);
 }
 
 export async function getDashboardCategories(token, params) {
-  const search = new URLSearchParams();
-  if (params?.from) search.set('from', params.from);
-  if (params?.to) search.set('to', params.to);
-
-  const response = await apiFetch(`${API_BASE}/dashboard/categories?${search.toString()}`, {
-    headers: { ...authHeaders(token) }
+  return requestJson('/dashboard/categories', {
+    token,
+    params: {
+      from: params?.from,
+      to: params?.to
+    }
   });
-  return handleResponse(response);
 }
 
 export async function getStockMovements(token, params) {
-  const search = new URLSearchParams();
-  if (params?.productId) search.set('productId', String(params.productId));
-  if (params?.from) search.set('from', params.from);
-  if (params?.to) search.set('to', params.to);
-  if (params?.limit) search.set('limit', String(params.limit));
-
-  const response = await apiFetch(`${API_BASE}/stock-movements?${search.toString()}`, {
-    headers: { ...authHeaders(token) }
+  return requestJson('/stock-movements', {
+    token,
+    params: {
+      productId: params?.productId,
+      from: params?.from,
+      to: params?.to,
+      limit: params?.limit
+    }
   });
-  return handleResponse(response);
 }
 
 export function subscribeNotifications(token, { onNotification, onError } = {}) {

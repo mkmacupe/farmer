@@ -21,7 +21,6 @@ $frontendDir = Join-Path $projectRoot "frontend"
 $envFilePath = Join-Path $projectRoot ".env"
 Set-Location -LiteralPath $projectRoot
 Write-Host "Starting local dev environment from $projectRoot"
-Ensure-GitHooksConfigured
 
 # Clean up a stray Windows "nul" file that can appear from shell redirection in PowerShell.
 $nulPath = Join-Path $projectRoot "nul"
@@ -849,6 +848,7 @@ function Stop-ProjectLocalBackendProcesses {
   }
 }
 
+Ensure-GitHooksConfigured
 $composeEnv = Ensure-ComposeEnvFile -Path $envFilePath
 $useDockerBackend = -not $PreferLocalBackend
 

@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   approveAllOrders,
   approveOrder,
@@ -74,6 +82,7 @@ import {
   filterLocalizedProducts,
 } from "../utils/productFilters.js";
 import { DashboardSkeleton } from "../components/LoadingSkeletons.jsx";
+import { useStableEvent } from "../utils/useStableEvent.js";
 
 const KANBAN_COLUMNS = [
   { id: "CREATED", title: "Создан", color: "info" },
@@ -194,12 +203,11 @@ const KanbanCard = memo(function KanbanCard({
           draggingOrderId === order.id
             ? "primary.main"
             : alpha(theme.palette.divider, 0.9),
-        borderRadius: 3,
-        boxShadow:
-          draggingOrderId === order.id
-            ? `0 16px 36px ${alpha(theme.palette.primary.main, 0.16)}`
-            : `0 14px 32px ${alpha(theme.palette.common.black, 0.05)}`,
-        background: `linear-gradient(180deg, ${theme.palette.background.paper} 0%, ${alpha(theme.palette.grey[50], 0.85)} 100%)`,
+        borderRadius: 2.5,
+        boxShadow: draggingOrderId === order.id
+          ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.16)}`
+          : "none",
+        backgroundColor: theme.palette.background.paper,
         cursor: dragEnabled ? "grab" : "default",
         "&:active": { cursor: dragEnabled ? "grabbing" : "default" },
         "& .kanban-actions": {
@@ -258,7 +266,7 @@ const KanbanCard = memo(function KanbanCard({
           sx={{
             p: 1.25,
             borderRadius: 2.5,
-            bgcolor: alpha(theme.palette.background.default, 0.72),
+            bgcolor: theme.palette.background.default,
             borderColor: alpha(theme.palette.divider, 0.8),
           }}
         >
@@ -279,7 +287,7 @@ const KanbanCard = memo(function KanbanCard({
           sx={{
             p: 1.25,
             borderRadius: 2.5,
-            bgcolor: alpha(theme.palette.background.paper, 0.84),
+            bgcolor: theme.palette.background.paper,
             borderColor: alpha(theme.palette.divider, 0.78),
           }}
         >
@@ -468,7 +476,7 @@ export default function ManagerView({ token, activeSection }) {
   const [categoryTotals, setCategoryTotals] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const productPageSize = 20;
-  const ordersPageSize = 200;
+  const ordersPageSize = 100;
   const [productPage, setProductPage] = useState(0);
   const [productHasNext, setProductHasNext] = useState(false);
   const [productTotalItems, setProductTotalItems] = useState(0);
@@ -484,6 +492,10 @@ export default function ManagerView({ token, activeSection }) {
 
   const [dashboardFrom, setDashboardFrom] = useState("");
   const [dashboardTo, setDashboardTo] = useState(todayDateValue());
+  const [appliedDashboardFilters, setAppliedDashboardFilters] = useState(() => ({
+    from: "",
+    to: todayDateValue(),
+  }));
 
   const [reportFrom, setReportFrom] = useState("");
   const [reportTo, setReportTo] = useState("");
@@ -516,6 +528,13 @@ export default function ManagerView({ token, activeSection }) {
 
   const showSection = (sectionId) =>
     !activeSection || activeSection === sectionId;
+  const activeSectionId = activeSection || "manager-dashboard";
+  const activeSectionRef = useRef(activeSectionId);
+  const realtimeRefreshTimerRef = useRef(null);
+
+  useEffect(() => {
+    activeSectionRef.current = activeSectionId;
+  }, [activeSectionId]);
 
   const orderStats = useMemo(() => {
     const stats = {
@@ -563,8 +582,8 @@ export default function ManagerView({ token, activeSection }) {
 
   const dashboardRange = useMemo(() => {
     const fallbackTo = startOfDay(new Date());
-    const parsedTo = parseDateInput(dashboardTo) || fallbackTo;
-    const parsedFrom = parseDateInput(dashboardFrom);
+    const parsedTo = parseDateInput(appliedDashboardFilters.to) || fallbackTo;
+    const parsedFrom = parseDateInput(appliedDashboardFilters.from);
     let from = parsedFrom || new Date(parsedTo.getTime() - (7 - 1) * DAY_MS);
     let to = parsedTo;
     if (from > to) {
@@ -582,7 +601,8 @@ export default function ManagerView({ token, activeSection }) {
       to: normalizedTo,
       days: Math.floor((normalizedTo - normalizedFrom) / DAY_MS) + 1,
     };
-  }, [dashboardFrom, dashboardTo]);
+  }, [appliedDashboardFilters]);
+  const dashboardRangeKey = `${appliedDashboardFilters.from}|${appliedDashboardFilters.to}`;
 
   const trendSeries = useMemo(() => {
     const buckets = new Map();
@@ -794,12 +814,6 @@ export default function ManagerView({ token, activeSection }) {
     setSnackbar({ open: true, message, severity });
   };
 
-  const handleRefresh = useCallback(() => {
-    const controller = new AbortController();
-    const sectionId = activeSection || "manager-dashboard";
-    loadForSection(sectionId, controller.signal);
-  }, [activeSection, token, dashboardFrom, dashboardTo]);
-
   const loadOrders = async (signal) => {
     const ordersPage = await getAllOrdersPage(token, { page: 0, size: ordersPageSize });
     if (signal?.aborted) {
@@ -860,79 +874,38 @@ export default function ManagerView({ token, activeSection }) {
     }
   };
 
-  const loadDashboard = async (signal) => {
-    try {
-      const data = await getDashboardSummary(token, {
-        from: formatLocalDateValue(dashboardRange.from),
-        to: formatLocalDateValue(dashboardRange.to),
-      });
-      if (signal?.aborted) {
-        return;
-      }
-      setDashboard(data);
-    } catch (_err) {
-      if (signal?.aborted) {
-        return;
-      }
-      // Keep manager workspace usable even when dashboard summary endpoint is unavailable.
-      setDashboard(null);
-    }
-  };
-
-  const loadDashboardTrends = async (signal) => {
-    try {
-      const data = await getDashboardTrends(token, {
-        from: formatLocalDateValue(dashboardRange.from),
-        to: formatLocalDateValue(dashboardRange.to),
-      });
-      if (signal?.aborted) {
-        return;
-      }
-      setTrendPoints(Array.isArray(data?.points) ? data.points : []);
-    } catch (err) {
-      if (signal?.aborted) {
-        return;
-      }
-      // Trends are optional; keep dashboard usable even on partial backend support.
-      setTrendPoints([]);
-    }
-  };
-
-  const loadDashboardCategories = async (signal) => {
-    try {
-      const data = await getDashboardCategories(token, {
-        from: formatLocalDateValue(dashboardRange.from),
-        to: formatLocalDateValue(dashboardRange.to),
-      });
-      if (signal?.aborted) {
-        return;
-      }
-      setCategoryTotals(Array.isArray(data) ? data : []);
-    } catch (err) {
-      if (signal?.aborted) {
-        return;
-      }
-      // Category insights are optional; keep dashboard usable even on partial backend support.
-      setCategoryTotals([]);
-    }
-  };
-
-  const refreshOperationalData = async (signal) => {
-    await Promise.all([
-      loadOrders(signal),
-      loadDashboard(signal),
-      loadDashboardTrends(signal),
-      loadDashboardCategories(signal),
+  const loadDashboardBundle = async (signal) => {
+    const params = {
+      from: formatLocalDateValue(dashboardRange.from),
+      to: formatLocalDateValue(dashboardRange.to),
+    };
+    const [summaryResult, trendsResult, categoriesResult] = await Promise.allSettled([
+      getDashboardSummary(token, params),
+      getDashboardTrends(token, params),
+      getDashboardCategories(token, params),
     ]);
+    if (signal?.aborted) {
+      return;
+    }
+
+    setDashboard(summaryResult.status === "fulfilled" ? summaryResult.value : null);
+    setTrendPoints(
+      trendsResult.status === "fulfilled" && Array.isArray(trendsResult.value?.points)
+        ? trendsResult.value.points
+        : [],
+    );
+    setCategoryTotals(
+      categoriesResult.status === "fulfilled" && Array.isArray(categoriesResult.value)
+        ? categoriesResult.value
+        : [],
+    );
   };
 
-  const loadForSection = async (sectionId, signal) => {
+  const loadForSection = async (sectionId, signal, options = {}) => {
+    const { showLoading = true } = options;
     const tasks = [];
     if (sectionId === "manager-dashboard") {
-      tasks.push(
-        refreshOperationalData,
-        loadProductsAndCategories,
-      );
+      tasks.push(loadOrders, loadDashboardBundle);
     } else if (sectionId === "manager-orders") {
       tasks.push(loadOrders);
     } else if (sectionId === "manager-products") {
@@ -947,7 +920,9 @@ export default function ManagerView({ token, activeSection }) {
     if (signal?.aborted) {
       return;
     }
-    setLoading(true);
+    if (showLoading) {
+      setLoading(true);
+    }
     try {
       await Promise.all(tasks.map((task) => task(signal)));
     } catch (err) {
@@ -956,33 +931,76 @@ export default function ManagerView({ token, activeSection }) {
       }
       showMessage(err.message || "Не удалось загрузить данные", "error");
     } finally {
-      if (!signal?.aborted) {
+      if (showLoading && !signal?.aborted) {
         setLoading(false);
       }
     }
   };
 
-  useEffect(() => {
+  const handleRefresh = useCallback(() => {
     const controller = new AbortController();
-    const sectionId = activeSection || "manager-dashboard";
-    loadForSection(sectionId, controller.signal);
-    return () => controller.abort();
-  }, [token, activeSection, dashboardFrom, dashboardTo]);
+    void loadForSection(activeSectionId, controller.signal);
+  }, [activeSectionId, dashboardRangeKey]);
+
+  const handleApplyDashboardFilters = useCallback(() => {
+    setAppliedDashboardFilters((current) => {
+      if (current.from === dashboardFrom && current.to === dashboardTo) {
+        return current;
+      }
+      return {
+        from: dashboardFrom,
+        to: dashboardTo,
+      };
+    });
+  }, [dashboardFrom, dashboardTo]);
+
+  const scheduleRealtimeRefresh = useStableEvent((sectionId) => {
+    if (realtimeRefreshTimerRef.current !== null) {
+      window.clearTimeout(realtimeRefreshTimerRef.current);
+    }
+    realtimeRefreshTimerRef.current = window.setTimeout(() => {
+      realtimeRefreshTimerRef.current = null;
+      void loadForSection(sectionId, undefined, { showLoading: false });
+    }, 600);
+  });
+
+  const handleRealtimeNotification = useStableEvent((payload) => {
+    startTransition(() => {
+      setNotifications((prev) => [payload, ...prev].slice(0, 20));
+    });
+    showMessage(`Новое событие: ${payload.title || "Уведомление"}`, "info");
+
+    const sectionId = activeSectionRef.current;
+    if (sectionId === "manager-dashboard" || sectionId === "manager-orders") {
+      scheduleRealtimeRefresh(sectionId);
+    }
+  });
+
+  const activeSectionLoadKey =
+    activeSectionId === "manager-dashboard"
+      ? `${activeSectionId}:${dashboardRangeKey}`
+      : activeSectionId;
 
   useEffect(() => {
     const controller = new AbortController();
-    const unsubscribe = subscribeNotifications(token, {
-      onNotification: (payload) => {
-        setNotifications((prev) => [payload, ...prev].slice(0, 20));
-        showMessage(`Новое событие: ${payload.title || "Уведомление"}`, "info");
-        void refreshOperationalData(controller.signal);
-      },
-    });
+    void loadForSection(activeSectionId, controller.signal);
     return () => {
       controller.abort();
+      if (realtimeRefreshTimerRef.current !== null) {
+        window.clearTimeout(realtimeRefreshTimerRef.current);
+        realtimeRefreshTimerRef.current = null;
+      }
+    };
+  }, [token, activeSectionLoadKey]);
+
+  useEffect(() => {
+    const unsubscribe = subscribeNotifications(token, {
+      onNotification: handleRealtimeNotification,
+    });
+    return () => {
       unsubscribe();
     };
-  }, [token, dashboardFrom, dashboardTo]);
+  }, [token]);
 
   const handleApproveRef = useRef(null);
   handleApproveRef.current = async (orderId) => {
@@ -990,7 +1008,7 @@ export default function ManagerView({ token, activeSection }) {
     try {
       await approveOrder(token, orderId);
       showMessage(`Заказ #${orderId} одобрен`);
-      await refreshOperationalData();
+      await loadForSection(activeSectionRef.current, undefined, { showLoading: false });
     } catch (err) {
       showMessage(err.message || "Не удалось одобрить заказ", "error");
     } finally {
@@ -1011,7 +1029,7 @@ export default function ManagerView({ token, activeSection }) {
     try {
       await approveAllOrders(token);
       showMessage(`Все новые заказы одобрены`);
-      await refreshOperationalData();
+      await loadForSection(activeSectionRef.current, undefined, { showLoading: false });
     } catch (err) {
       showMessage(err.message || "Не удалось одобрить все заказы", "error");
     } finally {
@@ -1410,8 +1428,14 @@ export default function ManagerView({ token, activeSection }) {
                 />
                 <Button
                   variant="contained"
-                  onClick={() => loadDashboard()}
-                  disabled={loading}
+                  onClick={handleApplyDashboardFilters}
+                  disabled={
+                    loading
+                    || (
+                      appliedDashboardFilters.from === dashboardFrom
+                      && appliedDashboardFilters.to === dashboardTo
+                    )
+                  }
                   aria-label="Применить фильтр аналитики"
                 >
                   Применить фильтр
@@ -1854,11 +1878,12 @@ export default function ManagerView({ token, activeSection }) {
                   sx={{
                     display: "flex",
                     flexDirection: "column",
+                    contentVisibility: "auto",
+                    containIntrinsicSize: "560px",
                     p: 2,
                     borderRadius: 3,
                     minHeight: columnOrders.length ? "auto" : { xs: 180, md: 220 },
-                    bgcolor: alpha(theme.palette.background.paper, 0.94),
-                    background: `linear-gradient(180deg, ${alpha(theme.palette.background.paper, 0.98)} 0%, ${alpha(theme.palette.grey[50], 0.92)} 100%)`,
+                    bgcolor: theme.palette.background.paper,
                     border: "1px solid",
                     borderColor: isApprovalDropZone && draggingOrderId
                       ? alpha(theme.palette.success.main, 0.55)
@@ -1968,6 +1993,8 @@ export default function ManagerView({ token, activeSection }) {
                   display: "flex",
                   flexDirection: { xs: "column", sm: "row" },
                   alignItems: { xs: "flex-start", sm: "center" },
+                  contentVisibility: "auto",
+                  containIntrinsicSize: "104px",
                   gap: 2,
                   p: 2,
                   borderBottom:

@@ -100,8 +100,15 @@ class DemoTransportScenarioInitializerTest {
           assertThat(order.getStatus()).isEqualTo(OrderStatus.APPROVED);
           assertThat(order.getDeliveryAddress()).isNotNull();
           assertThat(order.getApprovedByManager()).isSameAs(manager);
-          assertThat(order.getItems()).hasSizeBetween(3, 5);
+          assertThat(order.getItems()).hasSize(2);
           assertThat(order.getTotalAmount()).isNotNull();
+        });
+    assertThat(orderCaptor.getAllValues().stream()
+        .collect(java.util.stream.Collectors.groupingBy(Order::getDeliveryAddressText))
+        .values())
+        .allSatisfy(ordersAtPoint -> {
+          double pointWeightKg = ordersAtPoint.stream().mapToDouble(this::orderWeightKg).sum();
+          assertThat(pointWeightKg).isBetween(480.0, 520.0);
         });
   }
 
@@ -123,5 +130,18 @@ class DemoTransportScenarioInitializerTest {
     product.setPrice(new BigDecimal(price));
     product.setStockQuantity(100);
     return product;
+  }
+
+  private double orderWeightKg(Order order) {
+    if (order.getItems() == null) {
+      return 0.0;
+    }
+    return order.getItems().stream()
+        .mapToDouble(item -> {
+          Product product = item.getProduct();
+          double weightKg = product == null || product.getWeightKg() == null ? 1.0 : product.getWeightKg();
+          return weightKg * item.getQuantity();
+        })
+        .sum();
   }
 }

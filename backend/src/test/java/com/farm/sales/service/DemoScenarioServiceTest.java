@@ -21,6 +21,7 @@ import com.farm.sales.repository.StockMovementRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -39,6 +40,7 @@ class DemoScenarioServiceTest {
   private DataInitializer dataInitializer;
   private DemoTransportScenarioInitializer demoTransportScenarioInitializer;
   private EntityManager entityManager;
+  private Query truncateQuery;
   private DemoScenarioService service;
 
   @BeforeEach
@@ -55,6 +57,8 @@ class DemoScenarioServiceTest {
     dataInitializer = mock(DataInitializer.class);
     demoTransportScenarioInitializer = mock(DemoTransportScenarioInitializer.class);
     entityManager = mock(EntityManager.class);
+    truncateQuery = mock(Query.class);
+    when(entityManager.createNativeQuery(org.mockito.ArgumentMatchers.anyString())).thenReturn(truncateQuery);
     service = new DemoScenarioService(
         orderItemRepository,
         orderTimelineEventRepository,
@@ -87,28 +91,13 @@ class DemoScenarioServiceTest {
     var response = service.resetDemoScenario();
 
     InOrder inOrder = inOrder(
-        orderItemRepository,
-        orderTimelineEventRepository,
-        stockMovementRepository,
-        realtimeNotificationRepository,
-        orderRepository,
-        auditLogRepository,
-        storeAddressRepository,
-        userRepository,
-        productRepository,
         entityManager,
+        truncateQuery,
         dataInitializer,
         demoTransportScenarioInitializer
     );
-    inOrder.verify(orderItemRepository).deleteAllInBatch();
-    inOrder.verify(orderTimelineEventRepository).deleteAllInBatch();
-    inOrder.verify(stockMovementRepository).deleteAllInBatch();
-    inOrder.verify(realtimeNotificationRepository).deleteAllInBatch();
-    inOrder.verify(orderRepository).deleteAllInBatch();
-    inOrder.verify(auditLogRepository).deleteAllInBatch();
-    inOrder.verify(storeAddressRepository).deleteAllInBatch();
-    inOrder.verify(userRepository).deleteAllInBatch();
-    inOrder.verify(productRepository).deleteAllInBatch();
+    inOrder.verify(entityManager).createNativeQuery(org.mockito.ArgumentMatchers.contains("TRUNCATE TABLE"));
+    inOrder.verify(truncateQuery).executeUpdate();
     inOrder.verify(entityManager).flush();
     inOrder.verify(entityManager).clear();
     inOrder.verify(dataInitializer).resetDemoSeedState();

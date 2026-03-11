@@ -290,9 +290,12 @@ describe('api', () => {
 
   it('login shows warmup hint when backend stays unavailable across all retry attempts', async () => {
     vi.useFakeTimers();
+    vi.stubEnv('VITE_API_BASE', 'https://farm-sales-backend.onrender.com/api');
+    vi.resetModules();
+    const remoteApi = await import('./api.js');
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new TypeError('Failed to fetch'));
 
-    const loginPromise = api.login('manager', 'secret');
+    const loginPromise = remoteApi.login('manager', 'secret');
     const assertion = expect(loginPromise).rejects.toThrow('Сервер не проснулся за 6 минут. Повторите вход чуть позже.');
     await vi.advanceTimersByTimeAsync(360_500);
     await assertion;
@@ -302,9 +305,12 @@ describe('api', () => {
 
   it('demoLogin maps persistent transient server errors to the warmup hint', async () => {
     vi.useFakeTimers();
+    vi.stubEnv('VITE_API_BASE', 'https://farm-sales-backend.onrender.com/api');
+    vi.resetModules();
+    const remoteApi = await import('./api.js');
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(textResponse('Service unavailable', { status: 503 }));
 
-    const demoLoginPromise = api.demoLogin('manager', 'secret');
+    const demoLoginPromise = remoteApi.demoLogin('manager', 'secret');
     const assertion = expect(demoLoginPromise).rejects.toThrow('Сервер не проснулся за 6 минут. Повторите вход чуть позже.');
     await vi.advanceTimersByTimeAsync(360_500);
     await assertion;
@@ -314,6 +320,9 @@ describe('api', () => {
 
   it('login keeps waiting for readiness and succeeds without manual retry', async () => {
     vi.useFakeTimers();
+    vi.stubEnv('VITE_API_BASE', 'https://farm-sales-backend.onrender.com/api');
+    vi.resetModules();
+    const remoteApi = await import('./api.js');
     const fetchMock = vi.spyOn(globalThis, 'fetch')
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
       .mockRejectedValueOnce(new TypeError('Failed to fetch'))
@@ -323,7 +332,7 @@ describe('api', () => {
       .mockResolvedValueOnce(jsonResponse({ status: 'UP' }))
       .mockResolvedValueOnce(jsonResponse({ token: 'jwt', username: 'manager' }));
 
-    const loginPromise = api.login('manager', 'secret');
+    const loginPromise = remoteApi.login('manager', 'secret');
     await vi.advanceTimersByTimeAsync(40_000);
 
     await expect(loginPromise).resolves.toEqual({ token: 'jwt', username: 'manager' });
@@ -344,19 +353,19 @@ describe('api', () => {
     const abortError = new Error('aborted');
     abortError.name = 'AbortError';
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(abortError);
-    await expect(api.getProductCategories('token-9')).rejects.toThrow('Истекло время ожидания ответа от сервера.');
+    await expect(api.getProductCategories('token-9', { retryPolicy: false })).rejects.toThrow('Истекло время ожидания ответа от сервера.');
   });
 
   it('maps browser abort message without AbortError name to timeout message', async () => {
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('signal is aborted without reason'));
-    await expect(api.getProductCategories('token-abort-message')).rejects.toThrow('Истекло время ожидания ответа от сервера.');
+    await expect(api.getProductCategories('token-abort-message', { retryPolicy: false })).rejects.toThrow('Истекло время ожидания ответа от сервера.');
   });
 
   it('maps abort-like browser error even when it has a code property', async () => {
     const abortLikeError = new Error('signal is aborted without reason');
     abortLikeError.code = 20;
     vi.spyOn(globalThis, 'fetch').mockRejectedValue(abortLikeError);
-    await expect(api.getProductCategories('token-abort-code')).rejects.toThrow('Истекло время ожидания ответа от сервера.');
+    await expect(api.getProductCategories('token-abort-code', { retryPolicy: false })).rejects.toThrow('Истекло время ожидания ответа от сервера.');
   });
 
   it('allows request options for getProductCategories and can call without auth token', async () => {

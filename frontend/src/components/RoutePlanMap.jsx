@@ -1,16 +1,34 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef } from 'react';
 import Box from '@mui/material/Box';
-import CircularProgress from '@mui/material/CircularProgress';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { previewAutoAssignRouteGeometry } from '../api.js';
 
 const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
 
 function routeColor(routeIndex) {
   return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
+}
+
+function tintColor(hexColor, mixRatio) {
+  const normalized = String(hexColor || '').replace('#', '');
+  if (!/^[0-9a-f]{6}$/i.test(normalized)) {
+    return hexColor;
+  }
+  const ratio = Math.max(0, Math.min(0.75, mixRatio));
+  const red = parseInt(normalized.slice(0, 2), 16);
+  const green = parseInt(normalized.slice(2, 4), 16);
+  const blue = parseInt(normalized.slice(4, 6), 16);
+  const blend = (channel) => Math.round(channel + (255 - channel) * ratio);
+  return `rgb(${blend(red)}, ${blend(green)}, ${blend(blue)})`;
+}
+
+function tripColor(routeIndex, tripNumber = 1) {
+  const baseColor = routeColor(routeIndex);
+  if (!Number.isFinite(Number(tripNumber)) || Number(tripNumber) <= 1) {
+    return baseColor;
+  }
+  const tintRatio = Math.min(0.24 + (Number(tripNumber) - 2) * 0.12, 0.6);
+  return tintColor(baseColor, tintRatio);
 }
 
 function createStopOrderIcon(stopSequence, color) {
@@ -69,90 +87,11 @@ function normalizeRoutePath(path) {
     .filter(Boolean);
 }
 
-function routeKey(route, routeIndex) {
-  return route?.driverId ?? `route-${routeIndex}`;
-}
-
-function RoutePlanMap({ plan, token }) {
+function RoutePlanMap({ plan }) {
   const containerRef = useRef(null);
-  const [routePaths, setRoutePaths] = useState({});
-  const [geometryLoading, setGeometryLoading] = useState(false);
-  const [geometryPrepared, setGeometryPrepared] = useState(false);
 
   useEffect(() => {
-    if (!plan) {
-      setRoutePaths({});
-      setGeometryLoading(false);
-      setGeometryPrepared(false);
-      return undefined;
-    }
-
-    const initialPaths = {};
-    const routesToLoad = [];
-    plan.routes.forEach((route, routeIndex) => {
-      const key = routeKey(route, routeIndex);
-      const inlinePath = normalizeRoutePath(route?.path);
-      if (inlinePath.length >= 2) {
-        initialPaths[key] = inlinePath;
-        return;
-      }
-      if (Array.isArray(route?.points) && route.points.length) {
-        routesToLoad.push({ key, points: route.points });
-      }
-    });
-    setRoutePaths(initialPaths);
-    setGeometryPrepared(false);
-
-    if (!token || !routesToLoad.length) {
-      setGeometryLoading(false);
-      setGeometryPrepared(true);
-      return undefined;
-    }
-
-    let cancelled = false;
-    setGeometryLoading(true);
-
-    Promise.all(
-      routesToLoad.map(async ({ key, points }) => {
-        try {
-          const path = await previewAutoAssignRouteGeometry(
-            token,
-            [...points].sort((left, right) => left.stopSequence - right.stopSequence)
-          );
-          return [key, normalizeRoutePath(path)];
-        } catch {
-          return [key, []];
-        }
-      })
-    )
-      .then((entries) => {
-        if (cancelled) {
-          return;
-        }
-        setRoutePaths((previous) => {
-          const next = { ...previous };
-          entries.forEach(([key, path]) => {
-            if (path.length >= 2) {
-              next[key] = path;
-            }
-          });
-          return next;
-        });
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setGeometryLoading(false);
-          setGeometryPrepared(true);
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [plan, token]);
-
-  useEffect(() => {
-    if (!plan || !containerRef.current || !geometryPrepared) {
+    if (!plan || !containerRef.current) {
       return undefined;
     }
 
@@ -181,31 +120,54 @@ function RoutePlanMap({ plan, token }) {
 
     const bounds = [depotPoint];
     plan.routes.forEach((route, routeIndex) => {
-      const color = routeColor(routeIndex);
+      const baseColor = routeColor(routeIndex);
       const orderedStops = [...(route?.points || [])].sort((left, right) => left.stopSequence - right.stopSequence);
       if (!orderedStops.length) {
         return;
       }
 
-      const routePath = routePaths[routeKey(route, routeIndex)] || normalizeRoutePath(route?.path);
-      if (routePath.length >= 2) {
-        const polyline = L.polyline(routePath, {
-          color,
-          weight: 4,
-          opacity: 0.9
-        }).addTo(map);
-        layers.push(polyline);
-        routePath.forEach((point) => bounds.push(point));
+      const tripSegments = Array.isArray(route?.trips) && route.trips.length
+        ? [...route.trips].sort((left, right) => (left.tripNumber || 1) - (right.tripNumber || 1))
+        : [];
+
+      if (tripSegments.length) {
+        tripSegments.forEach((trip) => {
+          const tripPath = normalizeRoutePath(trip?.path);
+          if (tripPath.length < 2) {
+            return;
+          }
+          const segmentColor = tripColor(routeIndex, trip?.tripNumber || 1);
+          const polyline = L.polyline(tripPath, {
+            color: segmentColor,
+            weight: 4,
+            opacity: trip?.tripNumber > 1 ? 0.78 : 0.92
+          }).addTo(map);
+          layers.push(polyline);
+          tripPath.forEach((point) => bounds.push(point));
+        });
+      } else {
+        const routePath = normalizeRoutePath(route?.path);
+        if (routePath.length >= 2) {
+          const polyline = L.polyline(routePath, {
+            color: baseColor,
+            weight: 4,
+            opacity: 0.9
+          }).addTo(map);
+          layers.push(polyline);
+          routePath.forEach((point) => bounds.push(point));
+        }
       }
 
       orderedStops.forEach((point) => {
         const markerPoint = [point.latitude, point.longitude];
+        const markerColor = tripColor(routeIndex, point.tripNumber || 1);
         const marker = L.marker(markerPoint, {
-          icon: createStopOrderIcon(point.stopSequence, color),
+          icon: createStopOrderIcon(point.stopSequence, markerColor),
           keyboard: false
         })
           .bindPopup(
             `<strong>${escapeHtml(route.driverName)}</strong><br/>` +
+            `Рейс ${Number(point.tripNumber) || 1}<br/>` +
             `Точка #${point.stopSequence}<br/>` +
             `Заказ #${point.orderId}<br/>` +
             `${escapeHtml(point.deliveryAddress)}<br/>` +
@@ -232,27 +194,7 @@ function RoutePlanMap({ plan, token }) {
       layers.forEach((layer) => layer.remove());
       map.remove();
     };
-  }, [geometryPrepared, plan, routePaths]);
-
-  if (!geometryPrepared) {
-    return (
-      <Box
-        sx={{
-          width: '100%',
-          height: { xs: 210, md: 250 },
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          bgcolor: 'background.default',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        <CircularProgress size={26} />
-      </Box>
-    );
-  }
+  }, [plan]);
 
   return (
     <Box sx={{ position: 'relative' }}>
@@ -270,32 +212,6 @@ function RoutePlanMap({ plan, token }) {
           bgcolor: 'background.default'
         }}
       />
-      {geometryLoading && (
-        <Box
-          sx={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'none'
-          }}
-        >
-          <Box
-            sx={{
-              px: 2,
-              py: 1.25,
-              borderRadius: 2,
-              bgcolor: 'rgba(255,255,255,0.9)',
-              boxShadow: 2
-            }}
-          >
-            <Stack direction="row" spacing={1.25} alignItems="center">
-              <CircularProgress size={18} />
-            </Stack>
-          </Box>
-        </Box>
-      )}
       <Box
         id="route-plan-map-description"
         sx={{

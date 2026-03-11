@@ -1,4 +1,4 @@
-import { Component, Suspense, lazy, useCallback } from "react";
+import { Component, Suspense, lazy } from "react";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import Box from "@mui/material/Box";
@@ -53,6 +53,7 @@ const contentWithBottomNavSx = {
 };
 
 const innerSx = { maxWidth: 1520, mx: "auto" };
+const NOOP = () => {};
 
 class ErrorBoundary extends Component {
   constructor(props) {
@@ -99,7 +100,6 @@ export default function AuthenticatedApp({
   const isMobile = useMediaQuery(themeMinimal.breakpoints.down("md"));
   const RoleView = VIEW_BY_ROLE[auth.role];
   const useBottomNav = isMobile;
-  const noopToggle = useCallback(() => {}, []);
 
   return (
     <ThemeProvider theme={themeMinimal}>
@@ -122,7 +122,7 @@ export default function AuthenticatedApp({
             user={auth}
             activeSection={activeSection}
             onLogout={onLogout}
-            onToggleSidebar={noopToggle}
+            onToggleSidebar={NOOP}
             showMenuButton={false}
           />
           <Box sx={useBottomNav ? contentWithBottomNavSx : contentBaseSx}>
