@@ -36,4 +36,5 @@ springdoc:
 app:
   demo:
     enabled: ${APP_DEMO_ENABLED:true}
-    seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:false}
+    seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
+    transport-seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
