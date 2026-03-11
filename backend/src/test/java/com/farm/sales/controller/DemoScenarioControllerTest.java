@@ -30,10 +30,10 @@ class DemoScenarioControllerTest {
         Instant.parse("2026-03-06T20:00:00Z"),
         8L,
         3L,
-        20L,
-        28L,
-        25L,
-        25L,
+        200L,
+        30L,
+        60L,
+        60L,
         List.of("step-1", "step-2")
     );
     when(demoScenarioService.resetDemoScenario()).thenReturn(response);

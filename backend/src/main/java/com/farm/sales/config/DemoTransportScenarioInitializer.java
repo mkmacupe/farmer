@@ -29,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DemoTransportScenarioInitializer.class);
   private static final List<String> DIRECTOR_USERNAMES = List.of("berezka", "kvartal", "yantar");
+  private static final int ORDERS_PER_POINT = 2;
   private static final List<DemoPoint> MOGILEV_POINTS = List.of(
       new DemoPoint("Точка 01", "Могилёв, ул. Первомайская 12", "53.9024300", "30.3358700"),
       new DemoPoint("Точка 02", "Могилёв, ул. Ленинская 31", "53.9011200", "30.3341000"),
@@ -54,7 +55,12 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
       new DemoPoint("Точка 22", "Могилёв, ул. Сурганова 19", "53.9147700", "30.3698800"),
       new DemoPoint("Точка 23", "Могилёв, ул. Кулешова 33", "53.9022100", "30.3734200"),
       new DemoPoint("Точка 24", "Могилёв, ул. Лазаренко 61", "53.8894300", "30.3720500"),
-      new DemoPoint("Точка 25", "Могилёв, ул. Гришина 92", "53.8789400", "30.3601400")
+      new DemoPoint("Точка 25", "Могилёв, ул. Гришина 92", "53.8789400", "30.3601400"),
+      new DemoPoint("Точка 26", "Могилёв, ул. Крупской 125", "53.8738400", "30.3524600"),
+      new DemoPoint("Точка 27", "Могилёв, ул. Пионерская 5", "53.8883200", "30.3471500"),
+      new DemoPoint("Точка 28", "Могилёв, ул. Ямницкая 71", "53.9122600", "30.2861700"),
+      new DemoPoint("Точка 29", "Могилёв, ул. Фатина 38", "53.9368100", "30.3345200"),
+      new DemoPoint("Точка 30", "Могилёв, ул. Белыницкого-Бирули 10", "53.9234400", "30.3016200")
   );
 
   private final UserRepository userRepository;
@@ -80,7 +86,7 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   @Transactional
   public void run(String... args) {
     if (!seedOnStartup) {
-      log.info("Startup demo transport seed skipped: app.demo.seed-on-startup=false");
+      log.info("Startup demo transport seed skipped: app.demo.transport-seed-on-startup=false");
       return;
     }
     seedDemoScenario();
@@ -148,14 +154,22 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
     for (int i = 0; i < MOGILEV_POINTS.size(); i++) {
       DemoPoint point = MOGILEV_POINTS.get(i);
       User customer = directors.get(i % directors.size());
-      Instant createdAt = now.minusSeconds((long) (MOGILEV_POINTS.size() - i) * 180L);
+      Instant pointBaseCreatedAt = now.minusSeconds((long) (MOGILEV_POINTS.size() - i) * 240L);
 
-      StoreAddress address = createPointAddress(customer, point, createdAt.minusSeconds(900));
-      Order order = createApprovedOrder(customer, manager, address, products, i, createdAt);
-      orderRepository.save(order);
+      StoreAddress address = createPointAddress(customer, point, pointBaseCreatedAt.minusSeconds(900));
+      for (int orderVariant = 0; orderVariant < ORDERS_PER_POINT; orderVariant++) {
+        Instant createdAt = pointBaseCreatedAt.plusSeconds(orderVariant * 75L);
+        int scenarioOrderIndex = i * ORDERS_PER_POINT + orderVariant;
+        Order order = createApprovedOrder(customer, manager, address, products, scenarioOrderIndex, createdAt);
+        orderRepository.save(order);
+      }
     }
 
-    log.info("Demo transport scenario seeded: {} Mogilev points and approved orders created.", MOGILEV_POINTS.size());
+    log.info(
+        "Demo transport scenario seeded: {} Mogilev points and {} approved orders created.",
+        MOGILEV_POINTS.size(),
+        MOGILEV_POINTS.size() * ORDERS_PER_POINT
+    );
   }
 
   private StoreAddress createPointAddress(User customer, DemoPoint point, Instant timestamp) {
@@ -198,12 +212,12 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   }
 
   private List<OrderItem> buildOrderItems(Order order, List<Product> products, int pointIndex) {
-    int itemCount = 2 + (pointIndex % 2);
+    int itemCount = 3 + (pointIndex % 3);
     List<OrderItem> items = new ArrayList<>(itemCount);
 
     for (int offset = 0; offset < itemCount; offset++) {
       Product product = products.get((pointIndex * 3 + offset) % products.size());
-      int quantity = 1 + ((pointIndex + offset) % 4);
+      int quantity = 2 + ((pointIndex + offset) % 4);
       BigDecimal price = product.getPrice();
 
       OrderItem item = new OrderItem();

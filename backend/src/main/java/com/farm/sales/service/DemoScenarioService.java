@@ -26,10 +26,10 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioService {
   private static final List<String> DEFENSE_FLOW = List.of(
-      "Директор berezka: открыть профиль магазина, добавить первую точку доставки и оформить новую заявку из каталога.",
-      "Менеджер: открыть сводку, показать детали новой заявки, одобрить её и выгрузить Excel-отчёт.",
-      "Логист: открыть список APPROVED заказов и выполнить автоназначение по водителям.",
-      "Водитель driver1: открыть маршрут и отметить доставку завершённой."
+      "Менеджер: выполнить demo reset и показать, что система загрузила 30 торговых точек и пакет одобренных заявок для логистики.",
+      "Логист: открыть список APPROVED заказов, запустить preview автоназначения и показать распределение по 3 водителям.",
+      "Логист: подтвердить план и показать маршрутные линии, вес, объём и последовательность остановок.",
+      "Водитель driver1: открыть назначенные заказы и отметить одну доставку завершённой."
   );
 
   private final OrderItemRepository orderItemRepository;
@@ -90,6 +90,7 @@ public class DemoScenarioService {
     dataInitializer.resetDemoSeedState();
     demoTransportScenarioInitializer.resetSeedState();
     dataInitializer.seedDemoDataWithoutAddresses();
+    demoTransportScenarioInitializer.seedDemoScenario();
 
     return new DemoResetResponse(
         "Демо-сценарий защиты Farm Sales",
