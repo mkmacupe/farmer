@@ -35,16 +35,14 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.PriorityQueue;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -65,26 +63,15 @@ public class OrderService {
   private static final int MAX_ORDERS_PAGE_SIZE = 200;
   private static final int ROUTING_FETCH_PAGE_SIZE = 200;
   private static final int ROUTING_FETCH_MAX_PAGES = 50;
+  private static final int ROAD_MATRIX_DELIVERY_POINT_THRESHOLD = 60;
   private static final int TRANSPORT_DRIVER_LIMIT = 3;
   private static final double EARTH_RADIUS_KM = 6371.0088;
   private static final String MOGILEV_SHARED_DEPOT_LABEL = "Могилёв, ул. Первомайская 31 (логистический хаб)";
   private static final Coordinate MOGILEV_SHARED_DEPOT = new Coordinate(53.8971270, 30.3320410);
-  private static final List<Coordinate> MOGILEV_CLUSTER_RING = List.of(
-      new Coordinate(53.9400000, 30.3400000), // north side
-      new Coordinate(53.8700000, 30.4100000), // south-east side
-      new Coordinate(53.8600000, 30.2600000)  // south-west side
-  );
-  private static final Map<String, Coordinate> MOGILEV_DRIVER_CLUSTER_SEEDS = Map.of(
-      "driver1", MOGILEV_CLUSTER_RING.get(0),
-      "driver2", MOGILEV_CLUSTER_RING.get(1),
-      "driver3", MOGILEV_CLUSTER_RING.get(2)
-  );
-  
   private static final double VEHICLE_MAX_WEIGHT_KG = 1500.0;
   private static final double VEHICLE_MAX_VOLUME_M3 = 12.0;
   private static final double DEFAULT_PRODUCT_WEIGHT_KG = 1.0;
   private static final double DEFAULT_PRODUCT_VOLUME_M3 = 0.001;
-  private static final double CROSS_ZONE_PENALTY_KM = 100.0;
 
   private final OrderRepository orderRepository;
   private final OrderItemRepository orderItemRepository;
@@ -270,14 +257,14 @@ public class OrderService {
 
     Page<Order> ordersPage = switch (role) {
       case DIRECTOR -> orderRepository.findPageByCustomerIdOrderByCreatedAtDesc(userId, pageRequest);
-      case DRIVER -> orderRepository.findPageByAssignedDriverIdOrderByCreatedAtDesc(userId, pageRequest);
+      case DRIVER -> orderRepository.findPageByAssignedDriverIdOrderByRouteOrder(userId, pageRequest);
       case MANAGER -> orderRepository.findPageAllByOrderByCreatedAtDesc(pageRequest);
       case LOGISTICIAN -> orderRepository.findPageByStatusOrderByCreatedAtDesc(OrderStatus.APPROVED, pageRequest);
     };
     if (ordersPage == null) {
       List<Order> fallbackOrders = switch (role) {
         case DIRECTOR -> orderRepository.findByCustomerIdOrderByCreatedAtDesc(userId, pageRequest);
-        case DRIVER -> orderRepository.findByAssignedDriverIdOrderByCreatedAtDesc(userId, pageRequest);
+        case DRIVER -> orderRepository.findByAssignedDriverIdOrderByRouteOrder(userId, pageRequest);
         case MANAGER -> orderRepository.findAllByOrderByCreatedAtDesc(pageRequest);
         case LOGISTICIAN -> orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.APPROVED, pageRequest);
       };
@@ -387,7 +374,7 @@ public class OrderService {
 
   @Transactional
   public AutoAssignResultResponse autoAssignApprovedOrders(Long logisticianId) {
-    AutoAssignPreviewResponse preview = previewAutoAssignPlan(logisticianId);
+    AutoAssignPreviewResponse preview = previewAutoAssignPlan(logisticianId, null);
     List<AutoAssignApproveItemRequest> assignments = preview.routes().stream()
         .flatMap(route -> route.points().stream()
             .map(point -> new AutoAssignApproveItemRequest(
@@ -412,9 +399,16 @@ public class OrderService {
 
   @Transactional
   public AutoAssignPreviewResponse previewAutoAssignPlan(Long logisticianId) {
+    return previewAutoAssignPlan(logisticianId, null);
+  }
+
+  @Transactional
+  public AutoAssignPreviewResponse previewAutoAssignPlan(Long logisticianId, List<Long> selectedDriverIds) {
     requireUserRole(logisticianId, Role.LOGISTICIAN, "Логист не найден");
     List<Order> approvedOrders = loadApprovedOrdersForRouting(false);
-    List<User> routingDrivers = resolveRoutingDrivers();
+    List<User> routingDrivers = resolveRoutingDrivers(selectedDriverIds);
+    List<DriverPlanNode> planDrivers = buildDriverPlanNodes(routingDrivers, MOGILEV_SHARED_DEPOT);
+    List<String> planningHighlights = buildPlanningHighlights(routingDrivers.size(), false);
     if (approvedOrders.isEmpty()) {
       return new AutoAssignPreviewResponse(
           MOGILEV_SHARED_DEPOT_LABEL,
@@ -425,16 +419,23 @@ public class OrderService {
           0,
           0.0,
           routingDrivers.stream()
-              .map(driver -> new AutoAssignDriverRouteResponse(driver.getId(), driver.getFullName(), 0, 0.0, 0.0, 0.0, List.of(), List.of(), List.of()))
-              .toList()
+              .map(driver -> new AutoAssignDriverRouteResponse(
+                  driver.getId(),
+                  driver.getFullName(),
+                  0,
+                  0.0,
+                  0.0,
+                  0.0,
+                  List.of(),
+                  List.of(),
+                  List.of(),
+                  List.of("В текущем плане этому водителю не назначено ни одной точки.")
+              ))
+              .toList(),
+          false,
+          planningHighlights
       );
     }
-
-    List<DriverPlanNode> planDrivers = buildDriverPlanNodes(
-        routingDrivers,
-        approvedOrders.size(),
-        MOGILEV_SHARED_DEPOT
-    );
     TransportPlan plan = solveClusteredPlan(planDrivers, approvedOrders, MOGILEV_SHARED_DEPOT);
 
     List<PreviewRouteDraft> routeDrafts = new ArrayList<>();
@@ -443,29 +444,10 @@ public class OrderService {
     for (int driverIndex = 0; driverIndex < planDrivers.size(); driverIndex++) {
       DriverPlanNode driverNode = planDrivers.get(driverIndex);
       DriverRoutePlan route = routeByDriverIndex.get(driverIndex);
-      List<AutoAssignRoutePointResponse> points = route == null
-          ? List.of()
-          : route.stops().stream()
-              .map(stop -> {
-                Order order = approvedOrders.get(stop.orderIndex());
-                Coordinate coordinate = coordinateOrFallback(order, MOGILEV_SHARED_DEPOT);
-                String deliveryAddress = order.getDeliveryAddressText() == null || order.getDeliveryAddressText().isBlank()
-                    ? "Заказ №" + order.getId()
-                    : order.getDeliveryAddressText();
-                return new AutoAssignRoutePointResponse(
-                    order.getId(),
-                    deliveryAddress,
-                    coordinate.latitude(),
-                    coordinate.longitude(),
-                    stop.tripNumber(),
-                    stop.sequence(),
-                    roundDistance(stop.distanceFromPreviousKm())
-                );
-              })
-              .toList();
+      List<AutoAssignRoutePointResponse> points = buildPreviewRoutePoints(route, approvedOrders);
       routeDrafts.add(new PreviewRouteDraft(driverIndex, driverNode, route, points));
     }
-    List<AutoAssignDriverRouteResponse> routes = routeDrafts.parallelStream()
+    List<AutoAssignDriverRouteResponse> routes = routeDrafts.stream()
         .map(routeDraft -> Map.entry(routeDraft.driverIndex(), toPreviewRouteResponse(routeDraft)))
         .sorted(Map.Entry.comparingByKey())
         .map(Map.Entry::getValue)
@@ -475,6 +457,7 @@ public class OrderService {
         .mapToInt(route -> route.points().size())
         .sum();
     int totalApproved = approvedOrders.size();
+    planningHighlights = buildPlanningHighlights(routingDrivers.size(), plan.approximatePlanningDistances());
     return new AutoAssignPreviewResponse(
         MOGILEV_SHARED_DEPOT_LABEL,
         MOGILEV_SHARED_DEPOT.latitude(),
@@ -483,7 +466,9 @@ public class OrderService {
         plannedOrders,
         Math.max(0, totalApproved - plannedOrders),
         roundDistance(plan.totalDistanceKm()),
-        routes
+        routes,
+        plan.approximatePlanningDistances(),
+        planningHighlights
     );
   }
 
@@ -495,7 +480,7 @@ public class OrderService {
     if (request == null || request.points() == null || request.points().isEmpty()) {
       return List.of();
     }
-    return buildPreviewRoutePathFromCoordinates(request.points());
+    return buildPreviewRoutePathFromCoordinates(request.points(), request.returnsToDepot());
   }
 
   @Transactional
@@ -518,7 +503,11 @@ public class OrderService {
     Map<Long, Order> approvedOrdersById = approvedOrders.stream()
         .filter(order -> order.getStatus() == OrderStatus.APPROVED)
         .collect(Collectors.toMap(Order::getId, Function.identity()));
-    Map<Long, User> driversById = resolveRoutingDrivers().stream()
+    Set<Long> requestedDriverIds = requestedAssignments.stream()
+        .map(AutoAssignApproveItemRequest::driverId)
+        .collect(Collectors.toCollection(LinkedHashSet::new));
+    List<User> routingDrivers = resolveRoutingDrivers(new ArrayList<>(requestedDriverIds));
+    Map<Long, User> driversById = routingDrivers.stream()
         .collect(Collectors.toMap(User::getId, Function.identity()));
 
     Set<Long> uniqueOrderIds = new HashSet<>();
@@ -535,7 +524,7 @@ public class OrderService {
       if (!driversById.containsKey(item.driverId())) {
         throw new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
-            "В плане указан водитель вне транспортной группы из 3 водителей"
+            "В плане указан водитель вне выбранной транспортной группы"
         );
       }
     }
@@ -572,7 +561,7 @@ public class OrderService {
         previousPoint = targetPoint;
         activeTripNumber = itemTripNumber;
 
-        Order saved = assignDriverInternal(order, logistician, driver);
+        Order saved = assignDriverInternal(order, logistician, driver, itemTripNumber, item.stopSequence());
         resultAssignments.add(new AutoAssignItemResponse(
             saved.getId(),
             driver.getId(),
@@ -580,6 +569,9 @@ public class OrderService {
             roundDistance(legDistance)
         ));
         totalDistanceKm += legDistance;
+      }
+      if (activeTripNumber != null && !previousPoint.equals(MOGILEV_SHARED_DEPOT)) {
+        totalDistanceKm += distanceKm(previousPoint, MOGILEV_SHARED_DEPOT);
       }
     }
 
@@ -679,6 +671,14 @@ public class OrderService {
   }
 
   private Order assignDriverInternal(Order order, User logistician, User driver) {
+    return assignDriverInternal(order, logistician, driver, null, null);
+  }
+
+  private Order assignDriverInternal(Order order,
+                                     User logistician,
+                                     User driver,
+                                     Integer routeTripNumber,
+                                     Integer routeStopSequence) {
     if (order.getStatus() != OrderStatus.APPROVED && order.getStatus() != OrderStatus.ASSIGNED) {
       throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Назначать водителя можно только для заказов в статусе APPROVED или ASSIGNED");
     }
@@ -690,6 +690,8 @@ public class OrderService {
     order.setAssignedDriver(driver);
     order.setAssignedByLogistician(logistician);
     order.setAssignedAt(now);
+    order.setRouteTripNumber(routeTripNumber);
+    order.setRouteStopSequence(routeStopSequence);
     order.setStatus(OrderStatus.ASSIGNED);
     order.setUpdatedAt(now);
     Order saved = orderRepository.save(order);
@@ -750,6 +752,10 @@ public class OrderService {
   }
 
   private List<User> resolveRoutingDrivers() {
+    return resolveRoutingDrivers(null);
+  }
+
+  private List<User> resolveRoutingDrivers(List<Long> selectedDriverIds) {
     List<User> drivers = userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER);
     if (drivers.isEmpty()) {
       throw new ResponseStatusException(
@@ -757,43 +763,44 @@ public class OrderService {
           "Невозможно выполнить автоназначение: водители не найдены"
       );
     }
-    if (drivers.size() <= TRANSPORT_DRIVER_LIMIT) {
-      return drivers;
+    if (selectedDriverIds == null || selectedDriverIds.isEmpty()) {
+      if (drivers.size() <= TRANSPORT_DRIVER_LIMIT) {
+        return drivers;
+      }
+      return drivers.subList(0, TRANSPORT_DRIVER_LIMIT);
     }
-    return drivers.subList(0, TRANSPORT_DRIVER_LIMIT);
-  }
-
-  private Map<Long, Integer> resolveActiveLoads(List<User> drivers) {
-    if (drivers.isEmpty()) {
-      return Map.of();
-    }
-
-    List<Long> driverIds = drivers.stream()
-        .map(User::getId)
+    List<Long> normalizedIds = selectedDriverIds.stream()
         .filter(id -> id != null)
+        .distinct()
         .toList();
-    if (driverIds.isEmpty()) {
-      return Map.of();
+    if (normalizedIds.isEmpty()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Выберите хотя бы одного водителя");
+    }
+    if (normalizedIds.size() > TRANSPORT_DRIVER_LIMIT) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST,
+          "Можно выбрать не более " + TRANSPORT_DRIVER_LIMIT + " водителей для транспортной задачи"
+      );
     }
 
-    Map<Long, Integer> aggregatedLoads = orderRepository.countByAssignedDriverIdsAndStatus(driverIds, OrderStatus.ASSIGNED).stream()
-        .collect(Collectors.toMap(
-            OrderRepository.DriverLoadAggregate::getDriverId,
-            row -> {
-              long total = row.getTotal() == null ? 0L : row.getTotal().longValue();
-              return Math.toIntExact(Math.min(total, Integer.MAX_VALUE));
-            }
-        ));
-
-    Map<Long, Integer> activeLoads = new HashMap<>();
-    for (User driver : drivers) {
-      activeLoads.put(driver.getId(), aggregatedLoads.getOrDefault(driver.getId(), 0));
+    Map<Long, User> driversById = drivers.stream()
+        .filter(driver -> driver.getId() != null)
+        .collect(Collectors.toMap(User::getId, Function.identity()));
+    List<User> selectedDrivers = new ArrayList<>(normalizedIds.size());
+    for (Long driverId : normalizedIds) {
+      User driver = driversById.get(driverId);
+      if (driver == null) {
+        throw new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "Выбранный водитель #" + driverId + " не найден или недоступен"
+        );
+      }
+      selectedDrivers.add(driver);
     }
-    return activeLoads;
+    return selectedDrivers;
   }
 
   private List<DriverPlanNode> buildDriverPlanNodes(List<User> drivers,
-                                                    int pendingOrdersCount,
                                                     Coordinate fallbackCoordinate) {
     if (drivers.isEmpty()) {
       return List.of();
@@ -801,29 +808,9 @@ public class OrderService {
 
     List<DriverPlanNode> planNodes = new ArrayList<>();
     for (User driver : drivers) {
-      Coordinate zoneSeed = resolveDriverClusterSeed(driver, fallbackCoordinate);
-      planNodes.add(new DriverPlanNode(driver, fallbackCoordinate, zoneSeed));
+      planNodes.add(new DriverPlanNode(driver, fallbackCoordinate));
     }
     return planNodes;
-  }
-
-  private Coordinate resolveDriverClusterSeed(User driver, Coordinate fallbackCoordinate) {
-    if (driver == null) {
-      return fallbackCoordinate;
-    }
-
-    if (driver.getUsername() != null) {
-      Coordinate mappedByUsername = MOGILEV_DRIVER_CLUSTER_SEEDS.get(driver.getUsername().toLowerCase(Locale.ROOT));
-      if (mappedByUsername != null) {
-        return mappedByUsername;
-      }
-    }
-
-    if (driver.getId() != null) {
-      int baseIndex = (int) Math.floorMod(driver.getId() - 1, MOGILEV_CLUSTER_RING.size());
-      return MOGILEV_CLUSTER_RING.get(baseIndex);
-    }
-    return fallbackCoordinate;
   }
 
   private Coordinate extractCoordinate(Order order) {
@@ -839,19 +826,6 @@ public class OrderService {
       return fallbackCoordinate;
     }
     return coordinate;
-  }
-
-  private List<AutoAssignRoutePathPointResponse> buildPreviewRoutePath(List<AutoAssignRoutePointResponse> points) {
-    if (points == null || points.isEmpty()) {
-      return List.of();
-    }
-
-    return buildPreviewRoutePathFromCoordinates(
-        points.stream()
-            .sorted(Comparator.comparingInt(AutoAssignRoutePointResponse::stopSequence))
-            .map(point -> new AutoAssignRoutePathPointResponse(point.latitude(), point.longitude()))
-            .toList()
-    );
   }
 
   private List<AutoAssignRoutePathPointResponse> buildPreviewRoutePathFromCoordinates(
@@ -885,6 +859,35 @@ public class OrderService {
     }
   }
 
+  private List<AutoAssignRoutePathPointResponse> buildPreviewTripPath(
+      List<AutoAssignRoutePathPointResponse> points,
+      AutoAssignRoutePathPointResponse startPoint,
+      boolean returnsToDepot
+  ) {
+    if (points == null || points.isEmpty()) {
+      return List.of();
+    }
+
+    AutoAssignRoutePathPointResponse tripStart = startPoint == null ? sharedDepotPathPoint() : startPoint;
+    AutoAssignRoutePathPointResponse depot = sharedDepotPathPoint();
+    List<AutoAssignRoutePathPointResponse> path = new ArrayList<>(points.size() + (returnsToDepot ? 2 : 1));
+    path.add(tripStart);
+    for (AutoAssignRoutePathPointResponse point : points) {
+      if (point == null || path.getLast().equals(point)) {
+        continue;
+      }
+      path.add(point);
+    }
+    if (returnsToDepot && !path.getLast().equals(depot)) {
+      path.add(depot);
+    }
+    return List.copyOf(path);
+  }
+
+  private AutoAssignRoutePathPointResponse sharedDepotPathPoint() {
+    return new AutoAssignRoutePathPointResponse(MOGILEV_SHARED_DEPOT.latitude(), MOGILEV_SHARED_DEPOT.longitude());
+  }
+
   private AutoAssignDriverRouteResponse toPreviewRouteResponse(PreviewRouteDraft routeDraft) {
     DriverPlanNode driverNode = routeDraft.driverNode();
     DriverRoutePlan route = routeDraft.route();
@@ -893,6 +896,7 @@ public class OrderService {
         ? List.of()
         : buildPreviewRouteTrips(route, points);
     List<AutoAssignRoutePathPointResponse> path = flattenPreviewRoutePaths(trips);
+    List<String> insights = buildRouteInsights(route, trips);
     return new AutoAssignDriverRouteResponse(
         driverNode.driver().getId(),
         driverNode.driver().getFullName(),
@@ -902,8 +906,55 @@ public class OrderService {
         roundDistance(route == null ? 0.0 : route.totalVolumeM3()),
         points,
         path,
-        trips
+        trips,
+        insights
     );
+  }
+
+  private List<AutoAssignRoutePointResponse> buildPreviewRoutePoints(DriverRoutePlan route, List<Order> approvedOrders) {
+    if (route == null || route.stops() == null || route.stops().isEmpty()) {
+      return List.of();
+    }
+
+    List<AutoAssignRoutePointResponse> points = new ArrayList<>(route.stops().size());
+    AutoAssignRoutePointResponse previousPoint = null;
+    for (RouteStop stop : route.stops()) {
+      Order order = approvedOrders.get(stop.orderIndex());
+      Coordinate coordinate = coordinateOrFallback(order, MOGILEV_SHARED_DEPOT);
+      String deliveryAddress = order.getDeliveryAddressText() == null || order.getDeliveryAddressText().isBlank()
+          ? "Заказ №" + order.getId()
+          : order.getDeliveryAddressText();
+      AutoAssignRoutePointResponse point = new AutoAssignRoutePointResponse(
+          order.getId(),
+          deliveryAddress,
+          coordinate.latitude(),
+          coordinate.longitude(),
+          stop.tripNumber(),
+          stop.sequence(),
+          roundDistance(stop.distanceFromPreviousKm()),
+          buildStopSelectionReason(stop, coordinate, previousPoint)
+      );
+      points.add(point);
+      previousPoint = point;
+    }
+    return List.copyOf(points);
+  }
+
+  private String buildStopSelectionReason(RouteStop stop,
+                                          Coordinate coordinate,
+                                          AutoAssignRoutePointResponse previousPoint) {
+    if (previousPoint == null || previousPoint.tripNumber() != stop.tripNumber()) {
+      return stop.tripNumber() <= 1
+          ? "Первая точка рейса: выбрана как ближайшая подходящая доставка от склада."
+          : "Новый рейс после повторной загрузки: первая точка снова выбрана от склада.";
+    }
+
+    boolean sameCoordinate = Double.compare(previousPoint.latitude(), coordinate.latitude()) == 0
+        && Double.compare(previousPoint.longitude(), coordinate.longitude()) == 0;
+    if (sameCoordinate) {
+      return "Тот же адрес, объединён с предыдущей точкой без дополнительного пробега.";
+    }
+    return "Следующая точка рейса: выбрана как ближайшая подходящая доставка от предыдущей остановки.";
   }
 
   private List<AutoAssignRouteTripResponse> buildPreviewRouteTrips(
@@ -928,13 +979,16 @@ public class OrderService {
       List<AutoAssignRoutePointResponse> tripPoints = pointsByTrip.getOrDefault(trip.tripNumber(), List.of());
       List<AutoAssignRoutePathPointResponse> tripPath = tripPoints.isEmpty()
           ? List.of()
-          : buildPreviewRoutePathFromCoordinates(
+          : buildPreviewTripPath(
               tripPoints.stream()
                   .map(point -> new AutoAssignRoutePathPointResponse(point.latitude(), point.longitude()))
                   .distinct()
                   .toList(),
+              sharedDepotPathPoint(),
               trip.returnsToDepot()
           );
+      double weightUtilizationPercent = utilizationPercent(trip.totalWeightKg(), VEHICLE_MAX_WEIGHT_KG);
+      double volumeUtilizationPercent = utilizationPercent(trip.totalVolumeM3(), VEHICLE_MAX_VOLUME_M3);
       trips.add(new AutoAssignRouteTripResponse(
           trip.tripNumber(),
           trip.assignedOrders(),
@@ -943,10 +997,75 @@ public class OrderService {
           roundDistance(trip.totalVolumeM3()),
           trip.returnsToDepot(),
           tripPoints,
-          tripPath
+          tripPath,
+          buildTripInsights(trip, tripPoints, weightUtilizationPercent, volumeUtilizationPercent),
+          roundDistance(weightUtilizationPercent),
+          roundDistance(volumeUtilizationPercent)
       ));
     }
     return trips;
+  }
+
+  private List<String> buildRouteInsights(DriverRoutePlan route, List<AutoAssignRouteTripResponse> trips) {
+    if (route == null || trips == null || trips.isEmpty()) {
+      return List.of("В текущем плане этому водителю не назначено ни одной точки.");
+    }
+
+    List<String> insights = new ArrayList<>();
+    insights.add(
+        "Точки распределялись одновременно между выбранными водителями: на каждом шаге система выбирала тот активный рейс, "
+            + "для которого добавление точки давало наименьший прирост пути и не нарушало ограничения "
+            + formatOneDecimal(VEHICLE_MAX_WEIGHT_KG)
+            + " кг / "
+            + formatOneDecimal(VEHICLE_MAX_VOLUME_M3)
+            + " м³."
+    );
+    insights.add(
+        "После распределения порядок точек внутри каждого рейса был упорядочен по ближайшей следующей остановке, "
+            + "чтобы убрать лишние переезды между дальними адресами."
+    );
+    if (trips.size() > 1) {
+      insights.add(
+          "Для этого водителя открыто "
+              + formatCountWithNoun(trips.size(), "рейс", "рейса", "рейсов")
+              + ", потому что весь объём не помещался в один выезд."
+      );
+    } else {
+      insights.add("Все точки этого водителя поместились в один рейс без повторной загрузки.");
+    }
+    return List.copyOf(insights);
+  }
+
+  private List<String> buildTripInsights(DriverTripPlan trip,
+                                         List<AutoAssignRoutePointResponse> tripPoints,
+                                         double weightUtilizationPercent,
+                                         double volumeUtilizationPercent) {
+    if (trip == null) {
+      return List.of();
+    }
+
+    List<String> insights = new ArrayList<>();
+    insights.add(
+        trip.tripNumber() <= 1
+            ? "Рейс начинается на складе."
+            : "Рейс начинается на складе после возврата и повторной загрузки."
+    );
+    insights.add(
+        tripPoints.size() <= 1
+            ? "В этом рейсе одна точка, поэтому дополнительных перестановок внутри рейса не требовалось."
+            : "Точки в рейсе идут в порядке ближайшей следующей подходящей остановки."
+    );
+    insights.add(
+        "Заполнение рейса: "
+            + formatOneDecimal(weightUtilizationPercent)
+            + "% по весу и "
+            + formatOneDecimal(volumeUtilizationPercent)
+            + "% по объёму."
+    );
+    insights.add(
+        "После последней точки этого рейса машина возвращается на склад, и это плечо включено в суммарный километраж."
+    );
+    return List.copyOf(insights);
   }
 
   private List<AutoAssignRoutePathPointResponse> flattenPreviewRoutePaths(List<AutoAssignRouteTripResponse> trips) {
@@ -974,15 +1093,42 @@ public class OrderService {
     return List.copyOf(flattened);
   }
 
+  private String formatCountWithNoun(int count, String singular, String paucal, String plural) {
+    int normalized = Math.max(0, count);
+    int mod10 = normalized % 10;
+    int mod100 = normalized % 100;
+    if (mod10 == 1 && mod100 != 11) {
+      return normalized + " " + singular;
+    }
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+      return normalized + " " + paucal;
+    }
+    return normalized + " " + plural;
+  }
+
   private TransportPlan solveClusteredPlan(List<DriverPlanNode> drivers,
                                            List<Order> orders,
                                            Coordinate fallbackCoordinate) {
     if (drivers.isEmpty() || orders.isEmpty()) {
-      return new TransportPlan(List.of(), List.of(), 0.0);
+      return new TransportPlan(List.of(), 0.0, false);
     }
 
-    // Группируем заказы по координатам
-    Map<Coordinate, List<Integer>> ordersByLocation = new HashMap<>();
+    double[] orderWeightKg = new double[orders.size()];
+    double[] orderVolumeM3 = new double[orders.size()];
+    for (int orderIndex = 0; orderIndex < orders.size(); orderIndex++) {
+      Order order = orders.get(orderIndex);
+      double totalWeightKg = 0.0;
+      double totalVolumeM3 = 0.0;
+      List<OrderItem> orderItems = order.getItems() == null ? List.of() : order.getItems();
+      for (OrderItem item : orderItems) {
+        totalWeightKg += estimateItemWeightKg(item);
+        totalVolumeM3 += estimateItemVolumeM3(item);
+      }
+      orderWeightKg[orderIndex] = totalWeightKg;
+      orderVolumeM3[orderIndex] = totalVolumeM3;
+    }
+
+    Map<Coordinate, List<Integer>> ordersByLocation = new LinkedHashMap<>();
     for (int i = 0; i < orders.size(); i++) {
       Coordinate coord = coordinateOrFallback(orders.get(i), fallbackCoordinate);
       ordersByLocation.computeIfAbsent(coord, k -> new ArrayList<>()).add(i);
@@ -994,22 +1140,17 @@ public class OrderService {
       double weight = 0.0;
       double volume = 0.0;
       for (int idx : orderIdxs) {
-        Order order = orders.get(idx);
-        List<OrderItem> orderItems = order.getItems() == null ? List.of() : order.getItems();
-        for (OrderItem item : orderItems) {
-          weight += estimateItemWeightKg(item);
-          volume += estimateItemVolumeM3(item);
-        }
+        weight += orderWeightKg[idx];
+        volume += orderVolumeM3[idx];
       }
       deliveryPoints.add(new DeliveryPoint(entry.getKey(), orderIdxs, weight, volume));
     }
 
-    List<TransportAssignment> assignments = new ArrayList<>();
-    Map<Coordinate, Map<Integer, Double>> distanceMatrixBySource = buildPlanningDistanceMatrix(drivers, deliveryPoints);
-    Map<Integer, Integer> preferredDriverByPoint = resolvePreferredDriverByPoint(drivers, deliveryPoints, distanceMatrixBySource);
-    List<Integer> remainingPointIndexes = new ArrayList<>();
+    PlanningDistanceTable distanceTable = buildPlanningDistanceTable(drivers, deliveryPoints);
+    boolean[] remainingPointIndexes = new boolean[deliveryPoints.size()];
+    int remainingPointCount = deliveryPoints.size();
     for (int pointIndex = 0; pointIndex < deliveryPoints.size(); pointIndex++) {
-      remainingPointIndexes.add(pointIndex);
+      remainingPointIndexes[pointIndex] = true;
     }
 
     List<List<List<AssignedPoint>>> tripsByDriver = new ArrayList<>(drivers.size());
@@ -1017,7 +1158,7 @@ public class OrderService {
       tripsByDriver.add(new ArrayList<>());
     }
 
-    while (!remainingPointIndexes.isEmpty()) {
+    while (remainingPointCount > 0) {
       Coordinate[] currentCoordinates = new Coordinate[drivers.size()];
       double[] assignedWeightByDriver = new double[drivers.size()];
       double[] assignedVolumeByDriver = new double[drivers.size()];
@@ -1029,59 +1170,30 @@ public class OrderService {
 
       boolean assignedAnyInTripWave = false;
 
-      for (int driverIndex = 0; driverIndex < drivers.size(); driverIndex++) {
-        while (true) {
-          AssignmentCandidate candidate = findBestPointForDriver(
-              drivers,
-              driverIndex,
-              currentCoordinates[driverIndex],
-              remainingPointIndexes,
-              deliveryPoints,
-              distanceMatrixBySource,
-              preferredDriverByPoint,
-              assignedWeightByDriver,
-              assignedVolumeByDriver,
-              true
-          );
-          if (candidate == null) {
-            break;
-          }
-          assignPointToDriver(
-              candidate,
-              deliveryPoints,
-              assignments,
-              currentTripPointsByDriver,
-              currentCoordinates,
-              assignedWeightByDriver,
-              assignedVolumeByDriver,
-              remainingPointIndexes
-          );
-          assignedAnyInTripWave = true;
-        }
-      }
-
-      while (!remainingPointIndexes.isEmpty()) {
+      while (remainingPointCount > 0) {
         AssignmentCandidate bestCandidate = null;
         for (int driverIndex = 0; driverIndex < drivers.size(); driverIndex++) {
-          AssignmentCandidate candidate = findBestPointForDriver(
-              drivers,
+          AssignmentCandidate candidate = findNearestFeasiblePoint(
               driverIndex,
               currentCoordinates[driverIndex],
               remainingPointIndexes,
               deliveryPoints,
-              distanceMatrixBySource,
-              preferredDriverByPoint,
-              assignedWeightByDriver,
-              assignedVolumeByDriver,
-              false
+              distanceTable,
+              fallbackCoordinate,
+              assignedWeightByDriver[driverIndex],
+              assignedVolumeByDriver[driverIndex]
           );
           if (candidate == null) {
             continue;
           }
+
           if (bestCandidate == null
-              || candidate.score() < bestCandidate.score() - 1e-9
-              || (Math.abs(candidate.score() - bestCandidate.score()) <= 1e-9
-                  && candidate.driverIndex() < bestCandidate.driverIndex())) {
+              || candidate.totalDeltaKm() < bestCandidate.totalDeltaKm() - 1e-9
+              || (Math.abs(candidate.totalDeltaKm() - bestCandidate.totalDeltaKm()) <= 1e-9
+                  && candidate.driverIndex() < bestCandidate.driverIndex())
+              || (Math.abs(candidate.totalDeltaKm() - bestCandidate.totalDeltaKm()) <= 1e-9
+                  && candidate.driverIndex() == bestCandidate.driverIndex()
+                  && candidate.pointIndex() < bestCandidate.pointIndex())) {
             bestCandidate = candidate;
           }
         }
@@ -1090,16 +1202,16 @@ public class OrderService {
           break;
         }
 
-        assignPointToDriver(
-            bestCandidate,
-            deliveryPoints,
-            assignments,
-            currentTripPointsByDriver,
-            currentCoordinates,
-            assignedWeightByDriver,
-            assignedVolumeByDriver,
-            remainingPointIndexes
-        );
+        DeliveryPoint point = deliveryPoints.get(bestCandidate.pointIndex());
+        currentTripPointsByDriver.get(bestCandidate.driverIndex())
+            .add(new AssignedPoint(bestCandidate.pointIndex(), bestCandidate.legDistanceKm()));
+        assignedWeightByDriver[bestCandidate.driverIndex()] += point.totalWeightKg();
+        assignedVolumeByDriver[bestCandidate.driverIndex()] += point.totalVolumeM3();
+        currentCoordinates[bestCandidate.driverIndex()] = point.coordinate();
+        if (remainingPointIndexes[bestCandidate.pointIndex()]) {
+          remainingPointIndexes[bestCandidate.pointIndex()] = false;
+          remainingPointCount -= 1;
+        }
         assignedAnyInTripWave = true;
       }
 
@@ -1118,18 +1230,18 @@ public class OrderService {
     List<List<List<AssignedPoint>>> optimizedTripsByDriver = reorderTripsByNearestNeighbor(
         tripsByDriver,
         deliveryPoints,
-        distanceMatrixBySource,
+        distanceTable,
         fallbackCoordinate
     );
     List<DriverRoutePlan> routes = buildDriverRoutesForTrips(optimizedTripsByDriver, deliveryPoints);
     double totalDistanceKm = routes.stream().mapToDouble(DriverRoutePlan::distanceKm).sum();
-    return new TransportPlan(assignments, routes, totalDistanceKm);
+    return new TransportPlan(routes, totalDistanceKm, distanceTable.approximatePlanningDistances());
   }
 
   private List<List<List<AssignedPoint>>> reorderTripsByNearestNeighbor(
       List<List<List<AssignedPoint>>> assignedTripsByDriver,
       List<DeliveryPoint> points,
-      Map<Coordinate, Map<Integer, Double>> distanceMatrixBySource,
+      PlanningDistanceTable distanceTable,
       Coordinate tripStartCoordinate
   ) {
     List<List<List<AssignedPoint>>> optimizedTripsByDriver = new ArrayList<>(assignedTripsByDriver.size());
@@ -1140,40 +1252,33 @@ public class OrderService {
       }
 
       List<List<AssignedPoint>> optimizedDriverTrips = new ArrayList<>(driverTrips.size());
-      for (List<AssignedPoint> tripPoints : driverTrips) {
+      for (int tripOffset = 0; tripOffset < driverTrips.size(); tripOffset++) {
+        List<AssignedPoint> tripPoints = driverTrips.get(tripOffset);
         if (tripPoints == null || tripPoints.size() <= 1) {
           optimizedDriverTrips.add(tripPoints == null ? List.of() : List.copyOf(tripPoints));
           continue;
         }
 
-        List<Integer> remainingTripPointIndexes = tripPoints.stream()
+        Set<Integer> remainingTripPointIndexes = tripPoints.stream()
             .map(AssignedPoint::pointIndex)
-            .collect(Collectors.toCollection(ArrayList::new));
-        List<AssignedPoint> orderedTripPoints = new ArrayList<>(tripPoints.size());
+            .collect(Collectors.toCollection(LinkedHashSet::new));
+        List<Integer> orderedPointIndexes = new ArrayList<>(tripPoints.size());
         Coordinate currentCoordinate = tripStartCoordinate;
 
         while (!remainingTripPointIndexes.isEmpty()) {
-          int bestOffset = 0;
-          int bestPointIndex = remainingTripPointIndexes.getFirst();
-          double bestDistanceKm = distanceFromMatrix(distanceMatrixBySource, currentCoordinate, bestPointIndex, points);
-
-          for (int offset = 1; offset < remainingTripPointIndexes.size(); offset++) {
-            int candidatePointIndex = remainingTripPointIndexes.get(offset);
-            double candidateDistanceKm = distanceFromMatrix(distanceMatrixBySource, currentCoordinate, candidatePointIndex, points);
-            if (candidateDistanceKm < bestDistanceKm - 1e-9
-                || (Math.abs(candidateDistanceKm - bestDistanceKm) <= 1e-9 && candidatePointIndex < bestPointIndex)) {
-              bestOffset = offset;
-              bestPointIndex = candidatePointIndex;
-              bestDistanceKm = candidateDistanceKm;
-            }
-          }
-
-          orderedTripPoints.add(new AssignedPoint(bestPointIndex, bestDistanceKm));
+          int bestPointIndex = findNearestPointWithinSubset(currentCoordinate, remainingTripPointIndexes, distanceTable, points);
+          orderedPointIndexes.add(bestPointIndex);
           currentCoordinate = points.get(bestPointIndex).coordinate();
-          remainingTripPointIndexes.remove(bestOffset);
+          remainingTripPointIndexes.remove(bestPointIndex);
         }
 
-        optimizedDriverTrips.add(List.copyOf(orderedTripPoints));
+        List<Integer> optimizedPointIndexes = optimizeTripByTwoOpt(
+            orderedPointIndexes,
+            distanceTable,
+            points,
+            tripStartCoordinate
+        );
+        optimizedDriverTrips.add(rebuildAssignedPoints(optimizedPointIndexes, tripStartCoordinate, distanceTable, points));
       }
 
       optimizedTripsByDriver.add(List.copyOf(optimizedDriverTrips));
@@ -1228,13 +1333,11 @@ public class OrderService {
           }
         }
 
-        boolean returnsToDepot = tripOffset < driverTrips.size() - 1;
-        if (returnsToDepot) {
-          Coordinate lastCoordinate = points.get(tripPoints.getLast().pointIndex()).coordinate();
-          double returnDistance = distanceKm(lastCoordinate, MOGILEV_SHARED_DEPOT);
-          tripDistance += returnDistance;
-          routeDistance += returnDistance;
-        }
+        Coordinate lastCoordinate = points.get(tripPoints.getLast().pointIndex()).coordinate();
+        boolean returnsToDepot = true;
+        double returnDistance = distanceKm(lastCoordinate, MOGILEV_SHARED_DEPOT);
+        tripDistance += returnDistance;
+        routeDistance += returnDistance;
 
         trips.add(new DriverTripPlan(
             tripNumber,
@@ -1251,15 +1354,14 @@ public class OrderService {
     return routes;
   }
 
-  private Map<Coordinate, Map<Integer, Double>> buildPlanningDistanceMatrix(List<DriverPlanNode> drivers,
-                                                                            List<DeliveryPoint> points) {
+  private PlanningDistanceTable buildPlanningDistanceTable(List<DriverPlanNode> drivers,
+                                                           List<DeliveryPoint> points) {
     if (points.isEmpty()) {
-      return Map.of();
+      return new PlanningDistanceTable(List.of(), Map.of(), new double[0][0], new double[0], new int[0][0], false);
     }
 
     LinkedHashSet<Coordinate> uniqueSources = new LinkedHashSet<>();
     for (DriverPlanNode driver : drivers) {
-      uniqueSources.add(driver.zoneSeed());
       uniqueSources.add(driver.startCoordinate());
     }
     for (DeliveryPoint point : points) {
@@ -1267,165 +1369,273 @@ public class OrderService {
     }
 
     List<Coordinate> sources = new ArrayList<>(uniqueSources);
-    List<Coordinate> destinations = points.stream()
-        .map(DeliveryPoint::coordinate)
-        .toList();
+      List<Coordinate> destinations = new ArrayList<>(points.stream()
+          .map(DeliveryPoint::coordinate)
+          .toList());
+      destinations.add(MOGILEV_SHARED_DEPOT);
+      Map<Coordinate, Integer> sourceIndexByCoordinate = new HashMap<>();
+      for (int sourceIndex = 0; sourceIndex < sources.size(); sourceIndex++) {
+        sourceIndexByCoordinate.put(sources.get(sourceIndex), sourceIndex);
+      }
 
-    try {
+    if (points.size() > ROAD_MATRIX_DELIVERY_POINT_THRESHOLD) {
+      log.info(
+          "Auto-assign preview is using haversine planning distances for {} delivery points to avoid slow road-matrix calls.",
+          points.size()
+      );
+      return buildApproximatePlanningDistanceTable(sources, sourceIndexByCoordinate, points);
+    }
+
+      try {
       List<List<Double>> matrix = roadRoutingService.drivingDistanceMatrixKm(
           sources.stream().map(this::toRouteCoordinate).toList(),
           destinations.stream().map(this::toRouteCoordinate).toList()
       );
-      Map<Coordinate, Map<Integer, Double>> bySource = new HashMap<>();
+      double[][] distancesBySource = new double[sources.size()][points.size()];
+      double[] distanceToDepotBySource = new double[sources.size()];
       for (int sourceIndex = 0; sourceIndex < sources.size(); sourceIndex++) {
-        Map<Integer, Double> rowByPointIndex = new HashMap<>();
         List<Double> row = matrix.get(sourceIndex);
         for (int pointIndex = 0; pointIndex < points.size(); pointIndex++) {
-          rowByPointIndex.put(pointIndex, row.get(pointIndex));
+          distancesBySource[sourceIndex][pointIndex] = row.get(pointIndex);
         }
-        bySource.put(sources.get(sourceIndex), rowByPointIndex);
+        distanceToDepotBySource[sourceIndex] = row.get(points.size());
       }
-      return bySource;
+      return new PlanningDistanceTable(
+          List.copyOf(sources),
+          Map.copyOf(sourceIndexByCoordinate),
+          distancesBySource,
+          distanceToDepotBySource,
+          buildSortedPointIndexesBySource(distancesBySource),
+          false
+      );
     } catch (RuntimeException exception) {
       log.debug("Road distance matrix unavailable for planning, falling back to haversine: {}", exception.getMessage());
-      Map<Coordinate, Map<Integer, Double>> bySource = new HashMap<>();
-      for (Coordinate source : sources) {
-        Map<Integer, Double> rowByPointIndex = new HashMap<>();
-        for (int pointIndex = 0; pointIndex < points.size(); pointIndex++) {
-          rowByPointIndex.put(pointIndex, haversineKm(source, points.get(pointIndex).coordinate()));
-        }
-        bySource.put(source, rowByPointIndex);
-      }
-      return bySource;
+      return buildApproximatePlanningDistanceTable(sources, sourceIndexByCoordinate, points);
     }
   }
 
-  private Map<Integer, Integer> resolvePreferredDriverByPoint(List<DriverPlanNode> drivers,
-                                                              List<DeliveryPoint> points,
-                                                              Map<Coordinate, Map<Integer, Double>> distanceMatrixBySource) {
-    if (drivers.isEmpty() || points.isEmpty()) {
-      return Map.of();
-    }
-
-    Map<Integer, Integer> preferredDriverByPoint = new HashMap<>();
-    for (int pointIndex = 0; pointIndex < points.size(); pointIndex++) {
-      int bestDriverIndex = 0;
-      double bestDistance = distanceFromMatrix(distanceMatrixBySource, drivers.getFirst().zoneSeed(), pointIndex, points);
-
-      for (int driverIndex = 1; driverIndex < drivers.size(); driverIndex++) {
-        double candidateDistance = distanceFromMatrix(
-            distanceMatrixBySource,
-            drivers.get(driverIndex).zoneSeed(),
-            pointIndex,
-            points
-        );
-        if (candidateDistance < bestDistance - 1e-9
-            || (Math.abs(candidateDistance - bestDistance) <= 1e-9
-                && drivers.get(driverIndex).driver().getId() < drivers.get(bestDriverIndex).driver().getId())) {
-          bestDriverIndex = driverIndex;
-          bestDistance = candidateDistance;
-        }
+  private PlanningDistanceTable buildApproximatePlanningDistanceTable(
+      List<Coordinate> sources,
+      Map<Coordinate, Integer> sourceIndexByCoordinate,
+      List<DeliveryPoint> points
+  ) {
+    double[][] distancesBySource = new double[sources.size()][points.size()];
+    double[] distanceToDepotBySource = new double[sources.size()];
+    for (int sourceIndex = 0; sourceIndex < sources.size(); sourceIndex++) {
+      Coordinate source = sources.get(sourceIndex);
+      for (int pointIndex = 0; pointIndex < points.size(); pointIndex++) {
+        distancesBySource[sourceIndex][pointIndex] = haversineKm(source, points.get(pointIndex).coordinate());
       }
-      preferredDriverByPoint.put(pointIndex, bestDriverIndex);
+      distanceToDepotBySource[sourceIndex] = haversineKm(source, MOGILEV_SHARED_DEPOT);
     }
-    return preferredDriverByPoint;
+    return new PlanningDistanceTable(
+        List.copyOf(sources),
+        Map.copyOf(sourceIndexByCoordinate),
+        distancesBySource,
+        distanceToDepotBySource,
+        buildSortedPointIndexesBySource(distancesBySource),
+        true
+    );
   }
 
-  private AssignmentCandidate findBestPointForDriver(List<DriverPlanNode> drivers,
-                                                     int driverIndex,
-                                                     Coordinate currentCoordinate,
-                                                     List<Integer> candidatePointIndexes,
-                                                     List<DeliveryPoint> points,
-                                                     Map<Coordinate, Map<Integer, Double>> distanceMatrixBySource,
-                                                     Map<Integer, Integer> preferredDriverByPoint,
-                                                     double[] assignedWeightByDriver,
-                                                     double[] assignedVolumeByDriver,
-                                                     boolean ownZoneOnly) {
-    List<Integer> feasiblePointIndexes = new ArrayList<>();
-    for (int pointIndex : candidatePointIndexes) {
-      int preferredDriverIndex = preferredDriverByPoint.getOrDefault(pointIndex, driverIndex);
-      if (ownZoneOnly && preferredDriverIndex != driverIndex) {
-        continue;
-      }
-
-      DeliveryPoint point = points.get(pointIndex);
-      if (!canAssignPointToDriver(
-          drivers.get(driverIndex),
-          point,
-          assignedWeightByDriver[driverIndex],
-          assignedVolumeByDriver[driverIndex]
-      )) {
-        continue;
-      }
-
-      feasiblePointIndexes.add(pointIndex);
-    }
-
-    if (feasiblePointIndexes.isEmpty()) {
+  private AssignmentCandidate findNearestFeasiblePoint(int driverIndex,
+                                                       Coordinate currentCoordinate,
+                                                       boolean[] candidatePointIndexes,
+                                                       List<DeliveryPoint> points,
+                                                       PlanningDistanceTable distanceTable,
+                                                       Coordinate depotCoordinate,
+                                                       double assignedWeightKg,
+                                                       double assignedVolumeM3) {
+    int sourceIndex = distanceTable.sourceIndexByCoordinate().getOrDefault(currentCoordinate, -1);
+    if (sourceIndex < 0) {
       return null;
     }
 
     AssignmentCandidate bestCandidate = null;
-    for (int pointIndex : feasiblePointIndexes) {
-      int preferredDriverIndex = preferredDriverByPoint.getOrDefault(pointIndex, driverIndex);
-      double distanceKm = distanceFromMatrix(distanceMatrixBySource, currentCoordinate, pointIndex, points);
-      double score = distanceKm;
-      if (preferredDriverIndex != driverIndex) {
-        score += CROSS_ZONE_PENALTY_KM;
+    double currentReturnDistanceKm = distanceToDepot(distanceTable, currentCoordinate, depotCoordinate);
+    for (int pointIndex : distanceTable.sortedPointIndexesBySource()[sourceIndex]) {
+      if (!candidatePointIndexes[pointIndex]) {
+        continue;
+      }
+      DeliveryPoint point = points.get(pointIndex);
+      if (!canAssignPointToDriver(point, assignedWeightKg, assignedVolumeM3)) {
+        continue;
       }
 
+      Coordinate pointCoordinate = point.coordinate();
+      double legDistanceKm = distanceTable.distancesBySource()[sourceIndex][pointIndex];
+      double candidateReturnDistanceKm = distanceToDepot(distanceTable, pointCoordinate, depotCoordinate);
+      double totalDeltaKm = legDistanceKm + candidateReturnDistanceKm - currentReturnDistanceKm;
       if (bestCandidate == null
-          || score < bestCandidate.score() - 1e-9
-          || (Math.abs(score - bestCandidate.score()) <= 1e-9 && pointIndex < bestCandidate.pointIndex())) {
-        bestCandidate = new AssignmentCandidate(driverIndex, pointIndex, distanceKm, score);
+          || totalDeltaKm < bestCandidate.totalDeltaKm() - 1e-9
+          || (Math.abs(totalDeltaKm - bestCandidate.totalDeltaKm()) <= 1e-9
+              && legDistanceKm < bestCandidate.legDistanceKm() - 1e-9)
+          || (Math.abs(totalDeltaKm - bestCandidate.totalDeltaKm()) <= 1e-9
+              && Math.abs(legDistanceKm - bestCandidate.legDistanceKm()) <= 1e-9
+              && pointIndex < bestCandidate.pointIndex())) {
+        bestCandidate = new AssignmentCandidate(driverIndex, pointIndex, legDistanceKm, totalDeltaKm);
       }
     }
     return bestCandidate;
   }
 
-  private boolean canAssignPointToDriver(DriverPlanNode driver,
-                                         DeliveryPoint point,
+  private int findNearestPointWithinSubset(Coordinate currentCoordinate,
+                                           Set<Integer> candidatePointIndexes,
+                                           PlanningDistanceTable distanceTable,
+                                           List<DeliveryPoint> points) {
+    int sourceIndex = distanceTable.sourceIndexByCoordinate().getOrDefault(currentCoordinate, -1);
+    if (sourceIndex >= 0) {
+      for (int pointIndex : distanceTable.sortedPointIndexesBySource()[sourceIndex]) {
+        if (candidatePointIndexes.contains(pointIndex)) {
+          return pointIndex;
+        }
+      }
+    }
+
+    int bestPointIndex = candidatePointIndexes.iterator().next();
+    double bestDistanceKm = haversineKm(currentCoordinate, points.get(bestPointIndex).coordinate());
+    for (int pointIndex : candidatePointIndexes) {
+      double candidateDistanceKm = haversineKm(currentCoordinate, points.get(pointIndex).coordinate());
+      if (candidateDistanceKm < bestDistanceKm - 1e-9
+          || (Math.abs(candidateDistanceKm - bestDistanceKm) <= 1e-9 && pointIndex < bestPointIndex)) {
+        bestPointIndex = pointIndex;
+        bestDistanceKm = candidateDistanceKm;
+      }
+    }
+    return bestPointIndex;
+  }
+
+  private boolean canAssignPointToDriver(DeliveryPoint point,
                                          double assignedWeightKg,
                                          double assignedVolumeM3) {
     return assignedWeightKg + point.totalWeightKg() <= VEHICLE_MAX_WEIGHT_KG
         && assignedVolumeM3 + point.totalVolumeM3() <= VEHICLE_MAX_VOLUME_M3;
   }
 
-  private void assignPointToDriver(AssignmentCandidate candidate,
-                                   List<DeliveryPoint> points,
-                                   List<TransportAssignment> assignments,
-                                   List<List<AssignedPoint>> orderedPointIndexesByDriver,
-                                   Coordinate[] currentCoordinates,
-                                   double[] assignedWeightByDriver,
-                                   double[] assignedVolumeByDriver,
-                                   List<Integer> remainingPointIndexes) {
-    DeliveryPoint point = points.get(candidate.pointIndex());
-    assignments.add(new TransportAssignment(candidate.pointIndex(), candidate.driverIndex()));
-    orderedPointIndexesByDriver.get(candidate.driverIndex())
-        .add(new AssignedPoint(candidate.pointIndex(), candidate.distanceKm()));
-    currentCoordinates[candidate.driverIndex()] = point.coordinate();
-    assignedWeightByDriver[candidate.driverIndex()] += point.totalWeightKg();
-    assignedVolumeByDriver[candidate.driverIndex()] += point.totalVolumeM3();
-    remainingPointIndexes.remove(Integer.valueOf(candidate.pointIndex()));
+  private List<Integer> optimizeTripByTwoOpt(List<Integer> orderedPointIndexes,
+                                             PlanningDistanceTable distanceTable,
+                                             List<DeliveryPoint> points,
+                                             Coordinate tripStartCoordinate) {
+    if (orderedPointIndexes == null || orderedPointIndexes.size() <= 2) {
+      return orderedPointIndexes == null ? List.of() : List.copyOf(orderedPointIndexes);
+    }
+
+    List<Integer> optimized = new ArrayList<>(orderedPointIndexes);
+    boolean improved = true;
+    while (improved) {
+      improved = false;
+      for (int left = 0; left < optimized.size() - 1; left++) {
+        for (int right = left + 1; right < optimized.size(); right++) {
+          List<Integer> candidate = new ArrayList<>(optimized);
+          Collections.reverse(candidate.subList(left, right + 1));
+          if (computeClosedTripDistance(candidate, tripStartCoordinate, distanceTable, points)
+              < computeClosedTripDistance(optimized, tripStartCoordinate, distanceTable, points) - 1e-9) {
+            optimized = candidate;
+            improved = true;
+          }
+        }
+      }
+    }
+    return List.copyOf(optimized);
+  }
+
+  private List<AssignedPoint> rebuildAssignedPoints(List<Integer> orderedPointIndexes,
+                                                    Coordinate tripStartCoordinate,
+                                                    PlanningDistanceTable distanceTable,
+                                                    List<DeliveryPoint> points) {
+    if (orderedPointIndexes == null || orderedPointIndexes.isEmpty()) {
+      return List.of();
+    }
+
+    List<AssignedPoint> rebuilt = new ArrayList<>(orderedPointIndexes.size());
+    Coordinate currentCoordinate = tripStartCoordinate;
+    for (int pointIndex : orderedPointIndexes) {
+      double legDistanceKm = distanceFromMatrix(distanceTable, currentCoordinate, pointIndex, points);
+      rebuilt.add(new AssignedPoint(pointIndex, legDistanceKm));
+      currentCoordinate = points.get(pointIndex).coordinate();
+    }
+    return List.copyOf(rebuilt);
+  }
+
+  private double computeClosedTripDistance(List<Integer> orderedPointIndexes,
+                                           Coordinate tripStartCoordinate,
+                                           PlanningDistanceTable distanceTable,
+                                           List<DeliveryPoint> points) {
+    if (orderedPointIndexes == null || orderedPointIndexes.isEmpty()) {
+      return 0.0;
+    }
+
+    double totalDistanceKm = 0.0;
+    Coordinate currentCoordinate = tripStartCoordinate;
+    for (int pointIndex : orderedPointIndexes) {
+      totalDistanceKm += distanceFromMatrix(distanceTable, currentCoordinate, pointIndex, points);
+      currentCoordinate = points.get(pointIndex).coordinate();
+    }
+    totalDistanceKm += distanceToDepot(distanceTable, currentCoordinate, tripStartCoordinate);
+    return totalDistanceKm;
+  }
+
+  private double distanceToDepot(PlanningDistanceTable distanceTable,
+                                 Coordinate source,
+                                 Coordinate depotCoordinate) {
+    Integer sourceIndex = distanceTable.sourceIndexByCoordinate().get(source);
+    if (sourceIndex == null) {
+      return haversineKm(source, depotCoordinate);
+    }
+    return distanceTable.distanceToDepotBySource()[sourceIndex];
   }
 
   private record DeliveryPoint(Coordinate coordinate, List<Integer> orderIndexes, double totalWeightKg, double totalVolumeM3) {}
 
-  private record AssignmentCandidate(int driverIndex, int pointIndex, double distanceKm, double score) {
+  private record AssignmentCandidate(int driverIndex, int pointIndex, double legDistanceKm, double totalDeltaKm) {
   }
 
   private record AssignedPoint(int pointIndex, double distanceFromPreviousKm) {
   }
 
-  private double distanceFromMatrix(Map<Coordinate, Map<Integer, Double>> distanceMatrixBySource,
+  private record PlanningDistanceTable(List<Coordinate> sources,
+                                       Map<Coordinate, Integer> sourceIndexByCoordinate,
+                                       double[][] distancesBySource,
+                                       double[] distanceToDepotBySource,
+                                       int[][] sortedPointIndexesBySource,
+                                       boolean approximatePlanningDistances) {
+  }
+
+  private int[][] buildSortedPointIndexesBySource(double[][] distancesBySource) {
+    int[][] sortedPointIndexesBySource = new int[distancesBySource.length][];
+    for (int sourceIndex = 0; sourceIndex < distancesBySource.length; sourceIndex++) {
+      Integer[] indexes = new Integer[distancesBySource[sourceIndex].length];
+      for (int pointIndex = 0; pointIndex < indexes.length; pointIndex++) {
+        indexes[pointIndex] = pointIndex;
+      }
+      final int currentSourceIndex = sourceIndex;
+      java.util.Arrays.sort(indexes, (left, right) -> {
+        double leftDistance = distancesBySource[currentSourceIndex][left];
+        double rightDistance = distancesBySource[currentSourceIndex][right];
+        if (Math.abs(leftDistance - rightDistance) <= 1e-9) {
+          return Integer.compare(left, right);
+        }
+        return Double.compare(leftDistance, rightDistance);
+      });
+
+      int[] sortedIndexes = new int[indexes.length];
+      for (int pointIndex = 0; pointIndex < indexes.length; pointIndex++) {
+        sortedIndexes[pointIndex] = indexes[pointIndex];
+      }
+      sortedPointIndexesBySource[sourceIndex] = sortedIndexes;
+    }
+    return sortedPointIndexesBySource;
+  }
+
+  private double distanceFromMatrix(PlanningDistanceTable distanceTable,
                                     Coordinate source,
                                     int pointIndex,
                                     List<DeliveryPoint> points) {
-    Map<Integer, Double> byPointIndex = distanceMatrixBySource.get(source);
-    if (byPointIndex == null) {
+    Integer sourceIndex = distanceTable.sourceIndexByCoordinate().get(source);
+    if (sourceIndex == null) {
       return haversineKm(source, points.get(pointIndex).coordinate());
     }
-    return byPointIndex.getOrDefault(pointIndex, haversineKm(source, points.get(pointIndex).coordinate()));
+    return distanceTable.distancesBySource()[sourceIndex][pointIndex];
   }
 
   private double distanceKm(Coordinate from, Coordinate to) {
@@ -1459,7 +1669,44 @@ public class OrderService {
   }
 
   private double roundDistance(double value) {
-    return BigDecimal.valueOf(value).setScale(2, RoundingMode.HALF_UP).doubleValue();
+    return BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).doubleValue();
+  }
+
+  private double utilizationPercent(double value, double capacity) {
+    if (capacity <= 0.0) {
+      return 0.0;
+    }
+    return Math.max(0.0, (value / capacity) * 100.0);
+  }
+
+  private List<String> buildPlanningHighlights(int driverCount, boolean approximatePlanningDistances) {
+    List<String> highlights = new ArrayList<>();
+    highlights.add(
+        "Заказы распределяются одновременно между "
+            + driverCount
+            + " водителями: на каждом шаге точка достаётся тому активному рейсу, которому она добавляет минимальный прирост полного пути с учётом возврата на склад."
+    );
+    highlights.add(
+        "На каждый рейс действуют ограничения "
+            + formatOneDecimal(VEHICLE_MAX_WEIGHT_KG)
+            + " кг и "
+            + formatOneDecimal(VEHICLE_MAX_VOLUME_M3)
+            + " м³. Если оставшиеся точки уже не помещаются, для них открывается следующий рейс от склада."
+    );
+    highlights.add(
+        approximatePlanningDistances
+            ? "Для ускорения предварительного расчёта использованы прямолинейные расстояния между точками; фактическая дорожная геометрия на карте строится отдельно."
+            : "Для предварительного распределения использована дорожная матрица расстояний между складом и точками доставки."
+    );
+    highlights.add(
+        "План строится быстрой эвристикой и хорошо масштабируется, но не является строгим доказательством глобального оптимума для любого набора точек."
+    );
+    return List.copyOf(highlights);
+  }
+
+  private String formatOneDecimal(double value) {
+    BigDecimal normalized = BigDecimal.valueOf(value).setScale(1, RoundingMode.HALF_UP).stripTrailingZeros();
+    return normalized.scale() < 0 ? normalized.setScale(0).toPlainString() : normalized.toPlainString();
   }
 
   private double estimateItemWeightKg(OrderItem item) {
@@ -1572,6 +1819,8 @@ public class OrderService {
         order.getUpdatedAt(),
         order.getApprovedAt(),
         order.getAssignedAt(),
+        order.getRouteTripNumber(),
+        order.getRouteStopSequence(),
         order.getDeliveredAt(),
         order.getTotalAmount(),
         items
@@ -1592,10 +1841,8 @@ public class OrderService {
   private record Coordinate(double latitude, double longitude) {
   }
 
-  private record DriverPlanNode(User driver, Coordinate startCoordinate, Coordinate zoneSeed) {
-  }
-
-  private record TransportAssignment(int orderIndex, int driverIndex) {
+  private record DriverPlanNode(User driver,
+                                Coordinate startCoordinate) {
   }
 
   private record RouteStop(int orderIndex, int sequence, int tripNumber, double distanceFromPreviousKm) {
@@ -1623,9 +1870,9 @@ public class OrderService {
                                    List<AutoAssignRoutePointResponse> points) {
   }
 
-  private record TransportPlan(List<TransportAssignment> assignments,
-                               List<DriverRoutePlan> routes,
-                               double totalDistanceKm) {
+  private record TransportPlan(List<DriverRoutePlan> routes,
+                               double totalDistanceKm,
+                               boolean approximatePlanningDistances) {
   }
 
   private int normalizePage(Integer rawPage) {

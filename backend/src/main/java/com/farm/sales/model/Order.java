@@ -77,6 +77,12 @@ public class Order {
   @Column(name = "assigned_at")
   private Instant assignedAt;
 
+  @Column(name = "route_trip_number")
+  private Integer routeTripNumber;
+
+  @Column(name = "route_stop_sequence")
+  private Integer routeStopSequence;
+
   @Column(name = "delivered_at")
   private Instant deliveredAt;
 
@@ -220,6 +226,22 @@ public class Order {
 
   public void setDeliveredAt(Instant deliveredAt) {
     this.deliveredAt = deliveredAt;
+  }
+
+  public Integer getRouteTripNumber() {
+    return routeTripNumber;
+  }
+
+  public void setRouteTripNumber(Integer routeTripNumber) {
+    this.routeTripNumber = routeTripNumber;
+  }
+
+  public Integer getRouteStopSequence() {
+    return routeStopSequence;
+  }
+
+  public void setRouteStopSequence(Integer routeStopSequence) {
+    this.routeStopSequence = routeStopSequence;
   }
 
   public List<OrderItem> getItems() {

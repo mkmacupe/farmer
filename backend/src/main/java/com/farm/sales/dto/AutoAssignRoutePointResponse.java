@@ -7,6 +7,7 @@ public record AutoAssignRoutePointResponse(
     double longitude,
     int tripNumber,
     int stopSequence,
-    double distanceFromPreviousKm
+    double distanceFromPreviousKm,
+    String selectionReason
 ) {
 }

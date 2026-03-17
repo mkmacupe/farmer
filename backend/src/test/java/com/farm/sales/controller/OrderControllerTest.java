@@ -12,6 +12,7 @@ import com.farm.sales.dto.AutoAssignApproveItemRequest;
 import com.farm.sales.dto.AutoAssignApproveRequest;
 import com.farm.sales.dto.AutoAssignDriverRouteResponse;
 import com.farm.sales.dto.AutoAssignItemResponse;
+import com.farm.sales.dto.AutoAssignPreviewRequest;
 import com.farm.sales.dto.AutoAssignPreviewResponse;
 import com.farm.sales.dto.AutoAssignRouteGeometryRequest;
 import com.farm.sales.dto.AutoAssignRoutePathPointResponse;
@@ -167,17 +168,22 @@ class OrderControllerTest {
             12.1,
             10.5,
             0.05,
-            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 1, 4.5)),
+            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 1, 4.5, "Первая точка от склада")),
             List.of(),
-            List.of()
-        ))
+            List.of(),
+            List.of("Маршрут построен по минимальному добавочному пробегу")
+        )),
+        false,
+        List.of("Тестовое пояснение")
     );
-    when(orderService.previewAutoAssignPlan(18L)).thenReturn(preview);
+    AutoAssignPreviewRequest previewRequest = new AutoAssignPreviewRequest(List.of(31L));
+    when(orderService.previewAutoAssignPlan(18L, List.of(31L))).thenReturn(preview);
     AutoAssignRouteGeometryRequest geometryRequest =
-        new AutoAssignRouteGeometryRequest(List.of(new AutoAssignRoutePathPointResponse(53.91, 30.34)));
+        new AutoAssignRouteGeometryRequest(List.of(new AutoAssignRoutePathPointResponse(53.91, 30.34)), true);
     List<AutoAssignRoutePathPointResponse> geometry = List.of(
         new AutoAssignRoutePathPointResponse(53.897127, 30.332041),
-        new AutoAssignRoutePathPointResponse(53.91, 30.34)
+        new AutoAssignRoutePathPointResponse(53.91, 30.34),
+        new AutoAssignRoutePathPointResponse(53.897127, 30.332041)
     );
     when(orderService.previewAutoAssignRouteGeometry(18L, geometryRequest)).thenReturn(geometry);
 
@@ -193,7 +199,7 @@ class OrderControllerTest {
     );
     when(orderService.approveAutoAssignPlan(18L, request)).thenReturn(approved);
 
-    var previewResponse = controller.autoAssignPreview(jwt);
+    var previewResponse = controller.autoAssignPreview(jwt, previewRequest);
     var geometryResponse = controller.autoAssignRouteGeometry(jwt, geometryRequest);
     var approveResponse = controller.approveAutoAssign(jwt, request);
 
@@ -203,7 +209,7 @@ class OrderControllerTest {
     assertThat(geometryResponse.getBody()).isEqualTo(geometry);
     assertThat(approveResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(approveResponse.getBody()).isEqualTo(approved);
-    verify(orderService).previewAutoAssignPlan(18L);
+    verify(orderService).previewAutoAssignPlan(18L, List.of(31L));
     verify(orderService).previewAutoAssignRouteGeometry(18L, geometryRequest);
     verify(orderService).approveAutoAssignPlan(18L, request);
   }
@@ -225,15 +231,17 @@ class OrderControllerTest {
         1,
         0,
         6.2,
-        List.of()
+        List.of(),
+        false,
+        List.of("Тестовое пояснение")
     );
-    when(orderService.previewAutoAssignPlan(118L)).thenReturn(preview);
+    when(orderService.previewAutoAssignPlan(118L, null)).thenReturn(preview);
 
-    var response = controller.autoAssignPreview(jwt);
+    var response = controller.autoAssignPreview(jwt, null);
 
     assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(response.getBody()).isEqualTo(preview);
-    verify(orderService).previewAutoAssignPlan(118L);
+    verify(orderService).previewAutoAssignPlan(118L, null);
   }
 
   @Test
@@ -334,6 +342,8 @@ class OrderControllerTest {
         now,
         now,
         now,
+        null,
+        null,
         null,
         new BigDecimal("99.99"),
         List.of()

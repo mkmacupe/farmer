@@ -20,6 +20,8 @@ public record OrderResponse(
     Instant updatedAt,
     Instant approvedAt,
     Instant assignedAt,
+    Integer routeTripNumber,
+    Integer routeStopSequence,
     Instant deliveredAt,
     BigDecimal totalAmount,
     List<OrderItemResponse> items

@@ -36,7 +36,6 @@ export default defineConfig(({ mode }) => {
   const apiPort =
     env.VITE_PROXY_API_PORT ||
     process.env.VITE_PROXY_API_PORT ||
-    process.env.API_PORT ||
     "8080";
   const apiTarget =
     env.VITE_PROXY_API_TARGET ||

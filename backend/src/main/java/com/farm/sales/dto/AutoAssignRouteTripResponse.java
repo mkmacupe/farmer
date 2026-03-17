@@ -10,6 +10,9 @@ public record AutoAssignRouteTripResponse(
     double totalVolumeM3,
     boolean returnsToDepot,
     List<AutoAssignRoutePointResponse> points,
-    List<AutoAssignRoutePathPointResponse> path
+    List<AutoAssignRoutePathPointResponse> path,
+    List<String> insights,
+    double weightUtilizationPercent,
+    double volumeUtilizationPercent
 ) {
 }

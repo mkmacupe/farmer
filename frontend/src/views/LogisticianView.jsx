@@ -24,6 +24,8 @@ import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import Checkbox from '@mui/material/Checkbox';
+import Chip from '@mui/material/Chip';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogActions from '@mui/material/DialogActions';
@@ -53,8 +55,13 @@ import HistoryIcon from '@mui/icons-material/History';
 import RouteOutlinedIcon from '@mui/icons-material/RouteOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useStableEvent } from '../utils/useStableEvent.js';
+import { routeColor } from '../utils/routeColors.js';
 
 const RoutePlanMap = lazy(() => import('../components/RoutePlanMap.jsx'));
+const transportNumberFormatter = new Intl.NumberFormat('ru-RU', {
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1
+});
 
 function statusLabel(status) {
   const labels = {
@@ -71,6 +78,14 @@ function formatDateTime(value) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return '';
   return parsed.toLocaleString('ru-RU');
+}
+
+function formatTransportNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return transportNumberFormatter.format(0);
+  }
+  return transportNumberFormatter.format(numeric);
 }
 
 const MetricCard = memo(function MetricCard({ title, value, icon, color }) {
@@ -92,12 +107,6 @@ const MetricCard = memo(function MetricCard({ title, value, icon, color }) {
     </Card>
   );
 });
-
-const ROUTE_COLORS = ['#5a7fa8', '#b18a52', '#4f8a6d', '#8a78a5', '#b07a7a'];
-
-function routeColor(routeIndex) {
-  return ROUTE_COLORS[routeIndex % ROUTE_COLORS.length];
-}
 
 function routeTripLoad(route) {
   const trips = Array.isArray(route?.trips) ? route.trips : [];
@@ -128,6 +137,180 @@ function tripCountLabel(count) {
   return `${normalized} рейсов`;
 }
 
+function countLabel(count, one, few, many) {
+  const normalized = Number.isFinite(Number(count)) ? Math.max(0, Math.trunc(Number(count))) : 0;
+  const mod10 = normalized % 10;
+  const mod100 = normalized % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${normalized} ${one}`;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${normalized} ${few}`;
+  }
+  return `${normalized} ${many}`;
+}
+
+function orderCountLabel(count) {
+  return countLabel(count, 'заказ', 'заказа', 'заказов');
+}
+
+function stopCountLabel(count) {
+  return countLabel(count, 'остановка', 'остановки', 'остановок');
+}
+
+function routePointKey(point) {
+  return [
+    point?.orderId ?? 'order',
+    Number(point?.tripNumber) || 1,
+    Number(point?.stopSequence) || 0
+  ].join(':');
+}
+
+function sameRouteStop(left, right) {
+  return Boolean(left && right)
+    && (Number(left?.tripNumber) || 1) === (Number(right?.tripNumber) || 1)
+    && Number(left?.latitude) === Number(right?.latitude)
+    && Number(left?.longitude) === Number(right?.longitude);
+}
+
+function formatStopOrderSummary(orderIds = []) {
+  if (!Array.isArray(orderIds) || !orderIds.length) {
+    return '';
+  }
+  return orderIds.map((orderId) => `#${orderId}`).join(', ');
+}
+
+function enhanceRoutePreview(route) {
+  if (!route || !Array.isArray(route.points)) {
+    return route;
+  }
+
+  const sortedTrips = Array.isArray(route.trips)
+    ? [...route.trips].sort((left, right) => (Number(left?.tripNumber) || 1) - (Number(right?.tripNumber) || 1))
+    : [];
+  const tripMetaByNumber = new Map(
+    sortedTrips.map((trip) => [Number(trip?.tripNumber) || 1, trip])
+  );
+  const orderedPoints = [...route.points].sort((left, right) => {
+    const tripDiff = (Number(left?.tripNumber) || 1) - (Number(right?.tripNumber) || 1);
+    if (tripDiff !== 0) {
+      return tripDiff;
+    }
+    return (Number(left?.stopSequence) || 0) - (Number(right?.stopSequence) || 0);
+  });
+
+  const tripPointCounters = new Map();
+  const displayPointNumbers = new Map();
+  const displayStops = [];
+  let currentDisplayStop = null;
+
+  orderedPoints.forEach((point) => {
+    const tripNumber = Number(point?.tripNumber) || 1;
+    if (!sameRouteStop(currentDisplayStop, point)) {
+      const nextDisplayNumber = (tripPointCounters.get(tripNumber) || 0) + 1;
+      tripPointCounters.set(tripNumber, nextDisplayNumber);
+      currentDisplayStop = {
+        stopKey: `${tripNumber}:${nextDisplayNumber}:${point.latitude}:${point.longitude}`,
+        tripNumber,
+        stopSequence: point.stopSequence,
+        displayStopSequence: nextDisplayNumber,
+        deliveryAddress: point.deliveryAddress,
+        latitude: point.latitude,
+        longitude: point.longitude,
+        distanceFromPreviousKm: point.distanceFromPreviousKm,
+        selectionReason: point.selectionReason,
+        orderIds: [],
+        orderCount: 0,
+        cumulativeDistanceKm: 0,
+        returnToDepotDistanceKm: 0,
+        isLastStopInTrip: false,
+        tripStopCount: 0,
+        tripEstimatedRouteDistanceKm: 0,
+        tripAssignedOrders: 0,
+        tripTotalWeightKg: 0,
+        tripTotalVolumeM3: 0,
+        tripWeightUtilizationPercent: 0,
+        tripVolumeUtilizationPercent: 0,
+        returnsToDepot: false
+      };
+      displayStops.push(currentDisplayStop);
+    }
+
+    displayPointNumbers.set(routePointKey(point), currentDisplayStop.displayStopSequence);
+    currentDisplayStop.orderIds.push(point.orderId);
+    currentDisplayStop.orderCount += 1;
+  });
+
+  const stopsByTrip = new Map();
+  displayStops.forEach((stop) => {
+    const tripNumber = Number(stop?.tripNumber) || 1;
+    const tripStops = stopsByTrip.get(tripNumber) || [];
+    tripStops.push(stop);
+    stopsByTrip.set(tripNumber, tripStops);
+  });
+
+  stopsByTrip.forEach((tripStops, tripNumber) => {
+    const tripMeta = tripMetaByNumber.get(tripNumber);
+    const tripDistanceKm = Number(tripMeta?.estimatedRouteDistanceKm) || 0;
+    const tripAssignedOrders = Number(tripMeta?.assignedOrders) || 0;
+    const tripTotalWeightKg = Number(tripMeta?.totalWeightKg) || 0;
+    const tripTotalVolumeM3 = Number(tripMeta?.totalVolumeM3) || 0;
+    const tripWeightUtilizationPercent = Number(tripMeta?.weightUtilizationPercent) || 0;
+    const tripVolumeUtilizationPercent = Number(tripMeta?.volumeUtilizationPercent) || 0;
+    const returnsToDepot = Boolean(tripMeta?.returnsToDepot);
+
+    let cumulativeDistanceKm = 0;
+    const totalLegDistanceKm = tripStops.reduce(
+      (sum, stop) => sum + (Number(stop?.distanceFromPreviousKm) || 0),
+      0
+    );
+    const returnToDepotDistanceKm = returnsToDepot
+      ? Math.max(0, tripDistanceKm - totalLegDistanceKm)
+      : 0;
+
+    tripStops.forEach((stop, stopIndex) => {
+      cumulativeDistanceKm += Number(stop?.distanceFromPreviousKm) || 0;
+      Object.assign(stop, {
+        cumulativeDistanceKm,
+        returnToDepotDistanceKm: stopIndex === tripStops.length - 1 ? returnToDepotDistanceKm : 0,
+        isLastStopInTrip: stopIndex === tripStops.length - 1,
+        tripStopCount: tripStops.length,
+        tripEstimatedRouteDistanceKm: tripDistanceKm,
+        tripAssignedOrders: tripAssignedOrders || route.assignedOrders || stop.orderCount,
+        tripTotalWeightKg,
+        tripTotalVolumeM3,
+        tripWeightUtilizationPercent,
+        tripVolumeUtilizationPercent,
+        returnsToDepot
+      });
+    });
+  });
+
+  const normalizedDisplayStops = displayStops.map((stop) => {
+    const orderSummary = formatStopOrderSummary(stop.orderIds);
+    const orderHint = stop.orderCount > 1
+      ? ` На этом адресе объединены ${orderCountLabel(stop.orderCount)}.`
+      : '';
+    return {
+      ...stop,
+      orderSummary,
+      selectionReason: `${stop.selectionReason || 'Точка включена в маршрут.'}${orderHint}`.trim()
+    };
+  });
+
+  return {
+    ...route,
+    trips: sortedTrips.length ? sortedTrips : route.trips,
+    displayStops: normalizedDisplayStops,
+    points: orderedPoints.map((point) => ({
+      ...point,
+      displayStopSequence: displayPointNumbers.get(routePointKey(point)) ?? point.stopSequence
+    }))
+  };
+}
+
+const TRANSPORT_DRIVER_LIMIT = 3;
+
 export default function LogisticianView({ token, activeSection }) {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -148,6 +331,9 @@ export default function LogisticianView({ token, activeSection }) {
   const [routePlan, setRoutePlan] = useState(null);
   const [routePlanOpen, setRoutePlanOpen] = useState(false);
   const [routePlanLoading, setRoutePlanLoading] = useState(false);
+  const [routePreviewDriverId, setRoutePreviewDriverId] = useState('all');
+  const [transportMenuOpen, setTransportMenuOpen] = useState(false);
+  const [transportDriverIds, setTransportDriverIds] = useState([]);
 
   // Timeline Dialog
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -176,6 +362,51 @@ export default function LogisticianView({ token, activeSection }) {
       }));
     });
   }, [routePlan]);
+  const selectedTransportDrivers = useMemo(() => {
+    const selectedIds = new Set(transportDriverIds);
+    return drivers.filter((driver) => selectedIds.has(driver.id));
+  }, [drivers, transportDriverIds]);
+  const routePlanDriverNames = useMemo(
+    () => (Array.isArray(routePlan?.routes) ? routePlan.routes.map((route) => route.driverName).join(', ') : ''),
+    [routePlan]
+  );
+  const indexedRoutePlanRoutes = useMemo(() => {
+    if (!Array.isArray(routePlan?.routes)) {
+      return [];
+    }
+    return routePlan.routes.map((route, index) => ({
+      ...enhanceRoutePreview(route),
+      colorIndex: index
+    }));
+  }, [routePlan]);
+  const routePlanPreview = useMemo(() => {
+    if (!routePlan) {
+      return null;
+    }
+    return {
+      ...routePlan,
+      routes: indexedRoutePlanRoutes
+    };
+  }, [routePlan, indexedRoutePlanRoutes]);
+  const routePreviewRoutes = useMemo(() => {
+    if (!indexedRoutePlanRoutes.length) {
+      return [];
+    }
+    if (routePreviewDriverId === 'all') {
+      return indexedRoutePlanRoutes;
+    }
+    return indexedRoutePlanRoutes.filter((route) => String(route.driverId) === String(routePreviewDriverId));
+  }, [indexedRoutePlanRoutes, routePreviewDriverId]);
+  const activePreviewRoute = useMemo(() => {
+    if (routePreviewDriverId === 'all') {
+      return null;
+    }
+    return routePreviewRoutes[0] || null;
+  }, [routePreviewDriverId, routePreviewRoutes]);
+  const planningHighlights = useMemo(
+    () => (Array.isArray(routePlan?.planningHighlights) ? routePlan.planningHighlights : []),
+    [routePlan]
+  );
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
 
   const showMessage = (message, severity = 'success') => {
@@ -252,6 +483,28 @@ export default function LogisticianView({ token, activeSection }) {
     };
   }, [token]);
 
+  useEffect(() => {
+    if (!drivers.length) {
+      setTransportDriverIds([]);
+      return;
+    }
+
+    setTransportDriverIds((prev) => {
+      const availableDriverIds = new Set(drivers.map((driver) => driver.id));
+      const normalizedSelection = prev
+        .filter((driverId) => availableDriverIds.has(driverId))
+        .slice(0, TRANSPORT_DRIVER_LIMIT);
+      if (normalizedSelection.length) {
+        return normalizedSelection;
+      }
+      return drivers.slice(0, Math.min(TRANSPORT_DRIVER_LIMIT, drivers.length)).map((driver) => driver.id);
+    });
+  }, [drivers]);
+
+  useEffect(() => {
+    setRoutePreviewDriverId('all');
+  }, [routePlan]);
+
   const handleAssign = useCallback(async (orderId) => {
     const driverId = Number(driverSelection[orderId]);
     if (!driverId) {
@@ -292,13 +545,40 @@ export default function LogisticianView({ token, activeSection }) {
     }
   };
 
-  const handleAutoAssign = async () => {
+  const handleToggleTransportDriver = useCallback((driverId) => {
+    setTransportDriverIds((prev) => {
+      if (prev.includes(driverId)) {
+        return prev.filter((currentId) => currentId !== driverId);
+      }
+      if (prev.length >= TRANSPORT_DRIVER_LIMIT) {
+        showMessage(`Можно выбрать не более ${TRANSPORT_DRIVER_LIMIT} водителей`, 'warning');
+        return prev;
+      }
+      return [...prev, driverId];
+    });
+  }, []);
+
+  const handleAutoAssign = () => {
+    if (!drivers.length) {
+      showMessage('Нет доступных водителей для транспортной задачи', 'warning');
+      return;
+    }
+    setTransportMenuOpen(true);
+  };
+
+  const handleBuildRoutePlan = async () => {
+    if (!transportDriverIds.length) {
+      showMessage('Выберите хотя бы одного водителя', 'warning');
+      return;
+    }
+
     setActionLoading(true);
+    setTransportMenuOpen(false);
     setRoutePlan(null);
     setRoutePlanOpen(true);
     setRoutePlanLoading(true);
     try {
-      const result = await previewAutoAssignOrders(token);
+      const result = await previewAutoAssignOrders(token, { driverIds: transportDriverIds });
       if (result.totalApprovedOrders === 0) {
         setRoutePlanOpen(false);
         showMessage('Нет одобренных заказов для распределения', 'info');
@@ -329,7 +609,7 @@ export default function LogisticianView({ token, activeSection }) {
       const result = await approveAutoAssignOrders(token, routePlanAssignments);
       showMessage(
         `Автораспределено: ${result.assignedOrders}/${result.totalApprovedOrders}, ` +
-        `оценка пути ${result.estimatedTotalDistanceKm} км`
+        `оценка пути ${formatTransportNumber(result.estimatedTotalDistanceKm)} км`
       );
       const assignedOrderIds = new Set(
         Array.isArray(result.assignments)
@@ -543,6 +823,72 @@ export default function LogisticianView({ token, activeSection }) {
       )}
 
       <Dialog
+        open={transportMenuOpen}
+        onClose={actionLoading ? undefined : () => setTransportMenuOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Выбор водителей</DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1.5}>
+            <Alert severity="info">
+              Выберите до {TRANSPORT_DRIVER_LIMIT} водителей. Система распределит между ними все заказы так, чтобы
+              суммарный пробег был минимальным, а при нехватке вместимости откроет следующий рейс от склада.
+            </Alert>
+            <Stack spacing={1}>
+              {drivers.map((driver) => {
+                const checked = transportDriverIds.includes(driver.id);
+                const disabled = actionLoading || (!checked && transportDriverIds.length >= TRANSPORT_DRIVER_LIMIT);
+                return (
+                  <Paper
+                    key={driver.id}
+                    variant="outlined"
+                    sx={{
+                      p: 1.25,
+                      borderRadius: 1.5,
+                      borderColor: checked ? 'primary.main' : 'divider'
+                    }}
+                  >
+                    <Stack direction="row" spacing={1.25} alignItems="center">
+                      <Checkbox
+                        checked={checked}
+                        disabled={disabled}
+                        onChange={() => handleToggleTransportDriver(driver.id)}
+                        inputProps={{ 'aria-label': `Выбрать водителя ${driver.fullName}` }}
+                      />
+                      <Box>
+                        <Typography variant="subtitle2" fontWeight={700}>
+                          {driver.fullName}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {checked ? 'Участвует в расчёте' : 'Не выбран'}
+                        </Typography>
+                      </Box>
+                    </Stack>
+                  </Paper>
+                );
+              })}
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              В расчёте выбрано {selectedTransportDrivers.length} из {Math.min(TRANSPORT_DRIVER_LIMIT, drivers.length)} водителей.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setTransportMenuOpen(false)} disabled={actionLoading}>
+            Отмена
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleBuildRoutePlan}
+            disabled={actionLoading || !transportDriverIds.length}
+          >
+            Построить план
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
         open={routePlanOpen}
         onClose={actionLoading || routePlanLoading ? undefined : handleRejectRoutePlan}
         maxWidth="md"
@@ -550,13 +896,15 @@ export default function LogisticianView({ token, activeSection }) {
         fullScreen={isMobile}
         PaperProps={{
           sx: {
+            display: 'flex',
+            flexDirection: 'column',
             overflow: 'hidden',
             maxHeight: { xs: '92vh', sm: '88vh' }
           }
         }}
       >
         <DialogTitle data-testid="auto-assign-dialog-title">Предпросмотр транспортной задачи</DialogTitle>
-        <DialogContent dividers sx={{ overflow: 'hidden', py: 1.5 }}>
+        <DialogContent dividers sx={{ overflowY: 'auto', overflowX: 'hidden', py: 1.5 }}>
           {routePlanLoading ? (
             <Stack
               alignItems="center"
@@ -568,9 +916,25 @@ export default function LogisticianView({ token, activeSection }) {
           ) : routePlan ? (
             <Stack spacing={1.5}>
               <Alert severity="info" icon={<RouteOutlinedIcon fontSize="inherit" />}>
-                <strong>Старт для всех 3 водителей:</strong> {routePlan.depotLabel}. План можно
-                одобрить или отклонить без сохранения.
+                <strong>Старт каждого рейса:</strong> {routePlan.depotLabel}.{' '}
+                {routePlanDriverNames ? `В расчёте участвуют: ${routePlanDriverNames}. ` : ''}
+                Если суммарной вместимости машин на один рейс не хватает, система возвращает их на склад,
+                загружает остаток и строит следующий рейс. План можно одобрить или отклонить без сохранения.
               </Alert>
+              {!!planningHighlights.length && (
+                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                  <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
+                    Почему план строится именно так
+                  </Typography>
+                  <Stack spacing={0.75}>
+                    {planningHighlights.map((item, index) => (
+                      <Typography key={`planning-highlight-${index}`} variant="body2" color="text.secondary">
+                        {index + 1}. {item}
+                      </Typography>
+                    ))}
+                  </Stack>
+                </Paper>
+              )}
               <Grid container spacing={1.25}>
                 <Grid size={{ xs: 12, sm: 4 }}>
                   <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
@@ -589,17 +953,51 @@ export default function LogisticianView({ token, activeSection }) {
                 <Grid size={{ xs: 6, sm: 4 }}>
                   <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
                     <Typography variant="caption" color="text.secondary">Километраж</Typography>
-                    <Typography variant="h6" fontWeight={700}>{routePlan.estimatedTotalDistanceKm} км</Typography>
+                    <Typography variant="h6" fontWeight={700}>{formatTransportNumber(routePlan.estimatedTotalDistanceKm)} км</Typography>
                   </Paper>
                 </Grid>
               </Grid>
+
+              <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
+                  Какие маршруты показывать на карте
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
+                  Можно смотреть весь общий план или переключиться на одного водителя, чтобы отдельно увидеть его точки и рейсы.
+                </Typography>
+                <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
+                  <Chip
+                    label="Все водители"
+                    clickable
+                    color={routePreviewDriverId === 'all' ? 'primary' : 'default'}
+                    variant={routePreviewDriverId === 'all' ? 'filled' : 'outlined'}
+                    onClick={() => setRoutePreviewDriverId('all')}
+                  />
+                  {indexedRoutePlanRoutes.map((route) => (
+                    <Chip
+                      key={`${route.driverId}-${route.colorIndex}-filter-top`}
+                      label={route.driverName}
+                      clickable
+                      onClick={() => setRoutePreviewDriverId(String(route.driverId))}
+                      variant={String(routePreviewDriverId) === String(route.driverId) ? 'filled' : 'outlined'}
+                      sx={{
+                        borderColor: routeColor(route.colorIndex),
+                        color: String(routePreviewDriverId) === String(route.driverId) ? '#ffffff' : 'text.primary',
+                        bgcolor: String(routePreviewDriverId) === String(route.driverId)
+                          ? routeColor(route.colorIndex)
+                          : 'transparent'
+                      }}
+                    />
+                  ))}
+                </Stack>
+              </Paper>
 
               <Suspense
                 fallback={
                   <Paper
                     variant="outlined"
                     sx={{
-                      height: { xs: 210, md: 250 },
+                      height: { xs: 280, md: 360 },
                       borderRadius: 2,
                       display: 'flex',
                       alignItems: 'center',
@@ -610,17 +1008,17 @@ export default function LogisticianView({ token, activeSection }) {
                   </Paper>
                 }
               >
-                <RoutePlanMap plan={routePlan} />
+                <RoutePlanMap plan={routePlanPreview} token={token} visibleDriverId={routePreviewDriverId} />
               </Suspense>
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
-                  Водители и их маршруты на карте
+                  Сводка по водителям
                 </Typography>
                 <Stack direction="row" useFlexGap flexWrap="wrap" gap={1} sx={{ mb: 1.25 }}>
-                  {routePlan.routes.map((route, index) => (
+                  {routePreviewRoutes.map((route) => (
                     <Stack
-                      key={`${route.driverId}-${index}-legend`}
+                      key={`${route.driverId}-${route.colorIndex}-legend`}
                       direction="row"
                       alignItems="center"
                       spacing={1}
@@ -638,7 +1036,7 @@ export default function LogisticianView({ token, activeSection }) {
                           width: 10,
                           height: 10,
                           borderRadius: '50%',
-                          bgcolor: routeColor(index),
+                          bgcolor: routeColor(route.colorIndex),
                           flexShrink: 0
                         }}
                       />
@@ -649,16 +1047,16 @@ export default function LogisticianView({ token, activeSection }) {
                   ))}
                 </Stack>
                 <Grid container spacing={1}>
-                  {routePlan.routes.map((route, index) => {
+                  {routePreviewRoutes.map((route) => {
                     const tripLoad = routeTripLoad(route);
                     return (
-                    <Grid key={`${route.driverId}-${index}`} size={{ xs: 12, md: 4 }}>
+                  <Grid key={`${route.driverId}-${route.colorIndex}`} size={{ xs: 12, md: 4 }}>
                       <Box
                         sx={{
                           p: 1.25,
                           border: '1px solid',
                           borderColor: 'divider',
-                          borderLeft: `6px solid ${routeColor(index)}`,
+                          borderLeft: `6px solid ${routeColor(route.colorIndex)}`,
                           borderRadius: 1.5,
                           minHeight: 88
                         }}
@@ -667,7 +1065,7 @@ export default function LogisticianView({ token, activeSection }) {
                           {route.driverName}
                         </Typography>
                         <Typography variant="body2" color="text.secondary">
-                          {route.assignedOrders} точек • {route.estimatedRouteDistanceKm} км • {tripCountLabel(tripLoad.tripCount)}
+                          {orderCountLabel(route.assignedOrders)} • {stopCountLabel(route.displayStops?.length ?? route.points?.length ?? 0)} • {formatTransportNumber(route.estimatedRouteDistanceKm)} км • {tripCountLabel(tripLoad.tripCount)}
                         </Typography>
                         <Stack direction="row" spacing={1} sx={{ mt: 0.5 }}>
                           <Typography 
@@ -675,24 +1073,84 @@ export default function LogisticianView({ token, activeSection }) {
                             color={tripLoad.maxTripWeightKg > 1400 ? 'error.main' : 'text.secondary'}
                             sx={{ fontWeight: tripLoad.maxTripWeightKg > 1400 ? 700 : 400 }}
                           >
-                            Пик веса за рейс: {tripLoad.maxTripWeightKg} / 1500 кг
+                            Пик веса за рейс: {formatTransportNumber(tripLoad.maxTripWeightKg)} / {formatTransportNumber(1500)} кг
                           </Typography>
                           <Typography 
                             variant="caption" 
                             color={tripLoad.maxTripVolumeM3 > 11 ? 'error.main' : 'text.secondary'}
                             sx={{ fontWeight: tripLoad.maxTripVolumeM3 > 11 ? 700 : 400 }}
                           >
-                            Пик объема за рейс: {tripLoad.maxTripVolumeM3} / 12 м³
+                            Пик объёма за рейс: {formatTransportNumber(tripLoad.maxTripVolumeM3)} / {formatTransportNumber(12)} м³
                           </Typography>
                         </Stack>
                         <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                          Итого: {route.totalWeightKg} кг • {route.totalVolumeM3} м³
+                          Итого: {formatTransportNumber(route.totalWeightKg)} кг • {formatTransportNumber(route.totalVolumeM3)} м³
                         </Typography>
                       </Box>
                     </Grid>
                     );
                   })}
                 </Grid>
+                {activePreviewRoute ? (
+                  <Stack spacing={1.5} sx={{ mt: 1.5 }}>
+                    {Array.isArray(activePreviewRoute.trips) && activePreviewRoute.trips.length > 0 ? (
+                      <Grid container spacing={1}>
+                        {activePreviewRoute.trips.map((trip) => (
+                          <Grid key={`${activePreviewRoute.driverId}-trip-${trip.tripNumber}`} size={{ xs: 12, md: 6 }}>
+                            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, height: '100%' }}>
+                              <Typography variant="subtitle2" fontWeight={700}>
+                                Рейс {trip.tripNumber}
+                              </Typography>
+                              <Typography variant="body2" color="text.secondary">
+                                {orderCountLabel(trip.assignedOrders)} • {stopCountLabel(
+                                  activePreviewRoute.displayStops?.filter((stop) => Number(stop?.tripNumber) === Number(trip.tripNumber)).length || 0
+                                )} • {formatTransportNumber(trip.estimatedRouteDistanceKm)} км
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                                Загрузка: {formatTransportNumber(trip.totalWeightKg)} кг ({formatTransportNumber(trip.weightUtilizationPercent)}%) • {formatTransportNumber(trip.totalVolumeM3)} м³ ({formatTransportNumber(trip.volumeUtilizationPercent)}%)
+                              </Typography>
+                            </Paper>
+                          </Grid>
+                        ))}
+                      </Grid>
+                    ) : null}
+                    <TableContainer component={Paper} variant="outlined">
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell>Рейс</TableCell>
+                            <TableCell>Точка</TableCell>
+                            <TableCell>Адрес</TableCell>
+                            <TableCell align="right">Плечо, км</TableCell>
+                            <TableCell>Почему выбрана</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {(activePreviewRoute.displayStops || []).map((point) => (
+                            <TableRow key={`${activePreviewRoute.driverId}-${point.stopKey}`}>
+                              <TableCell>{point.tripNumber}</TableCell>
+                              <TableCell>{point.displayStopSequence ?? point.stopSequence}</TableCell>
+                              <TableCell>
+                                <Stack spacing={0.35}>
+                                  <Typography variant="body2">{point.deliveryAddress}</Typography>
+                                  <Typography variant="caption" color="text.secondary">
+                                    {point.orderCount > 1 ? `Заказы: ${point.orderSummary}` : `Заказ: ${point.orderSummary}`}
+                                  </Typography>
+                                </Stack>
+                              </TableCell>
+                              <TableCell align="right">{formatTransportNumber(point.distanceFromPreviousKm)}</TableCell>
+                              <TableCell>{point.selectionReason || 'Ближайшая подходящая точка в текущем рейсе.'}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+                  </Stack>
+                ) : (
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }}>
+                    Выберите конкретного водителя, чтобы отдельно посмотреть его точки доставки по рейсам.
+                  </Typography>
+                )}
               </Paper>
             </Stack>
           ) : (

@@ -10,6 +10,8 @@ public record AutoAssignPreviewResponse(
     int plannedOrders,
     int unplannedOrders,
     double estimatedTotalDistanceKm,
-    List<AutoAssignDriverRouteResponse> routes
+    List<AutoAssignDriverRouteResponse> routes,
+    boolean approximatePlanningDistances,
+    List<String> planningHighlights
 ) {
 }

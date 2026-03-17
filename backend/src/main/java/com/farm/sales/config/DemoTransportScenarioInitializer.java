@@ -29,42 +29,37 @@ import org.springframework.transaction.annotation.Transactional;
 public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DemoTransportScenarioInitializer.class);
   private static final List<String> DIRECTOR_USERNAMES = List.of("berezka", "kvartal", "yantar");
-  private static final int ORDERS_PER_POINT = 2;
+  private static final int TARGET_ORDER_COUNT = 35;
   private static final int DEMO_ORDER_ITEM_COUNT = 2;
   private static final double DEMO_ORDER_TARGET_WEIGHT_KG = 250.0;
   private static final double MIN_ROUTING_DEMO_PRODUCT_WEIGHT_KG = 0.25;
   private static final double DEFAULT_PRODUCT_WEIGHT_KG = 1.0;
   private static final List<DemoPoint> MOGILEV_POINTS = List.of(
-      new DemoPoint("Точка 01", "Могилёв, ул. Первомайская 12", "53.9024300", "30.3358700"),
-      new DemoPoint("Точка 02", "Могилёв, ул. Ленинская 31", "53.9011200", "30.3341000"),
-      new DemoPoint("Точка 03", "Могилёв, ул. Миронова 26", "53.8949600", "30.3327800"),
-      new DemoPoint("Точка 04", "Могилёв, ул. Болдина 11", "53.8894200", "30.3289400"),
-      new DemoPoint("Точка 05", "Могилёв, ул. Крупской 74", "53.8786100", "30.3335500"),
-      new DemoPoint("Точка 06", "Могилёв, ул. Гагарина 54", "53.9068100", "30.3187700"),
-      new DemoPoint("Точка 07", "Могилёв, ул. Якубовского 42", "53.9152400", "30.3379400"),
-      new DemoPoint("Точка 08", "Могилёв, Пушкинский пр-т 39", "53.9075200", "30.3521100"),
-      new DemoPoint("Точка 09", "Могилёв, ул. Островского 5", "53.8987400", "30.3579200"),
-      new DemoPoint("Точка 10", "Могилёв, ул. Симонова 15", "53.8849600", "30.3614800"),
-      new DemoPoint("Точка 11", "Могилёв, ул. Терехина 8", "53.8745500", "30.3469200"),
-      new DemoPoint("Точка 12", "Могилёв, ул. Космонавтов 22", "53.8689400", "30.3274300"),
-      new DemoPoint("Точка 13", "Могилёв, ул. Челюскинцев 147", "53.8662200", "30.2899100"),
-      new DemoPoint("Точка 14", "Могилёв, Витебский пр-т 2", "53.8721800", "30.2744300"),
-      new DemoPoint("Точка 15", "Могилёв, ул. Габровская 47", "53.8842100", "30.2927800"),
-      new DemoPoint("Точка 16", "Могилёв, ул. Мовчанского 36", "53.8927300", "30.3048800"),
-      new DemoPoint("Точка 17", "Могилёв, ул. Бялыницкого-Бирули 28", "53.9058100", "30.3052100"),
-      new DemoPoint("Точка 18", "Могилёв, Днепровский б-р 17", "53.9186200", "30.3159200"),
-      new DemoPoint("Точка 19", "Могилёв, ул. Строителей 9", "53.9271500", "30.3294400"),
-      new DemoPoint("Точка 20", "Могилёв, ул. Фатина 14", "53.9324800", "30.3458100"),
-      new DemoPoint("Точка 21", "Могилёв, Минское шоссе 6", "53.9265400", "30.3667300"),
-      new DemoPoint("Точка 22", "Могилёв, ул. Сурганова 19", "53.9147700", "30.3698800"),
-      new DemoPoint("Точка 23", "Могилёв, ул. Кулешова 33", "53.9022100", "30.3734200"),
-      new DemoPoint("Точка 24", "Могилёв, ул. Лазаренко 61", "53.8894300", "30.3720500"),
-      new DemoPoint("Точка 25", "Могилёв, ул. Гришина 92", "53.8789400", "30.3601400"),
-      new DemoPoint("Точка 26", "Могилёв, ул. Крупской 125", "53.8738400", "30.3524600"),
-      new DemoPoint("Точка 27", "Могилёв, ул. Пионерская 5", "53.8883200", "30.3471500"),
-      new DemoPoint("Точка 28", "Могилёв, ул. Ямницкая 71", "53.9122600", "30.2861700"),
-      new DemoPoint("Точка 29", "Могилёв, ул. Фатина 38", "53.9368100", "30.3345200"),
-      new DemoPoint("Точка 30", "Могилёв, ул. Белыницкого-Бирули 10", "53.9234400", "30.3016200")
+      new DemoPoint("Сценарий 01", "Могилёв, ул. Первомайская 18", "53.9034100", "30.3382100"),
+      new DemoPoint("Сценарий 02", "Могилёв, ул. Ленинская 44", "53.9005400", "30.3364800"),
+      new DemoPoint("Сценарий 03", "Могилёв, ул. Миронова 9", "53.8968300", "30.3349200"),
+      new DemoPoint("Сценарий 04", "Могилёв, ул. Болдина 27", "53.8909800", "30.3312100"),
+      new DemoPoint("Сценарий 05", "Могилёв, ул. Крупской 51", "53.8827400", "30.3369400"),
+      new DemoPoint("Сценарий 06", "Могилёв, ул. Гагарина 33", "53.9074600", "30.3206500"),
+      new DemoPoint("Сценарий 07", "Могилёв, ул. Якубовского 18", "53.9146200", "30.3421800"),
+      new DemoPoint("Сценарий 08", "Могилёв, Пушкинский пр-т 52", "53.9087500", "30.3549400"),
+      new DemoPoint("Сценарий 09", "Могилёв, ул. Островского 21", "53.8993200", "30.3601100"),
+      new DemoPoint("Сценарий 10", "Могилёв, ул. Симонова 29", "53.8862100", "30.3642800"),
+      new DemoPoint("Сценарий 11", "Могилёв, ул. Терехина 16", "53.8761200", "30.3504400"),
+      new DemoPoint("Сценарий 12", "Могилёв, ул. Космонавтов 41", "53.8701300", "30.3301800"),
+      new DemoPoint("Сценарий 13", "Могилёв, ул. Челюскинцев 123", "53.8676400", "30.2943600"),
+      new DemoPoint("Сценарий 14", "Могилёв, Витебский пр-т 11", "53.8735400", "30.2782100"),
+      new DemoPoint("Сценарий 15", "Могилёв, ул. Габровская 63", "53.8859200", "30.2968100"),
+      new DemoPoint("Сценарий 16", "Могилёв, ул. Мовчанского 12", "53.8934100", "30.3097600"),
+      new DemoPoint("Сценарий 17", "Могилёв, ул. Бялыницкого-Бирули 44", "53.9069800", "30.3099400"),
+      new DemoPoint("Сценарий 18", "Могилёв, Днепровский б-р 25", "53.9198800", "30.3184100"),
+      new DemoPoint("Сценарий 19", "Могилёв, ул. Строителей 14", "53.9283600", "30.3331200"),
+      new DemoPoint("Сценарий 20", "Могилёв, ул. Фатина 27", "53.9342200", "30.3484600"),
+      new DemoPoint("Сценарий 21", "Могилёв, ул. Ямницкая 71", "53.9122600", "30.2861700"),
+      new DemoPoint("Сценарий 22", "Могилёв, ул. Гришина 92", "53.8789400", "30.3601400"),
+      new DemoPoint("Сценарий 23", "Могилёв, ул. Пионерская 5", "53.8883200", "30.3471500"),
+      new DemoPoint("Сценарий 24", "Могилёв, ул. Сурганова 19", "53.9147700", "30.3698800"),
+      new DemoPoint("Сценарий 25", "Могилёв, ул. Белыницкого-Бирули 10", "53.9234400", "30.3016200")
   );
 
   private final UserRepository userRepository;
@@ -161,24 +156,28 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
 
   private void seedOrdersForMogilev(List<User> directors, User manager, List<Product> products) {
     Instant now = Instant.now();
+    int baseOrdersPerPoint = TARGET_ORDER_COUNT / MOGILEV_POINTS.size();
+    int pointsWithExtraOrder = TARGET_ORDER_COUNT % MOGILEV_POINTS.size();
+    int scenarioOrderIndex = 0;
     for (int i = 0; i < MOGILEV_POINTS.size(); i++) {
       DemoPoint point = MOGILEV_POINTS.get(i);
       User customer = directors.get(i % directors.size());
       Instant pointBaseCreatedAt = now.minusSeconds((long) (MOGILEV_POINTS.size() - i) * 240L);
+      int ordersForPoint = baseOrdersPerPoint + (i < pointsWithExtraOrder ? 1 : 0);
 
       StoreAddress address = createPointAddress(customer, point, pointBaseCreatedAt.minusSeconds(900));
-      for (int orderVariant = 0; orderVariant < ORDERS_PER_POINT; orderVariant++) {
+      for (int orderVariant = 0; orderVariant < ordersForPoint; orderVariant++) {
         Instant createdAt = pointBaseCreatedAt.plusSeconds(orderVariant * 75L);
-        int scenarioOrderIndex = i * ORDERS_PER_POINT + orderVariant;
         Order order = createApprovedOrder(customer, manager, address, products, scenarioOrderIndex, createdAt);
         orderRepository.save(order);
+        scenarioOrderIndex += 1;
       }
     }
 
     log.info(
         "Demo transport scenario seeded: {} Mogilev points and {} approved orders created.",
         MOGILEV_POINTS.size(),
-        MOGILEV_POINTS.size() * ORDERS_PER_POINT
+        TARGET_ORDER_COUNT
     );
   }
 
@@ -211,6 +210,10 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
     order.setUpdatedAt(createdAt.plusSeconds(120));
     order.setApprovedByManager(manager);
     order.setApprovedAt(createdAt.plusSeconds(120));
+    order.setAssignedDriver(null);
+    order.setAssignedByLogistician(null);
+    order.setAssignedAt(null);
+    order.setDeliveredAt(null);
 
     List<OrderItem> items = buildOrderItems(order, products, pointIndex);
     order.setItems(items);

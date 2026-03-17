@@ -35,6 +35,7 @@ const READINESS_RETRY_DELAY_MS = 5_000;
 const BACKGROUND_WARMUP_MAX_WAIT_MS = 4 * 60_000;
 const AUTH_WARMUP_MAX_WAIT_MS = 6 * 60_000;
 const AUTO_ASSIGN_TIMEOUT_MS = 90_000;
+const ROUTE_GEOMETRY_TIMEOUT_MS = 45_000;
 const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
 const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
 const WARMING_UP_TIMEOUT_MESSAGE = 'Сервер не проснулся за 6 минут. Повторите вход чуть позже.';
@@ -732,11 +733,27 @@ export async function autoAssignOrders(token) {
   return previewAutoAssignOrders(token);
 }
 
-export async function previewAutoAssignOrders(token) {
+export async function previewAutoAssignOrders(token, options = {}) {
+  const driverIds = Array.isArray(options?.driverIds)
+    ? options.driverIds.filter((driverId) => Number.isFinite(Number(driverId)))
+    : [];
   const response = await apiFetch(`${API_BASE}/orders/auto-assign/preview`, {
     method: 'POST',
     timeoutMs: AUTO_ASSIGN_TIMEOUT_MS,
-    headers: { ...authHeaders(token) }
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({ driverIds })
+  });
+  return handleResponse(response);
+}
+
+export async function previewAutoAssignRouteGeometry(token, points, options = {}) {
+  const { returnsToDepot = false, signal } = options;
+  const response = await apiFetch(`${API_BASE}/orders/auto-assign/route-geometry`, {
+    method: 'POST',
+    timeoutMs: ROUTE_GEOMETRY_TIMEOUT_MS,
+    headers: { 'Content-Type': 'application/json', ...authHeaders(token) },
+    body: JSON.stringify({ points, returnsToDepot }),
+    signal
   });
   return handleResponse(response);
 }

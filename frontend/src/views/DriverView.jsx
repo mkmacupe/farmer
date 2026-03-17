@@ -12,7 +12,6 @@ import Typography from '@mui/material/Typography';
 import Alert from '@mui/material/Alert';
 import Snackbar from '@mui/material/Snackbar';
 import Slide from '@mui/material/Slide';
-import Divider from '@mui/material/Divider';
 import Stepper from '@mui/material/Stepper';
 import Step from '@mui/material/Step';
 import StepLabel from '@mui/material/StepLabel';
@@ -21,12 +20,10 @@ import Avatar from '@mui/material/Avatar';
 
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
-import CheckIcon from '@mui/icons-material/Check';
 import DoneAllIcon from '@mui/icons-material/DoneAll';
 import InboxOutlinedIcon from '@mui/icons-material/InboxOutlined';
 import Skeleton from '@mui/material/Skeleton';
 import NavigationIcon from '@mui/icons-material/Navigation';
-import PlaceIcon from '@mui/icons-material/Place';
 
 const DEFAULT_DEPOT = {
   latitude: 53.8971270,
@@ -51,91 +48,189 @@ function normalizeCoord(value, min, max) {
   return numeric;
 }
 
+function normalizePositiveInt(value) {
+  const numeric = Number(value);
+  if (!Number.isInteger(numeric) || numeric <= 0) {
+    return null;
+  }
+  return numeric;
+}
+
 function legRouteUrl(fromLat, fromLon, toLat, toLon) {
   return `https://www.openstreetmap.org/directions?engine=fossgis_osrm_car&route=${fromLat}%2C${fromLon}%3B${toLat}%2C${toLon}`;
 }
 
-function buildOrderedRoute(orders) {
+function formatOrderCount(count) {
+  const value = Number(count) || 0;
+  const mod10 = value % 10;
+  const mod100 = value % 100;
+  if (mod10 === 1 && mod100 !== 11) {
+    return `${value} заказ`;
+  }
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) {
+    return `${value} заказа`;
+  }
+  return `${value} заказов`;
+}
+
+function isSameStop(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+  return left.routeTripNumber === right.routeTripNumber
+    && left.deliveryAddress === right.deliveryAddress
+    && Math.abs(left.latitude - right.latitude) <= 0.000001
+    && Math.abs(left.longitude - right.longitude) <= 0.000001;
+}
+
+export function buildRouteStops(routeSteps) {
+  if (!Array.isArray(routeSteps) || routeSteps.length === 0) {
+    return [];
+  }
+
+  const stops = [];
+  for (const step of routeSteps) {
+    const currentStop = stops.at(-1);
+    if (currentStop && isSameStop(currentStop.primaryOrder, step)) {
+      currentStop.orders.push(step);
+      continue;
+    }
+
+    stops.push({
+      key: `${step.routeTripNumber ?? 'route'}-${step.routeStopSequence ?? step.orderId}`,
+      displayStopNumber: stops.length + 1,
+      primaryOrder: step,
+      orders: [step]
+    });
+  }
+  return stops;
+}
+
+function isDeliveredOrder(order) {
+  return order?.status === 'DELIVERED';
+}
+
+function compareRouteSteps(left, right) {
+  return (left.routeStopSequence ?? Number.MAX_SAFE_INTEGER) - (right.routeStopSequence ?? Number.MAX_SAFE_INTEGER)
+    || (left.routeTripNumber ?? Number.MAX_SAFE_INTEGER) - (right.routeTripNumber ?? Number.MAX_SAFE_INTEGER)
+    || left.orderId - right.orderId;
+}
+
+function compareOrdersForDisplay(left, right) {
+  const leftDelivered = isDeliveredOrder(left);
+  const rightDelivered = isDeliveredOrder(right);
+  if (leftDelivered !== rightDelivered) {
+    return leftDelivered ? 1 : -1;
+  }
+  if (!leftDelivered) {
+    return compareRouteSteps(left, right);
+  }
+  return (left.deliveredAtMs ?? 0) - (right.deliveredAtMs ?? 0)
+    || compareRouteSteps(left, right);
+}
+
+function stopHasActiveOrders(stop) {
+  return stop.orders.some((order) => !isDeliveredOrder(order));
+}
+
+function stopLastDeliveredAtMs(stop) {
+  return stop.orders.reduce(
+    (maxValue, order) => Math.max(maxValue, order.deliveredAtMs ?? 0),
+    0
+  );
+}
+
+export function buildDisplayRouteStops(routeStops) {
+  if (!Array.isArray(routeStops) || routeStops.length === 0) {
+    return [];
+  }
+
+  const normalizedStops = routeStops.map((stop) => ({
+    ...stop,
+    orders: [...stop.orders].sort(compareOrdersForDisplay)
+  }));
+
+  return normalizedStops.sort((left, right) => {
+    const leftHasActiveOrders = stopHasActiveOrders(left);
+    const rightHasActiveOrders = stopHasActiveOrders(right);
+    if (leftHasActiveOrders !== rightHasActiveOrders) {
+      return leftHasActiveOrders ? -1 : 1;
+    }
+    if (leftHasActiveOrders) {
+      return compareRouteSteps(left.primaryOrder, right.primaryOrder);
+    }
+    return stopLastDeliveredAtMs(left) - stopLastDeliveredAtMs(right)
+      || compareRouteSteps(left.primaryOrder, right.primaryOrder);
+  });
+}
+
+export function buildOrderedRoute(orders) {
   const depotLat = normalizeCoord(DEFAULT_DEPOT.latitude, -90, 90);
   const depotLon = normalizeCoord(DEFAULT_DEPOT.longitude, -180, 180);
   if (depotLat == null || depotLon == null) {
     return [];
   }
 
-  // 1. Разделяем на доставленные и активные
-  const delivered = orders
-    .filter(o => o.status === 'DELIVERED')
-    .sort((a, b) => new Date(a.deliveredAt || 0) - new Date(b.deliveredAt || 0));
-    
-  const remaining = orders
-    .filter(o => o.status === 'ASSIGNED')
-    .map((order) => {
-      const lat = normalizeCoord(order.deliveryLatitude, -90, 90);
-      const lon = normalizeCoord(order.deliveryLongitude, -180, 180);
-      return {
-        orderId: order.id,
-        status: order.status,
-        latitude: lat ?? depotLat,
-        longitude: lon ?? depotLon,
-        deliveryAddress: order.deliveryAddressText || 'Адрес не указан',
-        customerName: order.customerName
-      };
-    });
-
-  const ordered = [];
-  let previousLat = depotLat;
-  let previousLon = depotLon;
-
-  // 2. Сначала добавляем доставленные (они уже сформировали путь)
-  delivered.forEach(order => {
+  const normalizedOrders = orders.map((order) => {
     const lat = normalizeCoord(order.deliveryLatitude, -90, 90) ?? depotLat;
     const lon = normalizeCoord(order.deliveryLongitude, -180, 180) ?? depotLon;
-    const distance = haversineKm(previousLat, previousLon, lat, lon);
-    
-    ordered.push({
+    return {
       orderId: order.id,
       status: order.status,
       latitude: lat,
       longitude: lon,
       deliveryAddress: order.deliveryAddressText || 'Адрес не указан',
       customerName: order.customerName,
-      fromLat: previousLat,
-      fromLon: previousLon,
-      distanceKm: distance,
-      url: legRouteUrl(previousLat, previousLon, lat, lon)
-    });
-    
-    previousLat = lat;
-    previousLon = lon;
+      routeTripNumber: normalizePositiveInt(order.routeTripNumber),
+      routeStopSequence: normalizePositiveInt(order.routeStopSequence),
+      deliveredAtMs: Date.parse(order.deliveredAt || 0) || 0,
+      assignedAtMs: Date.parse(order.assignedAt || 0) || 0,
+      createdAtMs: Date.parse(order.createdAt || 0) || 0
+    };
   });
 
-  // 3. Затем жадно планируем оставшиеся активные от последней точки
-  while (remaining.length) {
-    let nearestIndex = 0;
-    let nearestDistance = haversineKm(previousLat, previousLon, remaining[0].latitude, remaining[0].longitude);
-
-    for (let index = 1; index < remaining.length; index += 1) {
-      const candidate = remaining[index];
-      const candidateDistance = haversineKm(previousLat, previousLon, candidate.latitude, candidate.longitude);
-      if (candidateDistance < nearestDistance) {
-        nearestDistance = candidateDistance;
-        nearestIndex = index;
-      }
+  const ordered = [...normalizedOrders].sort((left, right) => {
+    const leftHasRoute = left.routeStopSequence != null;
+    const rightHasRoute = right.routeStopSequence != null;
+    if (leftHasRoute && rightHasRoute) {
+      return left.routeStopSequence - right.routeStopSequence
+        || (left.routeTripNumber ?? Number.MAX_SAFE_INTEGER) - (right.routeTripNumber ?? Number.MAX_SAFE_INTEGER)
+        || left.orderId - right.orderId;
     }
+    if (leftHasRoute !== rightHasRoute) {
+      return leftHasRoute ? -1 : 1;
+    }
+    return left.assignedAtMs - right.assignedAtMs
+      || right.createdAtMs - left.createdAtMs
+      || left.orderId - right.orderId;
+  });
 
-    const nextPoint = remaining.splice(nearestIndex, 1)[0];
-    ordered.push({
-      ...nextPoint,
-      fromLat: previousLat,
-      fromLon: previousLon,
-      distanceKm: nearestDistance,
-      url: legRouteUrl(previousLat, previousLon, nextPoint.latitude, nextPoint.longitude)
-    });
-    previousLat = nextPoint.latitude;
-    previousLon = nextPoint.longitude;
-  }
-
-  return ordered;
+  let previousLat = depotLat;
+  let previousLon = depotLon;
+  let previousTripNumber = null;
+  return ordered.map((step, index) => {
+    const startsNewTrip = index === 0
+      || (
+        step.routeTripNumber != null
+        && previousTripNumber != null
+        && step.routeTripNumber !== previousTripNumber
+      );
+    const fromLat = startsNewTrip ? depotLat : previousLat;
+    const fromLon = startsNewTrip ? depotLon : previousLon;
+    const distanceKm = haversineKm(fromLat, fromLon, step.latitude, step.longitude);
+    const routeStep = {
+      ...step,
+      fromLat,
+      fromLon,
+      distanceKm,
+      fromDepot: startsNewTrip,
+      url: legRouteUrl(fromLat, fromLon, step.latitude, step.longitude)
+    };
+    previousLat = step.latitude;
+    previousLon = step.longitude;
+    previousTripNumber = step.routeTripNumber;
+    return routeStep;
+  });
 }
 
 export default function DriverView({ token, activeSection }) {
@@ -146,7 +241,7 @@ export default function DriverView({ token, activeSection }) {
   const [ordersLoadingMore, setOrdersLoadingMore] = useState(false);
 
   const [loading, setLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  const [pendingOrderIds, setPendingOrderIds] = useState([]);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'info' });
   const ordersPageSize = 50;
 
@@ -154,17 +249,10 @@ export default function DriverView({ token, activeSection }) {
     () => orders.filter((order) => order.status === 'ASSIGNED').length,
     [orders]
   );
-  const deliveredOrdersCount = useMemo(
-    () => orders.filter((order) => order.status === 'DELIVERED').length,
-    [orders]
-  );
 
-  // Строим маршрут
   const fullRoute = useMemo(() => buildOrderedRoute(orders), [orders]);
-  
-  // Разделяем маршрут на активную часть и завершенную
-  const activeRouteSteps = useMemo(() => fullRoute.filter(step => step.status === 'ASSIGNED'), [fullRoute]);
-  const deliveredRouteSteps = useMemo(() => fullRoute.filter(step => step.status === 'DELIVERED'), [fullRoute]);
+  const routeStops = useMemo(() => buildRouteStops(fullRoute), [fullRoute]);
+  const displayedRouteStops = useMemo(() => buildDisplayRouteStops(routeStops), [routeStops]);
 
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
   const statusChipLabel = loading
@@ -204,7 +292,7 @@ export default function DriverView({ token, activeSection }) {
   }, [token]);
 
   const handleDelivered = async (orderId) => {
-    setActionLoading(true);
+    setPendingOrderIds((prev) => (prev.includes(orderId) ? prev : [...prev, orderId]));
     try {
       await markOrderDelivered(token, orderId);
       showMessage(`Заказ #${orderId} отмечен как доставленный`);
@@ -212,7 +300,7 @@ export default function DriverView({ token, activeSection }) {
     } catch (err) {
       showMessage(err.message || 'Не удалось обновить статус', 'error');
     } finally {
-      setActionLoading(false);
+      setPendingOrderIds((prev) => prev.filter((id) => id !== orderId));
     }
   };
 
@@ -258,7 +346,7 @@ export default function DriverView({ token, activeSection }) {
               <Box>
                 <Typography variant="h5" fontWeight={800} gutterBottom>Маршрутный лист</Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Всего точек: {fullRoute.length} · Активных: {activeDeliveries}
+                  Остановок: {routeStops.length} · Заказов: {fullRoute.length} · Активных заказов: {activeDeliveries}
                 </Typography>
               </Box>
               <Chip
@@ -276,24 +364,48 @@ export default function DriverView({ token, activeSection }) {
               />
             </Stack>
 
-            {!!activeRouteSteps.length && (
+            {!!displayedRouteStops.length && (
               <Box sx={{ mt: 4 }}>
                 <Typography variant="subtitle2" color="primary" fontWeight={700} sx={{ mb: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
-                  Текущие этапы
+                  Последовательность доставок
                 </Typography>
                 <Stepper orientation="vertical" nonLinear sx={{ ml: 1 }}>
-                  {activeRouteSteps.map((step, index) => (
-                    <Step key={step.orderId} active expanded>
+                  {displayedRouteStops.map((stop) => {
+                    const step = stop.primaryOrder;
+                    const displayStopNumber = stop.displayStopNumber ?? 1;
+                    const hasAssignedOrders = stop.orders.some((order) => order.status === 'ASSIGNED');
+                    const allDelivered = stop.orders.every((order) => order.status === 'DELIVERED');
+                    return (
+                    <Step key={stop.key} active={hasAssignedOrders} completed={allDelivered} expanded>
                       <StepLabel
                         StepIconComponent={() => (
-                          <Avatar sx={{ bgcolor: 'primary.main', width: 28, height: 28, fontSize: 14, fontWeight: 700 }}>
-                            {index + 1}
+                          <Avatar sx={{
+                            bgcolor: allDelivered ? 'success.main' : 'primary.main',
+                            width: 28,
+                            height: 28,
+                            fontSize: 14,
+                            fontWeight: 700
+                          }}>
+                            {displayStopNumber}
                           </Avatar>
                         )}
                       >
-                        <Typography variant="subtitle1" fontWeight={700}>
-                          Заказ #{step.orderId}
-                        </Typography>
+                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
+                          <Typography variant="subtitle1" fontWeight={700}>
+                            Остановка {displayStopNumber}
+                          </Typography>
+                          {step.routeTripNumber != null && (
+                            <Chip size="small" variant="outlined" label={`Рейс ${step.routeTripNumber}`} />
+                          )}
+                          <Chip
+                            size="small"
+                            variant="outlined"
+                            label={formatOrderCount(stop.orders.length)}
+                          />
+                          {allDelivered && (
+                            <Chip size="small" color="success" label="Доставлен" />
+                          )}
+                        </Stack>
                       </StepLabel>
                       <StepContent>
                         <Box sx={{ mb: 2, mt: 1 }}>
@@ -301,19 +413,60 @@ export default function DriverView({ token, activeSection }) {
                             {step.deliveryAddress}
                           </Typography>
                           <Typography variant="caption" display="block" sx={{ mb: 2 }}>
-                            Расстояние: ~{step.distanceKm.toFixed(2)} км
+                            {step.fromDepot
+                              ? `Старт от склада · ~${step.distanceKm.toFixed(2)} км`
+                              : `От предыдущей точки · ~${step.distanceKm.toFixed(2)} км`}
                           </Typography>
+                          <Stack spacing={1.5} sx={{ mb: 2 }}>
+                            {stop.orders.map((order) => {
+                              const isPending = pendingOrderIds.includes(order.orderId);
+                              return (
+                                <Paper
+                                  key={order.orderId}
+                                  variant="outlined"
+                                  sx={{
+                                    p: 1.5,
+                                    borderRadius: 2,
+                                    bgcolor: order.status === 'DELIVERED' ? 'action.hover' : 'background.paper'
+                                  }}
+                                >
+                                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} alignItems={{ sm: 'center' }} justifyContent="space-between">
+                                    <Stack spacing={0.5}>
+                                      <Typography variant="body2" fontWeight={700}>
+                                        Заказ #{order.orderId}
+                                      </Typography>
+                                      <Typography variant="caption" color="text.secondary">
+                                        {order.status === 'DELIVERED' ? 'Статус: доставлен' : 'Статус: ожидает доставки'}
+                                      </Typography>
+                                    </Stack>
+                                    {order.status === 'ASSIGNED' ? (
+                                      <Button
+                                        variant="contained"
+                                        size="medium"
+                                        startIcon={<DoneAllIcon />}
+                                        onClick={() => handleDelivered(order.orderId)}
+                                        disabled={isPending}
+                                        sx={{ borderRadius: 2, px: 3 }}
+                                      >
+                                        {isPending ? 'Отмечаем...' : 'Отметить доставленным'}
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant="outlined"
+                                        size="medium"
+                                        startIcon={<CheckCircleIcon />}
+                                        disabled
+                                        sx={{ borderRadius: 2 }}
+                                      >
+                                        Уже доставлен
+                                      </Button>
+                                    )}
+                                  </Stack>
+                                </Paper>
+                              );
+                            })}
+                          </Stack>
                           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-                            <Button
-                              variant="contained"
-                              size="medium"
-                              startIcon={<DoneAllIcon />}
-                              onClick={() => handleDelivered(step.orderId)}
-                              disabled={actionLoading}
-                              sx={{ borderRadius: 2, px: 3 }}
-                            >
-                              Отметить доставленным
-                            </Button>
                             <Button
                               variant="outlined"
                               size="medium"
@@ -330,46 +483,9 @@ export default function DriverView({ token, activeSection }) {
                         </Box>
                       </StepContent>
                     </Step>
-                  ))}
+                    );
+                  })}
                 </Stepper>
-              </Box>
-            )}
-
-            {!!deliveredRouteSteps.length && (
-              <Box sx={{ mt: 4 }}>
-                <Divider sx={{ mb: 3 }}>
-                  <Chip label="Завершено" size="small" variant="outlined" />
-                </Divider>
-                <Stack spacing={1.5}>
-                  {deliveredRouteSteps.map((step) => (
-                    <Paper 
-                      key={step.orderId} 
-                      variant="outlined" 
-                      sx={{ 
-                        p: 1.5, 
-                        borderRadius: 2, 
-                        bgcolor: 'action.hover',
-                        borderStyle: 'dashed',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between'
-                      }}
-                    >
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                        <CheckCircleIcon color="success" fontSize="small" />
-                        <Box>
-                          <Typography variant="body2" fontWeight={600} color="text.secondary">
-                            Заказ #{step.orderId}
-                          </Typography>
-                          <Typography variant="caption" color="text.disabled">
-                            {step.deliveryAddress}
-                          </Typography>
-                        </Box>
-                      </Box>
-                      <PlaceIcon sx={{ color: 'text.disabled', opacity: 0.5 }} />
-                    </Paper>
-                  ))}
-                </Stack>
               </Box>
             )}
 

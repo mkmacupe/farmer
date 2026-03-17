@@ -17,8 +17,6 @@ import com.farm.sales.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
@@ -27,9 +25,8 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioService {
-  private static final Logger log = LoggerFactory.getLogger(DemoScenarioService.class);
   private static final List<String> DEFENSE_FLOW = List.of(
-      "Менеджер: выполнить demo reset и показать, что система загрузила 30 торговых точек и пакет одобренных заявок для логистики.",
+      "Менеджер: выполнить demo reset и показать, что система загрузила 25 торговых точек и пакет одобренных заявок для логистики.",
       "Логист: открыть список APPROVED заказов, запустить preview автоназначения и показать распределение по 3 водителям.",
       "Логист: подтвердить план и показать маршрутные линии, вес, объём и последовательность остановок.",
       "Водитель driver1: открыть назначенные заказы и отметить одну доставку завершённой."
@@ -95,7 +92,7 @@ public class DemoScenarioService {
     demoTransportScenarioInitializer.seedDemoScenario();
 
     return new DemoResetResponse(
-        "Транспортный demo-сценарий Farm Sales: 30 точек / 60 заказов",
+        "Транспортный demo-сценарий Farm Sales: 25 точек / 35 заказов",
         Instant.now(),
         userRepository.count(),
         userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR).size(),

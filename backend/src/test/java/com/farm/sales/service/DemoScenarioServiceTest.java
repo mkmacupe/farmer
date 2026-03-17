@@ -21,7 +21,6 @@ import com.farm.sales.repository.StockMovementRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,7 +39,6 @@ class DemoScenarioServiceTest {
   private DataInitializer dataInitializer;
   private DemoTransportScenarioInitializer demoTransportScenarioInitializer;
   private EntityManager entityManager;
-  private Query truncateQuery;
   private DemoScenarioService service;
 
   @BeforeEach
@@ -57,8 +55,6 @@ class DemoScenarioServiceTest {
     dataInitializer = mock(DataInitializer.class);
     demoTransportScenarioInitializer = mock(DemoTransportScenarioInitializer.class);
     entityManager = mock(EntityManager.class);
-    truncateQuery = mock(Query.class);
-    when(entityManager.createNativeQuery(org.mockito.ArgumentMatchers.anyString())).thenReturn(truncateQuery);
     service = new DemoScenarioService(
         orderItemRepository,
         orderTimelineEventRepository,
@@ -84,20 +80,35 @@ class DemoScenarioServiceTest {
     when(userRepository.count()).thenReturn(8L);
     when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR)).thenReturn(List.of(director, director, director));
     when(productRepository.count()).thenReturn(20L);
-    when(storeAddressRepository.count()).thenReturn(30L);
-    when(orderRepository.count()).thenReturn(60L);
-    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(60L);
+    when(storeAddressRepository.count()).thenReturn(25L);
+    when(orderRepository.count()).thenReturn(35L);
+    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(35L);
 
     var response = service.resetDemoScenario();
 
     InOrder inOrder = inOrder(
+        realtimeNotificationRepository,
+        orderTimelineEventRepository,
+        stockMovementRepository,
+        auditLogRepository,
+        orderItemRepository,
+        orderRepository,
+        storeAddressRepository,
+        userRepository,
+        productRepository,
         entityManager,
-        truncateQuery,
         dataInitializer,
         demoTransportScenarioInitializer
     );
-    inOrder.verify(entityManager).createNativeQuery(org.mockito.ArgumentMatchers.contains("TRUNCATE TABLE"));
-    inOrder.verify(truncateQuery).executeUpdate();
+    inOrder.verify(realtimeNotificationRepository).deleteAllInBatch();
+    inOrder.verify(orderTimelineEventRepository).deleteAllInBatch();
+    inOrder.verify(stockMovementRepository).deleteAllInBatch();
+    inOrder.verify(auditLogRepository).deleteAllInBatch();
+    inOrder.verify(orderItemRepository).deleteAllInBatch();
+    inOrder.verify(orderRepository).deleteAllInBatch();
+    inOrder.verify(storeAddressRepository).deleteAllInBatch();
+    inOrder.verify(userRepository).deleteAllInBatch();
+    inOrder.verify(productRepository).deleteAllInBatch();
     inOrder.verify(entityManager).flush();
     inOrder.verify(entityManager).clear();
     inOrder.verify(dataInitializer).resetDemoSeedState();
@@ -105,13 +116,13 @@ class DemoScenarioServiceTest {
     inOrder.verify(dataInitializer).seedDemoDataWithoutAddresses();
     inOrder.verify(demoTransportScenarioInitializer).seedDemoScenario();
 
-    assertThat(response.scenarioName()).contains("30 точек / 60 заказов");
+    assertThat(response.scenarioName()).contains("25 точек / 35 заказов");
     assertThat(response.totalUsers()).isEqualTo(8L);
     assertThat(response.directors()).isEqualTo(3L);
     assertThat(response.products()).isEqualTo(20L);
-    assertThat(response.storeAddresses()).isEqualTo(30L);
-    assertThat(response.totalOrders()).isEqualTo(60L);
-    assertThat(response.approvedOrders()).isEqualTo(60L);
+    assertThat(response.storeAddresses()).isEqualTo(25L);
+    assertThat(response.totalOrders()).isEqualTo(35L);
+    assertThat(response.approvedOrders()).isEqualTo(35L);
     assertThat(response.defenseFlow()).hasSize(4);
     verify(orderRepository).countByStatus(OrderStatus.APPROVED);
   }

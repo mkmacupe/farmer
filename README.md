@@ -46,7 +46,7 @@ powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
 После старта:
 
 - frontend: `http://127.0.0.1:5173`
-- backend API: `http://127.0.0.1:8080/api`
+- backend API: `http://127.0.0.1:8080/api` по умолчанию, либо фактический адрес из строки `Backend API:` в выводе `start-dev.ps1`, если порт был автоматически изменён;
 
 `start-dev.ps1`:
 
@@ -76,13 +76,15 @@ Backend при необходимости можно запускать отде
 powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base http://127.0.0.1:8080/api
 ```
 
+Если backend запущен не через `start-dev.ps1`, а вручную или на другом порту, в `-Base` нужно передать фактический адрес `/api`.
+
 Публичный backend:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base https://farm-sales-backend.onrender.com/api
 ```
 
-Reset пересоздаёт demo-пользователей и каталог, очищает накопленные заказы, аудит, уведомления и возвращает систему в предсказуемое состояние для показа.
+Reset очищает накопленное runtime-состояние, пересоздаёт demo-пользователей и каталог, а затем поднимает канонический транспортный сценарий для защиты: `25` точек доставки и `35` заказов в статусе `APPROVED`.
 
 ## Демо-аккаунты
 

@@ -30,7 +30,9 @@
 | `POST /api/orders/approve-all` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `POST /api/orders/{id}/approve` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `POST /api/orders/{id}/assign-driver` | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `POST /api/orders/auto-assign` | ❌ | ❌ | ✅ | ❌ | ❌ |
 | `POST /api/orders/auto-assign/preview` | ❌ | ❌ | ✅ | ❌ | ❌ |
+| `POST /api/orders/auto-assign/route-geometry` | ❌ | ❌ | ✅ | ❌ | ❌ |
 | `POST /api/orders/auto-assign/approve` | ❌ | ❌ | ✅ | ❌ | ❌ |
 | `POST /api/orders/{id}/deliver` | ❌ | ❌ | ❌ | ✅ | ❌ |
 | `GET /api/orders/{id}/timeline` | ✅* | ✅ | ✅ | ✅* | ❌ |

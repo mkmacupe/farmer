@@ -56,6 +56,10 @@ import {
   filterLocalizedProducts,
 } from "../utils/productFilters.js";
 import {
+  reconcileRequestedItems,
+  summarizeProductNames,
+} from "../utils/orderCatalogSync.js";
+import {
   ProductGridSkeleton,
   ProfileSkeleton,
 } from "../components/LoadingSkeletons.jsx";
@@ -86,6 +90,48 @@ function mapUrl(latitude, longitude) {
 
 function isCoordinateOnlyAddress(value) {
   return String(value || "").trim().startsWith("Координаты:");
+}
+
+function matchesAddressBySnapshot(left, right) {
+  if (!left || !right) {
+    return false;
+  }
+  return String(left.label || "").trim() === String(right.label || "").trim()
+    && String(left.addressLine || "").trim() === String(right.addressLine || "").trim()
+    && String(left.latitude ?? "") === String(right.latitude ?? "")
+    && String(left.longitude ?? "") === String(right.longitude ?? "");
+}
+
+function buildCatalogSyncErrorMessage(result, mode = "cart") {
+  const unavailableSummary = summarizeProductNames(result.unavailable);
+  const adjustedSummary = summarizeProductNames(result.quantityAdjusted);
+  const hasUnavailable = result.unavailable.length > 0;
+  const hasAdjusted = result.quantityAdjusted.length > 0;
+  const hasRemapped = result.remapped.length > 0;
+  if (!hasUnavailable && !hasAdjusted && !hasRemapped) {
+    return "";
+  }
+  const remappedOnly =
+    hasRemapped
+    && !hasUnavailable
+    && !hasAdjusted;
+
+  if (remappedOnly) {
+    return "";
+  }
+
+  const prefix =
+    mode === "repeat"
+      ? "Каталог обновился, состав повторяемого заказа изменился."
+      : "Корзина обновлена по актуальному каталогу.";
+  const details = [];
+  if (unavailableSummary) {
+    details.push(`Недоступны: ${unavailableSummary}.`);
+  }
+  if (adjustedSummary) {
+    details.push(`Количество скорректировано по текущему остатку: ${adjustedSummary}.`);
+  }
+  return `${prefix} ${details.join(" ")} Проверьте позиции и повторите действие.`.trim();
 }
 
 export default function DirectorView({ token, activeSection }) {
@@ -206,6 +252,10 @@ export default function DirectorView({ token, activeSection }) {
     });
   }, [token]);
 
+  const fetchAddressSnapshot = useCallback(async () => {
+    return getDirectorAddresses(token);
+  }, [token]);
+
   const loadCatalogProducts = useCallback(async (signal) => {
     const productsPage = await getProductsPage(token, {
       category: catalogCategory || null,
@@ -248,6 +298,84 @@ export default function DirectorView({ token, activeSection }) {
     }
     setCategories(filterLocalizedCategories(categoriesData));
   }, [token]);
+
+  const fetchCatalogSnapshot = useCallback(async () => {
+    const snapshot = [];
+    const seenIds = new Set();
+    let page = 0;
+    let hasNext = true;
+
+    while (hasNext && page < 20) {
+      const pageData = await getProductsPage(token, {
+        page,
+        size: 100,
+      });
+      const pageItems = Array.isArray(pageData?.items) ? pageData.items : [];
+      pageItems.forEach((product) => {
+        const productId = Number(product?.id);
+        if (Number.isFinite(productId) && productId > 0 && !seenIds.has(productId)) {
+          seenIds.add(productId);
+          snapshot.push(product);
+        }
+      });
+      hasNext = Boolean(pageData?.hasNext);
+      page = (Number.isInteger(pageData?.page) ? pageData.page : page) + 1;
+    }
+
+    return filterLocalizedProducts(snapshot);
+  }, [token]);
+
+  const replaceCartWithResolvedItems = useCallback((resolvedItems) => {
+    const nextCartItems = {};
+    resolvedItems.forEach(({ product, quantity }) => {
+      if (!product || quantity <= 0) {
+        return;
+      }
+      nextCartItems[product.id] = { product, quantity };
+    });
+    setCartItems(nextCartItems);
+  }, []);
+
+  const resolveFreshDeliveryAddress = useCallback(async ({ fallbackAddressId = null, fallbackAddressText = "" } = {}) => {
+    const latestAddresses = await fetchAddressSnapshot();
+    setAddresses(latestAddresses);
+
+    const currentSelectedAddress = addresses.find(
+      (address) => String(address.id) === String(selectedAddressId),
+    );
+
+    let resolvedAddress =
+      latestAddresses.find((address) => String(address.id) === String(selectedAddressId))
+      || null;
+
+    if (!resolvedAddress && currentSelectedAddress) {
+      resolvedAddress =
+        latestAddresses.find((address) => matchesAddressBySnapshot(address, currentSelectedAddress))
+        || null;
+    }
+
+    if (!resolvedAddress && fallbackAddressId) {
+      resolvedAddress =
+        latestAddresses.find((address) => String(address.id) === String(fallbackAddressId))
+        || null;
+    }
+
+    if (!resolvedAddress && fallbackAddressText) {
+      resolvedAddress =
+        latestAddresses.find(
+          (address) => String(address.addressLine || "").trim() === String(fallbackAddressText || "").trim(),
+        )
+        || null;
+    }
+
+    if (resolvedAddress) {
+      setSelectedAddressId(String(resolvedAddress.id));
+      return { latestAddresses, resolvedAddress };
+    }
+
+    setSelectedAddressId(latestAddresses.length ? String(latestAddresses[0].id) : "");
+    return { latestAddresses, resolvedAddress: null };
+  }, [addresses, fetchAddressSnapshot, selectedAddressId]);
 
   const loadOrders = useCallback(async (signal) => {
     const pageData = await getMyOrdersPage(token, { page: 0, size: ordersPageSize });
@@ -489,29 +617,90 @@ export default function DirectorView({ token, activeSection }) {
   const handleCreateOrder = async () => {
     setError("");
     setSuccess("");
-    const deliveryAddressId = Number(selectedAddressId);
-    if (!deliveryAddressId) {
-      setError("Выберите адрес доставки");
-      return;
-    }
-
-    const items = selectedItems.map((item) => ({
-      productId: item.product.id,
-      quantity: item.quantity,
-    }));
-    if (items.length === 0) {
+    if (selectedItems.length === 0) {
       setError("Добавьте хотя бы одну позицию в корзину");
       return;
     }
 
     try {
       setLoading(true);
-      await createOrder(token, { deliveryAddressId, items });
+      const { latestAddresses, resolvedAddress } = await resolveFreshDeliveryAddress();
+      if (!resolvedAddress) {
+        if (!latestAddresses.length) {
+          setError("У вас нет доступных адресов доставки. Добавьте адрес и повторите отправку.");
+        } else {
+          setError("Список адресов обновлён. Выберите адрес доставки заново и повторите отправку.");
+        }
+        return;
+      }
+
+      const catalogSnapshot = await fetchCatalogSnapshot();
+      const syncResult = reconcileRequestedItems(
+        selectedItems.map((item) => ({
+          productId: item.product?.id,
+          productName: item.product?.name,
+          photoUrl: item.product?.photoUrl,
+          quantity: item.quantity,
+        })),
+        catalogSnapshot,
+      );
+      replaceCartWithResolvedItems(syncResult.items);
+
+      const syncErrorMessage = buildCatalogSyncErrorMessage(syncResult, "cart");
+      if (syncErrorMessage) {
+        setError(syncErrorMessage);
+        return;
+      }
+      if (!syncResult.items.length) {
+        setError("В корзине не осталось доступных товаров. Выберите позиции заново.");
+        return;
+      }
+
+      await createOrder(token, {
+        deliveryAddressId: resolvedAddress.id,
+        items: syncResult.items.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+        })),
+      });
       setSuccess("Заявка на доставку создана");
       setCartItems({});
       await Promise.all([loadCatalogProducts(), loadOrders()]);
     } catch (err) {
-      setError(err.message || "Не удалось создать заказ");
+      if (err?.message === "Товар не найден") {
+        try {
+          const catalogSnapshot = await fetchCatalogSnapshot();
+          const syncResult = reconcileRequestedItems(
+            selectedItems.map((item) => ({
+              productId: item.product?.id,
+              productName: item.product?.name,
+              photoUrl: item.product?.photoUrl,
+              quantity: item.quantity,
+            })),
+            catalogSnapshot,
+          );
+          replaceCartWithResolvedItems(syncResult.items);
+          setError(
+            buildCatalogSyncErrorMessage(syncResult, "cart")
+            || "Каталог обновился. Корзина синхронизирована с актуальными товарами, повторите оформление."
+          );
+        } catch (syncError) {
+          setError(syncError.message || "Не удалось синхронизировать корзину с актуальным каталогом");
+        }
+      } else if (err?.message === "Выбранный адрес не принадлежит пользователю") {
+        try {
+          const { latestAddresses } = await resolveFreshDeliveryAddress();
+          if (!latestAddresses.length) {
+            setError("Список адресов обновлён. У вас нет доступных адресов доставки.");
+          } else {
+            setError("Список адресов обновлён. Выберите адрес доставки заново и повторите отправку.");
+          }
+        } catch (syncError) {
+          setError(syncError.message || "Не удалось синхронизировать адреса доставки");
+        }
+      } else {
+        setError(err.message || "Не удалось создать заказ");
+      }
     } finally {
       setLoading(false);
     }
@@ -521,34 +710,76 @@ export default function DirectorView({ token, activeSection }) {
     setError("");
     setSuccess("");
     const sourceItems = Array.isArray(order?.items) ? order.items : [];
-    const items = sourceItems
-      .map((item) => ({
-        productId: Number(item?.productId),
-        quantity: Number(item?.quantity),
-      }))
-      .filter((item) => Number.isFinite(item.productId) && item.productId > 0 && Number.isFinite(item.quantity) && item.quantity > 0);
-
-    const deliveryAddressId = Number(selectedAddressId) || Number(order?.deliveryAddressId);
-    if (!deliveryAddressId) {
-      setError("Для повтора выберите адрес доставки");
-      return;
-    }
-    if (!items.length) {
+    if (!sourceItems.length) {
       setError("Невозможно повторить заказ без позиций");
       return;
     }
 
     try {
       setLoading(true);
-      await createOrder(token, { deliveryAddressId, items });
+      const { latestAddresses, resolvedAddress } = await resolveFreshDeliveryAddress({
+        fallbackAddressId: Number(order?.deliveryAddressId) || null,
+        fallbackAddressText: order?.deliveryAddressText || "",
+      });
+      if (!resolvedAddress) {
+        if (!latestAddresses.length) {
+          setError("Для повтора нет доступных адресов доставки. Добавьте адрес и повторите.");
+        } else {
+          setError("Список адресов обновлён. Выберите адрес доставки заново и повторите заказ.");
+        }
+        return;
+      }
+
+      const catalogSnapshot = await fetchCatalogSnapshot();
+      const syncResult = reconcileRequestedItems(
+        sourceItems.map((item) => ({
+          productId: Number(item?.productId),
+          productName: item?.productName,
+          quantity: Number(item?.quantity),
+        })),
+        catalogSnapshot,
+      );
+      const syncErrorMessage = buildCatalogSyncErrorMessage(syncResult, "repeat");
+      if (syncErrorMessage) {
+        setError(syncErrorMessage);
+        return;
+      }
+      if (!syncResult.items.length) {
+        setError("Не удалось повторить заказ: товары из исходной заявки больше недоступны.");
+        return;
+      }
+
+      await createOrder(token, {
+        deliveryAddressId: resolvedAddress.id,
+        items: syncResult.items.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+        })),
+      });
       setSuccess(`Заказ #${order?.id} повторён`);
       await Promise.all([loadCatalogProducts(), loadOrders()]);
     } catch (err) {
-      setError(err.message || "Не удалось повторить заказ");
+      if (err?.message === "Выбранный адрес не принадлежит пользователю") {
+        try {
+          const { latestAddresses } = await resolveFreshDeliveryAddress({
+            fallbackAddressId: Number(order?.deliveryAddressId) || null,
+            fallbackAddressText: order?.deliveryAddressText || "",
+          });
+          if (!latestAddresses.length) {
+            setError("Список адресов обновлён. Для повтора сейчас нет доступных адресов.");
+          } else {
+            setError("Список адресов обновлён. Выберите адрес доставки заново и повторите заказ.");
+          }
+        } catch (syncError) {
+          setError(syncError.message || "Не удалось синхронизировать адреса доставки");
+        }
+      } else {
+        setError(err.message || "Не удалось повторить заказ");
+      }
     } finally {
       setLoading(false);
     }
-  }, [loadCatalogProducts, loadOrders, selectedAddressId, token]);
+  }, [fetchCatalogSnapshot, loadCatalogProducts, loadOrders, resolveFreshDeliveryAddress, token]);
 
   const updateQuantity = (product, nextValue) => {
     const clamped = Math.max(0, Math.min(nextValue, product.stockQuantity));
@@ -561,6 +792,15 @@ export default function DirectorView({ token, activeSection }) {
       next[product.id] = { product, quantity: clamped };
       return next;
     });
+  };
+
+  const handleQuantityInputChange = (product, rawValue) => {
+    const digitsOnly = String(rawValue ?? "").replace(/[^\d]/g, "");
+    if (!digitsOnly) {
+      updateQuantity(product, 0);
+      return;
+    }
+    updateQuantity(product, Number(digitsOnly));
   };
 
   const handleLoadMoreOrders = async () => {
@@ -1417,7 +1657,36 @@ export default function DirectorView({ token, activeSection }) {
                             >
                               <RemoveIcon fontSize="small" />
                             </IconButton>
-                            <Typography fontWeight={600}>{quantity}</Typography>
+                            <TextField
+                              size="small"
+                              value={quantity}
+                              onChange={(event) =>
+                                handleQuantityInputChange(
+                                  product,
+                                  event.target.value,
+                                )
+                              }
+                              onFocus={(event) => event.target.select()}
+                              inputProps={{
+                                inputMode: "numeric",
+                                pattern: "[0-9]*",
+                                min: 0,
+                                max: product.stockQuantity,
+                                "aria-label": `Количество товара ${product.name}`,
+                                style: {
+                                  textAlign: "center",
+                                  fontWeight: 600,
+                                  padding: "8px 0",
+                                },
+                              }}
+                              sx={{
+                                width: 64,
+                                "& .MuiOutlinedInput-root": {
+                                  borderRadius: 2,
+                                  height: 36,
+                                },
+                              }}
+                            />
                             <IconButton
                               size="small"
                               onClick={() =>

@@ -66,9 +66,13 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
   @Query("""
       select o from Order o
       where o.assignedDriver.id = :driverId
-      order by o.createdAt desc
+      order by
+        case when o.routeStopSequence is null then 1 else 0 end,
+        o.routeStopSequence asc,
+        o.assignedAt asc,
+        o.createdAt desc
       """)
-  Page<Order> findPageByAssignedDriverIdOrderByCreatedAtDesc(@Param("driverId") Long driverId, Pageable pageable);
+  Page<Order> findPageByAssignedDriverIdOrderByRouteOrder(@Param("driverId") Long driverId, Pageable pageable);
 
   @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver"})
   @Query("""
@@ -88,7 +92,16 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
   List<Order> findAllByOrderByCreatedAtDesc(Pageable pageable);
 
   @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
-  List<Order> findByAssignedDriverIdOrderByCreatedAtDesc(Long driverId, Pageable pageable);
+  @Query("""
+      select o from Order o
+      where o.assignedDriver.id = :driverId
+      order by
+        case when o.routeStopSequence is null then 1 else 0 end,
+        o.routeStopSequence asc,
+        o.assignedAt asc,
+        o.createdAt desc
+      """)
+  List<Order> findByAssignedDriverIdOrderByRouteOrder(@Param("driverId") Long driverId, Pageable pageable);
 
   @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
   List<Order> findByStatusOrderByCreatedAtDesc(OrderStatus status, Pageable pageable);

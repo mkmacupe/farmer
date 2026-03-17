@@ -11,6 +11,7 @@ public record AutoAssignDriverRouteResponse(
     double totalVolumeM3,
     List<AutoAssignRoutePointResponse> points,
     List<AutoAssignRoutePathPointResponse> path,
-    List<AutoAssignRouteTripResponse> trips
+    List<AutoAssignRouteTripResponse> trips,
+    List<String> insights
 ) {
 }

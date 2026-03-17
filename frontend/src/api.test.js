@@ -541,18 +541,42 @@ describe('api', () => {
     ));
 
     await api.autoAssignOrders('token-14');
-    await api.previewAutoAssignOrders('token-14');
+    await api.previewAutoAssignOrders('token-14', { driverIds: [7, 8, 9] });
     await api.approveAutoAssignOrders('token-14', [{ orderId: 1, driverId: 7, stopSequence: 1 }]);
 
     expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(new URL(fetchMock.mock.calls[0][0], 'http://localhost').pathname).toBe('/api/orders/auto-assign/preview');
     expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({ driverIds: [] }));
     expect(new URL(fetchMock.mock.calls[1][0], 'http://localhost').pathname).toBe('/api/orders/auto-assign/preview');
     expect(fetchMock.mock.calls[1][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[1][1].body).toBe(JSON.stringify({ driverIds: [7, 8, 9] }));
     expect(new URL(fetchMock.mock.calls[2][0], 'http://localhost').pathname).toBe('/api/orders/auto-assign/approve');
     expect(fetchMock.mock.calls[2][1].method).toBe('POST');
     expect(fetchMock.mock.calls[2][1].body).toBe(JSON.stringify({
       assignments: [{ orderId: 1, driverId: 7, stopSequence: 1 }]
+    }));
+  });
+
+  it('builds auto-assign route geometry request', async () => {
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(() => Promise.resolve(
+      jsonResponse({ ok: true })
+    ));
+
+    await api.previewAutoAssignRouteGeometry(
+      'token-14',
+      [{ latitude: 53.91, longitude: 30.34 }],
+      {
+        returnsToDepot: true
+      }
+    );
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(new URL(fetchMock.mock.calls[0][0], 'http://localhost').pathname).toBe('/api/orders/auto-assign/route-geometry');
+    expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+    expect(fetchMock.mock.calls[0][1].body).toBe(JSON.stringify({
+      points: [{ latitude: 53.91, longitude: 30.34 }],
+      returnsToDepot: true
     }));
   });
 
