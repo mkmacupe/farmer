@@ -24,7 +24,7 @@
 - Spring Data JPA + Hibernate
 - Flyway
 - PostgreSQL 17 в production
-- H2 fallback для локального `dev`-профиля
+- PostgreSQL 17 для локальной разработки через Docker Desktop
 
 ### Frontend
 
@@ -43,6 +43,8 @@ Copy-Item .env.example .env
 powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
 ```
 
+Требование: перед запуском `start-dev.ps1` должен быть поднят Docker Desktop и доступен Docker Engine. Скрипт больше не переключается на локальный H2-контур.
+
 После старта:
 
 - frontend: `http://127.0.0.1:5173`
@@ -51,9 +53,9 @@ powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
 `start-dev.ps1`:
 
 - подготавливает `.env`, если он отсутствует;
-- поднимает локальный контур для frontend и backend;
-- использует PostgreSQL через Docker, где это нужно;
-- совместим с локальным backend `dev`-профилем, где есть H2 fallback.
+- поднимает локальный frontend и backend-контур;
+- запускает PostgreSQL и backend через Docker Desktop + `docker compose`;
+- автоматически перенастраивает frontend proxy на фактический backend-порт.
 
 ## Альтернативный ручной запуск
 
@@ -65,8 +67,8 @@ cd frontend
 npm install
 npm run dev
 ```
-
-Backend при необходимости можно запускать отдельно через Maven. Для локальной разработки доступен `dev`-профиль с H2 fallback.
+Для ручного сценария backend также остаётся в docker-compose-контуре с PostgreSQL.
+Если backend запускается отдельно через Maven или IDE, передайте те же `SPRING_DATASOURCE_*`, `POSTGRES_PORT` и `JWT_SECRET`, что используются в `.env`.
 
 ## Demo reset
 

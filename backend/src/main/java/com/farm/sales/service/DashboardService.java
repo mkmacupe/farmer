@@ -8,6 +8,7 @@ import com.farm.sales.dto.DashboardTrendResponse;
 import com.farm.sales.model.Order;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.repository.OrderRepository;
+import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Instant;
@@ -31,9 +32,11 @@ public class DashboardService {
   private static final Logger log = LoggerFactory.getLogger(DashboardService.class);
   private static final int DASHBOARD_SCAN_LIMIT = 10_000;
   private final OrderRepository orderRepository;
+  private final UserRepository userRepository;
 
-  public DashboardService(OrderRepository orderRepository) {
+  public DashboardService(OrderRepository orderRepository, UserRepository userRepository) {
     this.orderRepository = orderRepository;
+    this.userRepository = userRepository;
   }
 
   @Transactional(readOnly = true)
@@ -99,6 +102,7 @@ public class DashboardService {
         byStatus.getOrDefault(OrderStatus.DELIVERED, 0L).intValue(),
         totalDeliveredRevenue.setScale(2, RoundingMode.HALF_UP),
         averageCheck,
+        Math.toIntExact(userRepository.count()),
         statusRows
     );
   }

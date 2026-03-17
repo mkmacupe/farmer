@@ -41,6 +41,7 @@ class DashboardControllerTest {
         2,
         new BigDecimal("150.00"),
         new BigDecimal("30.00"),
+        8,
         List.of()
     );
     when(dashboardService.getSummary(any(), any())).thenReturn(response);

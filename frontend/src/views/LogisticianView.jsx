@@ -56,6 +56,11 @@ import RouteOutlinedIcon from '@mui/icons-material/RouteOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useStableEvent } from '../utils/useStableEvent.js';
 import { routeColor } from '../utils/routeColors.js';
+import {
+  buildTripLegendEntries,
+  collectTripNumbers,
+  normalizeTripNumber
+} from '../utils/routePlanPreview.js';
 
 const RoutePlanMap = lazy(() => import('../components/RoutePlanMap.jsx'));
 const transportNumberFormatter = new Intl.NumberFormat('ru-RU', {
@@ -86,6 +91,53 @@ function formatTransportNumber(value) {
     return transportNumberFormatter.format(0);
   }
   return transportNumberFormatter.format(numeric);
+}
+
+function TripLegendSwatch({ visual, width = 22 }) {
+  return (
+    <Box
+      component="svg"
+      viewBox={`0 0 ${width} 10`}
+      aria-hidden="true"
+      sx={{ width, height: 10, display: 'block', overflow: 'visible' }}
+    >
+      <line
+        x1="1"
+        y1="5"
+        x2={width - 1}
+        y2="5"
+        stroke={visual.color}
+        strokeWidth="4"
+        strokeDasharray={visual.dashArray}
+        strokeLinecap="round"
+      />
+    </Box>
+  );
+}
+
+function TripLegendChip({ label, visual, selected = false, onClick }) {
+  return (
+    <Chip
+      label={label}
+      clickable={Boolean(onClick)}
+      onClick={onClick}
+      variant="outlined"
+      icon={<TripLegendSwatch visual={visual} />}
+      sx={{
+        borderColor: visual.color,
+        borderWidth: selected ? 2 : 1,
+        bgcolor: selected ? 'action.selected' : 'transparent',
+        color: 'text.primary',
+        fontWeight: selected ? 700 : 500,
+        '& .MuiChip-label': {
+          px: 0.5
+        },
+        '& .MuiChip-icon': {
+          ml: 1
+        }
+      }}
+    />
+  );
 }
 
 const MetricCard = memo(function MetricCard({ title, value, icon, color }) {
@@ -332,6 +384,7 @@ export default function LogisticianView({ token, activeSection }) {
   const [routePlanOpen, setRoutePlanOpen] = useState(false);
   const [routePlanLoading, setRoutePlanLoading] = useState(false);
   const [routePreviewDriverId, setRoutePreviewDriverId] = useState('all');
+  const [routePreviewTripNumber, setRoutePreviewTripNumber] = useState('all');
   const [transportMenuOpen, setTransportMenuOpen] = useState(false);
   const [transportDriverIds, setTransportDriverIds] = useState([]);
 
@@ -403,6 +456,43 @@ export default function LogisticianView({ token, activeSection }) {
     }
     return routePreviewRoutes[0] || null;
   }, [routePreviewDriverId, routePreviewRoutes]);
+  const activePreviewTripNumbers = useMemo(
+    () => (activePreviewRoute ? collectTripNumbers(activePreviewRoute) : []),
+    [activePreviewRoute]
+  );
+  const routeDriverLegendEntries = useMemo(
+    () => buildTripLegendEntries(routePlanPreview, routePreviewDriverId, 'all'),
+    [routePlanPreview, routePreviewDriverId]
+  );
+  const visibleRouteLegendEntries = useMemo(
+    () => buildTripLegendEntries(routePlanPreview, routePreviewDriverId, routePreviewTripNumber),
+    [routePlanPreview, routePreviewDriverId, routePreviewTripNumber]
+  );
+  const tripFilterAvailable = routePreviewDriverId !== 'all' && activePreviewTripNumbers.length > 1;
+  const activePreviewTrips = useMemo(() => {
+    if (!activePreviewRoute) {
+      return [];
+    }
+    if (routePreviewTripNumber === 'all') {
+      return Array.isArray(activePreviewRoute.trips) ? activePreviewRoute.trips : [];
+    }
+    const selectedTrip = normalizeTripNumber(routePreviewTripNumber);
+    return (activePreviewRoute.trips || []).filter(
+      (trip) => normalizeTripNumber(trip?.tripNumber) === selectedTrip
+    );
+  }, [activePreviewRoute, routePreviewTripNumber]);
+  const activePreviewStops = useMemo(() => {
+    if (!activePreviewRoute) {
+      return [];
+    }
+    if (routePreviewTripNumber === 'all') {
+      return activePreviewRoute.displayStops || [];
+    }
+    const selectedTrip = normalizeTripNumber(routePreviewTripNumber);
+    return (activePreviewRoute.displayStops || []).filter(
+      (point) => normalizeTripNumber(point?.tripNumber) === selectedTrip
+    );
+  }, [activePreviewRoute, routePreviewTripNumber]);
   const planningHighlights = useMemo(
     () => (Array.isArray(routePlan?.planningHighlights) ? routePlan.planningHighlights : []),
     [routePlan]
@@ -503,7 +593,26 @@ export default function LogisticianView({ token, activeSection }) {
 
   useEffect(() => {
     setRoutePreviewDriverId('all');
+    setRoutePreviewTripNumber('all');
   }, [routePlan]);
+
+  useEffect(() => {
+    if (routePreviewDriverId === 'all') {
+      if (routePreviewTripNumber !== 'all') {
+        setRoutePreviewTripNumber('all');
+      }
+      return;
+    }
+
+    if (routePreviewTripNumber === 'all') {
+      return;
+    }
+
+    const selectedTrip = normalizeTripNumber(routePreviewTripNumber);
+    if (!activePreviewTripNumbers.includes(selectedTrip)) {
+      setRoutePreviewTripNumber('all');
+    }
+  }, [activePreviewTripNumbers, routePreviewDriverId, routePreviewTripNumber]);
 
   const handleAssign = useCallback(async (orderId) => {
     const driverId = Number(driverSelection[orderId]);
@@ -971,14 +1080,20 @@ export default function LogisticianView({ token, activeSection }) {
                     clickable
                     color={routePreviewDriverId === 'all' ? 'primary' : 'default'}
                     variant={routePreviewDriverId === 'all' ? 'filled' : 'outlined'}
-                    onClick={() => setRoutePreviewDriverId('all')}
+                    onClick={() => {
+                      setRoutePreviewDriverId('all');
+                      setRoutePreviewTripNumber('all');
+                    }}
                   />
                   {indexedRoutePlanRoutes.map((route) => (
                     <Chip
                       key={`${route.driverId}-${route.colorIndex}-filter-top`}
                       label={route.driverName}
                       clickable
-                      onClick={() => setRoutePreviewDriverId(String(route.driverId))}
+                      onClick={() => {
+                        setRoutePreviewDriverId(String(route.driverId));
+                        setRoutePreviewTripNumber('all');
+                      }}
                       variant={String(routePreviewDriverId) === String(route.driverId) ? 'filled' : 'outlined'}
                       sx={{
                         borderColor: routeColor(route.colorIndex),
@@ -990,6 +1105,53 @@ export default function LogisticianView({ token, activeSection }) {
                     />
                   ))}
                 </Stack>
+                {tripFilterAvailable ? (
+                  <Stack spacing={1} sx={{ mt: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Рейсы выбранного водителя: цвет и тип линии показывают, какой рейс отображается на карте.
+                    </Typography>
+                    <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
+                      <Chip
+                        label="Все рейсы"
+                        clickable
+                        variant="outlined"
+                        onClick={() => setRoutePreviewTripNumber('all')}
+                        sx={{
+                          borderWidth: routePreviewTripNumber === 'all' ? 2 : 1,
+                          bgcolor: routePreviewTripNumber === 'all' ? 'action.selected' : 'transparent',
+                          fontWeight: routePreviewTripNumber === 'all' ? 700 : 500
+                        }}
+                      />
+                      {routeDriverLegendEntries.map((entry) => (
+                        <TripLegendChip
+                          key={entry.key}
+                          label={`Рейс ${entry.tripNumber}`}
+                          visual={entry}
+                          selected={
+                            routePreviewTripNumber !== 'all'
+                            && normalizeTripNumber(routePreviewTripNumber) === entry.tripNumber
+                          }
+                          onClick={() => setRoutePreviewTripNumber(String(entry.tripNumber))}
+                        />
+                      ))}
+                    </Stack>
+                  </Stack>
+                ) : visibleRouteLegendEntries.length ? (
+                  <Stack spacing={1} sx={{ mt: 1.5 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Цвета рейсов на карте
+                    </Typography>
+                    <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
+                      {visibleRouteLegendEntries.map((entry) => (
+                        <TripLegendChip
+                          key={entry.key}
+                          label={entry.label}
+                          visual={entry}
+                        />
+                      ))}
+                    </Stack>
+                  </Stack>
+                ) : null}
               </Paper>
 
               <Suspense
@@ -1008,44 +1170,18 @@ export default function LogisticianView({ token, activeSection }) {
                   </Paper>
                 }
               >
-                <RoutePlanMap plan={routePlanPreview} token={token} visibleDriverId={routePreviewDriverId} />
+                <RoutePlanMap
+                  plan={routePlanPreview}
+                  token={token}
+                  visibleDriverId={routePreviewDriverId}
+                  visibleTripNumber={routePreviewTripNumber}
+                />
               </Suspense>
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
                   Сводка по водителям
                 </Typography>
-                <Stack direction="row" useFlexGap flexWrap="wrap" gap={1} sx={{ mb: 1.25 }}>
-                  {routePreviewRoutes.map((route) => (
-                    <Stack
-                      key={`${route.driverId}-${route.colorIndex}-legend`}
-                      direction="row"
-                      alignItems="center"
-                      spacing={1}
-                      sx={{
-                        px: 1.25,
-                        py: 0.5,
-                        borderRadius: 999,
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        bgcolor: 'background.paper'
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: '50%',
-                          bgcolor: routeColor(route.colorIndex),
-                          flexShrink: 0
-                        }}
-                      />
-                      <Typography variant="body2" fontWeight={600}>
-                        {route.driverName}
-                      </Typography>
-                    </Stack>
-                  ))}
-                </Stack>
                 <Grid container spacing={1}>
                   {routePreviewRoutes.map((route) => {
                     const tripLoad = routeTripLoad(route);
@@ -1093,9 +1229,9 @@ export default function LogisticianView({ token, activeSection }) {
                 </Grid>
                 {activePreviewRoute ? (
                   <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-                    {Array.isArray(activePreviewRoute.trips) && activePreviewRoute.trips.length > 0 ? (
+                    {activePreviewTrips.length > 0 ? (
                       <Grid container spacing={1}>
-                        {activePreviewRoute.trips.map((trip) => (
+                        {activePreviewTrips.map((trip) => (
                           <Grid key={`${activePreviewRoute.driverId}-trip-${trip.tripNumber}`} size={{ xs: 12, md: 6 }}>
                             <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, height: '100%' }}>
                               <Typography variant="subtitle2" fontWeight={700}>
@@ -1103,7 +1239,7 @@ export default function LogisticianView({ token, activeSection }) {
                               </Typography>
                               <Typography variant="body2" color="text.secondary">
                                 {orderCountLabel(trip.assignedOrders)} • {stopCountLabel(
-                                  activePreviewRoute.displayStops?.filter((stop) => Number(stop?.tripNumber) === Number(trip.tripNumber)).length || 0
+                                  activePreviewStops.filter((stop) => Number(stop?.tripNumber) === Number(trip.tripNumber)).length || 0
                                 )} • {formatTransportNumber(trip.estimatedRouteDistanceKm)} км
                               </Typography>
                               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
@@ -1126,7 +1262,7 @@ export default function LogisticianView({ token, activeSection }) {
                           </TableRow>
                         </TableHead>
                         <TableBody>
-                          {(activePreviewRoute.displayStops || []).map((point) => (
+                          {activePreviewStops.map((point) => (
                             <TableRow key={`${activePreviewRoute.driverId}-${point.stopKey}`}>
                               <TableCell>{point.tripNumber}</TableCell>
                               <TableCell>{point.displayStopSequence ?? point.stopSequence}</TableCell>
@@ -1146,11 +1282,7 @@ export default function LogisticianView({ token, activeSection }) {
                       </Table>
                     </TableContainer>
                   </Stack>
-                ) : (
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }}>
-                    Выберите конкретного водителя, чтобы отдельно посмотреть его точки доставки по рейсам.
-                  </Typography>
-                )}
+                ) : null}
               </Paper>
             </Stack>
           ) : (

@@ -1,0 +1,986 @@
+- generic [ref=e2]:
+  - link "Перейти к основному содержимому" [ref=e25] [cursor=pointer]:
+    - /url: "#main-content"
+  - generic [ref=e26]:
+    - complementary "Боковая панель" [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]: Л
+        - generic [ref=e32]:
+          - heading "Логист" [level=6] [ref=e33]
+          - generic [ref=e34]: Логист
+      - generic [ref=e35]: Навигация
+      - navigation "Основная навигация" [ref=e36]:
+        - list [ref=e37]:
+          - listitem [ref=e38]:
+            - button "Назначения" [ref=e39] [cursor=pointer]:
+              - img [ref=e41]
+              - generic [ref=e44]: Назначения
+    - main [ref=e45]:
+      - generic [ref=e47]:
+        - heading "Назначения" [level=1] [ref=e49]
+        - button "Выйти" [ref=e50] [cursor=pointer]:
+          - generic [ref=e51]: Выйти
+      - generic [ref=e55]:
+        - generic [ref=e56]:
+          - generic [ref=e57]:
+            - heading "Логистика и назначения" [level=5] [ref=e58]
+            - paragraph [ref=e59]: Отображаются только одобренные менеджером заявки.
+          - button "Транспортная задача" [ref=e61] [cursor=pointer]
+        - generic [ref=e65]:
+          - generic [ref=e66]:
+            - heading "К назначению" [level=6] [ref=e67]
+            - heading "37" [level=4] [ref=e68]
+          - img [ref=e70]
+        - generic [ref=e72]:
+          - generic [ref=e74]:
+            - generic [ref=e76]:
+              - img [ref=e78]
+              - textbox "Поиск по заказам" [ref=e80]:
+                - /placeholder: Поиск по заказам...
+              - group
+            - generic [ref=e81]:
+              - generic [ref=e82]:
+                - generic: Статус
+                - generic [ref=e83]:
+                  - combobox "Статус Фильтр по статусу заказа" [ref=e84] [cursor=pointer]
+                  - textbox
+                  - img
+                  - group:
+                    - generic: Статус
+              - generic:
+                - generic: 37 из 37
+          - table "таблица заказов" [ref=e85]:
+            - rowgroup [ref=e86]:
+              - row "№ Директор Адрес доставки Статус Дата Действия" [ref=e87]:
+                - columnheader "№" [ref=e88]
+                - columnheader "Директор" [ref=e89]
+                - columnheader "Адрес доставки" [ref=e90]
+                - columnheader "Статус" [ref=e91]
+                - columnheader "Дата" [ref=e92]
+                - columnheader "Действия" [ref=e93]
+            - rowgroup [ref=e94]:
+              - 'row "#452 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Челюскинцев 105 Подробнее Одобрен 17.03.26, 23:26 Выбор водителя для заказа #452 Назначить История" [ref=e95]':
+                - cell "#452" [ref=e96]:
+                  - heading "#452" [level=6] [ref=e97]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e98]':
+                  - generic [ref=e99]:
+                    - paragraph [ref=e100]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e101]'
+                - cell "Могилёв, ул. Челюскинцев 105 Подробнее" [ref=e102]:
+                  - generic [ref=e103]:
+                    - paragraph [ref=e104]: Могилёв, ул. Челюскинцев 105
+                    - button "Подробнее" [ref=e105] [cursor=pointer]
+                - cell "Одобрен" [ref=e106]:
+                  - generic [ref=e108]: Одобрен
+                - cell "17.03.26, 23:26" [ref=e109]
+                - 'cell "Выбор водителя для заказа #452 Назначить История" [ref=e110]':
+                  - generic [ref=e111]:
+                    - generic [ref=e113]:
+                      - 'combobox "Выбор водителя для заказа #452" [ref=e114] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e115] [cursor=pointer]
+                    - button "История" [ref=e116] [cursor=pointer]:
+                      - img [ref=e118]
+                      - text: История
+              - 'row "#451 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Белыницкого-Бирули 10 Подробнее Одобрен 17.03.26, 22:33 Выбор водителя для заказа #451 Назначить История" [ref=e120]':
+                - cell "#451" [ref=e121]:
+                  - heading "#451" [level=6] [ref=e122]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e123]':
+                  - generic [ref=e124]:
+                    - paragraph [ref=e125]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e126]'
+                - cell "Могилёв, ул. Белыницкого-Бирули 10 Подробнее" [ref=e127]:
+                  - generic [ref=e128]:
+                    - paragraph [ref=e129]: Могилёв, ул. Белыницкого-Бирули 10
+                    - button "Подробнее" [ref=e130] [cursor=pointer]
+                - cell "Одобрен" [ref=e131]:
+                  - generic [ref=e133]: Одобрен
+                - cell "17.03.26, 22:33" [ref=e134]
+                - 'cell "Выбор водителя для заказа #451 Назначить История" [ref=e135]':
+                  - generic [ref=e136]:
+                    - generic [ref=e138]:
+                      - 'combobox "Выбор водителя для заказа #451" [ref=e139] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e140] [cursor=pointer]
+                    - button "История" [ref=e141] [cursor=pointer]:
+                      - img [ref=e143]
+                      - text: История
+              - 'row "#450 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Белыницкого-Бирули 10 Подробнее Одобрен 17.03.26, 22:15 Выбор водителя для заказа #450 Назначить История" [ref=e145]':
+                - cell "#450" [ref=e146]:
+                  - heading "#450" [level=6] [ref=e147]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e148]':
+                  - generic [ref=e149]:
+                    - paragraph [ref=e150]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e151]'
+                - cell "Могилёв, ул. Белыницкого-Бирули 10 Подробнее" [ref=e152]:
+                  - generic [ref=e153]:
+                    - paragraph [ref=e154]: Могилёв, ул. Белыницкого-Бирули 10
+                    - button "Подробнее" [ref=e155] [cursor=pointer]
+                - cell "Одобрен" [ref=e156]:
+                  - generic [ref=e158]: Одобрен
+                - cell "17.03.26, 22:15" [ref=e159]
+                - 'cell "Выбор водителя для заказа #450 Назначить История" [ref=e160]':
+                  - generic [ref=e161]:
+                    - generic [ref=e163]:
+                      - 'combobox "Выбор водителя для заказа #450" [ref=e164] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e165] [cursor=pointer]
+                    - button "История" [ref=e166] [cursor=pointer]:
+                      - img [ref=e168]
+                      - text: История
+              - 'row "#449 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Сурганова 19 Подробнее Одобрен 17.03.26, 22:11 Выбор водителя для заказа #449 Назначить История" [ref=e170]':
+                - cell "#449" [ref=e171]:
+                  - heading "#449" [level=6] [ref=e172]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e173]':
+                  - generic [ref=e174]:
+                    - paragraph [ref=e175]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e176]'
+                - cell "Могилёв, ул. Сурганова 19 Подробнее" [ref=e177]:
+                  - generic [ref=e178]:
+                    - paragraph [ref=e179]: Могилёв, ул. Сурганова 19
+                    - button "Подробнее" [ref=e180] [cursor=pointer]
+                - cell "Одобрен" [ref=e181]:
+                  - generic [ref=e183]: Одобрен
+                - cell "17.03.26, 22:11" [ref=e184]
+                - 'cell "Выбор водителя для заказа #449 Назначить История" [ref=e185]':
+                  - generic [ref=e186]:
+                    - generic [ref=e188]:
+                      - 'combobox "Выбор водителя для заказа #449" [ref=e189] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e190] [cursor=pointer]
+                    - button "История" [ref=e191] [cursor=pointer]:
+                      - img [ref=e193]
+                      - text: История
+              - 'row "#448 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Пионерская 5 Подробнее Одобрен 17.03.26, 22:07 Выбор водителя для заказа #448 Назначить История" [ref=e195]':
+                - cell "#448" [ref=e196]:
+                  - heading "#448" [level=6] [ref=e197]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e198]':
+                  - generic [ref=e199]:
+                    - paragraph [ref=e200]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e201]'
+                - cell "Могилёв, ул. Пионерская 5 Подробнее" [ref=e202]:
+                  - generic [ref=e203]:
+                    - paragraph [ref=e204]: Могилёв, ул. Пионерская 5
+                    - button "Подробнее" [ref=e205] [cursor=pointer]
+                - cell "Одобрен" [ref=e206]:
+                  - generic [ref=e208]: Одобрен
+                - cell "17.03.26, 22:07" [ref=e209]
+                - 'cell "Выбор водителя для заказа #448 Назначить История" [ref=e210]':
+                  - generic [ref=e211]:
+                    - generic [ref=e213]:
+                      - 'combobox "Выбор водителя для заказа #448" [ref=e214] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e215] [cursor=pointer]
+                    - button "История" [ref=e216] [cursor=pointer]:
+                      - img [ref=e218]
+                      - text: История
+              - 'row "#447 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Гришина 92 Подробнее Одобрен 17.03.26, 22:03 Выбор водителя для заказа #447 Назначить История" [ref=e220]':
+                - cell "#447" [ref=e221]:
+                  - heading "#447" [level=6] [ref=e222]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e223]':
+                  - generic [ref=e224]:
+                    - paragraph [ref=e225]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e226]'
+                - cell "Могилёв, ул. Гришина 92 Подробнее" [ref=e227]:
+                  - generic [ref=e228]:
+                    - paragraph [ref=e229]: Могилёв, ул. Гришина 92
+                    - button "Подробнее" [ref=e230] [cursor=pointer]
+                - cell "Одобрен" [ref=e231]:
+                  - generic [ref=e233]: Одобрен
+                - cell "17.03.26, 22:03" [ref=e234]
+                - 'cell "Выбор водителя для заказа #447 Назначить История" [ref=e235]':
+                  - generic [ref=e236]:
+                    - generic [ref=e238]:
+                      - 'combobox "Выбор водителя для заказа #447" [ref=e239] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e240] [cursor=pointer]
+                    - button "История" [ref=e241] [cursor=pointer]:
+                      - img [ref=e243]
+                      - text: История
+              - 'row "#446 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Ямницкая 71 Подробнее Одобрен 17.03.26, 21:59 Выбор водителя для заказа #446 Назначить История" [ref=e245]':
+                - cell "#446" [ref=e246]:
+                  - heading "#446" [level=6] [ref=e247]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e248]':
+                  - generic [ref=e249]:
+                    - paragraph [ref=e250]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e251]'
+                - cell "Могилёв, ул. Ямницкая 71 Подробнее" [ref=e252]:
+                  - generic [ref=e253]:
+                    - paragraph [ref=e254]: Могилёв, ул. Ямницкая 71
+                    - button "Подробнее" [ref=e255] [cursor=pointer]
+                - cell "Одобрен" [ref=e256]:
+                  - generic [ref=e258]: Одобрен
+                - cell "17.03.26, 21:59" [ref=e259]
+                - 'cell "Выбор водителя для заказа #446 Назначить История" [ref=e260]':
+                  - generic [ref=e261]:
+                    - generic [ref=e263]:
+                      - 'combobox "Выбор водителя для заказа #446" [ref=e264] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e265] [cursor=pointer]
+                    - button "История" [ref=e266] [cursor=pointer]:
+                      - img [ref=e268]
+                      - text: История
+              - 'row "#445 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Фатина 27 Подробнее Одобрен 17.03.26, 21:55 Выбор водителя для заказа #445 Назначить История" [ref=e270]':
+                - cell "#445" [ref=e271]:
+                  - heading "#445" [level=6] [ref=e272]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e273]':
+                  - generic [ref=e274]:
+                    - paragraph [ref=e275]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e276]'
+                - cell "Могилёв, ул. Фатина 27 Подробнее" [ref=e277]:
+                  - generic [ref=e278]:
+                    - paragraph [ref=e279]: Могилёв, ул. Фатина 27
+                    - button "Подробнее" [ref=e280] [cursor=pointer]
+                - cell "Одобрен" [ref=e281]:
+                  - generic [ref=e283]: Одобрен
+                - cell "17.03.26, 21:55" [ref=e284]
+                - 'cell "Выбор водителя для заказа #445 Назначить История" [ref=e285]':
+                  - generic [ref=e286]:
+                    - generic [ref=e288]:
+                      - 'combobox "Выбор водителя для заказа #445" [ref=e289] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e290] [cursor=pointer]
+                    - button "История" [ref=e291] [cursor=pointer]:
+                      - img [ref=e293]
+                      - text: История
+              - 'row "#444 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Строителей 14 Подробнее Одобрен 17.03.26, 21:51 Выбор водителя для заказа #444 Назначить История" [ref=e295]':
+                - cell "#444" [ref=e296]:
+                  - heading "#444" [level=6] [ref=e297]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e298]':
+                  - generic [ref=e299]:
+                    - paragraph [ref=e300]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e301]'
+                - cell "Могилёв, ул. Строителей 14 Подробнее" [ref=e302]:
+                  - generic [ref=e303]:
+                    - paragraph [ref=e304]: Могилёв, ул. Строителей 14
+                    - button "Подробнее" [ref=e305] [cursor=pointer]
+                - cell "Одобрен" [ref=e306]:
+                  - generic [ref=e308]: Одобрен
+                - cell "17.03.26, 21:51" [ref=e309]
+                - 'cell "Выбор водителя для заказа #444 Назначить История" [ref=e310]':
+                  - generic [ref=e311]:
+                    - generic [ref=e313]:
+                      - 'combobox "Выбор водителя для заказа #444" [ref=e314] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e315] [cursor=pointer]
+                    - button "История" [ref=e316] [cursor=pointer]:
+                      - img [ref=e318]
+                      - text: История
+              - 'row "#443 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, Днепровский б-р 25 Подробнее Одобрен 17.03.26, 21:47 Выбор водителя для заказа #443 Назначить История" [ref=e320]':
+                - cell "#443" [ref=e321]:
+                  - heading "#443" [level=6] [ref=e322]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e323]':
+                  - generic [ref=e324]:
+                    - paragraph [ref=e325]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e326]'
+                - cell "Могилёв, Днепровский б-р 25 Подробнее" [ref=e327]:
+                  - generic [ref=e328]:
+                    - paragraph [ref=e329]: Могилёв, Днепровский б-р 25
+                    - button "Подробнее" [ref=e330] [cursor=pointer]
+                - cell "Одобрен" [ref=e331]:
+                  - generic [ref=e333]: Одобрен
+                - cell "17.03.26, 21:47" [ref=e334]
+                - 'cell "Выбор водителя для заказа #443 Назначить История" [ref=e335]':
+                  - generic [ref=e336]:
+                    - generic [ref=e338]:
+                      - 'combobox "Выбор водителя для заказа #443" [ref=e339] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e340] [cursor=pointer]
+                    - button "История" [ref=e341] [cursor=pointer]:
+                      - img [ref=e343]
+                      - text: История
+              - 'row "#442 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Бялыницкого-Бирули 44 Подробнее Одобрен 17.03.26, 21:43 Выбор водителя для заказа #442 Назначить История" [ref=e345]':
+                - cell "#442" [ref=e346]:
+                  - heading "#442" [level=6] [ref=e347]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e348]':
+                  - generic [ref=e349]:
+                    - paragraph [ref=e350]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e351]'
+                - cell "Могилёв, ул. Бялыницкого-Бирули 44 Подробнее" [ref=e352]:
+                  - generic [ref=e353]:
+                    - paragraph [ref=e354]: Могилёв, ул. Бялыницкого-Бирули 44
+                    - button "Подробнее" [ref=e355] [cursor=pointer]
+                - cell "Одобрен" [ref=e356]:
+                  - generic [ref=e358]: Одобрен
+                - cell "17.03.26, 21:43" [ref=e359]
+                - 'cell "Выбор водителя для заказа #442 Назначить История" [ref=e360]':
+                  - generic [ref=e361]:
+                    - generic [ref=e363]:
+                      - 'combobox "Выбор водителя для заказа #442" [ref=e364] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e365] [cursor=pointer]
+                    - button "История" [ref=e366] [cursor=pointer]:
+                      - img [ref=e368]
+                      - text: История
+              - 'row "#441 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Мовчанского 12 Подробнее Одобрен 17.03.26, 21:39 Выбор водителя для заказа #441 Назначить История" [ref=e370]':
+                - cell "#441" [ref=e371]:
+                  - heading "#441" [level=6] [ref=e372]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e373]':
+                  - generic [ref=e374]:
+                    - paragraph [ref=e375]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e376]'
+                - cell "Могилёв, ул. Мовчанского 12 Подробнее" [ref=e377]:
+                  - generic [ref=e378]:
+                    - paragraph [ref=e379]: Могилёв, ул. Мовчанского 12
+                    - button "Подробнее" [ref=e380] [cursor=pointer]
+                - cell "Одобрен" [ref=e381]:
+                  - generic [ref=e383]: Одобрен
+                - cell "17.03.26, 21:39" [ref=e384]
+                - 'cell "Выбор водителя для заказа #441 Назначить История" [ref=e385]':
+                  - generic [ref=e386]:
+                    - generic [ref=e388]:
+                      - 'combobox "Выбор водителя для заказа #441" [ref=e389] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e390] [cursor=pointer]
+                    - button "История" [ref=e391] [cursor=pointer]:
+                      - img [ref=e393]
+                      - text: История
+              - 'row "#440 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Габровская 63 Подробнее Одобрен 17.03.26, 21:35 Выбор водителя для заказа #440 Назначить История" [ref=e395]':
+                - cell "#440" [ref=e396]:
+                  - heading "#440" [level=6] [ref=e397]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e398]':
+                  - generic [ref=e399]:
+                    - paragraph [ref=e400]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e401]'
+                - cell "Могилёв, ул. Габровская 63 Подробнее" [ref=e402]:
+                  - generic [ref=e403]:
+                    - paragraph [ref=e404]: Могилёв, ул. Габровская 63
+                    - button "Подробнее" [ref=e405] [cursor=pointer]
+                - cell "Одобрен" [ref=e406]:
+                  - generic [ref=e408]: Одобрен
+                - cell "17.03.26, 21:35" [ref=e409]
+                - 'cell "Выбор водителя для заказа #440 Назначить История" [ref=e410]':
+                  - generic [ref=e411]:
+                    - generic [ref=e413]:
+                      - 'combobox "Выбор водителя для заказа #440" [ref=e414] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e415] [cursor=pointer]
+                    - button "История" [ref=e416] [cursor=pointer]:
+                      - img [ref=e418]
+                      - text: История
+              - 'row "#439 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, Витебский пр-т 11 Подробнее Одобрен 17.03.26, 21:31 Выбор водителя для заказа #439 Назначить История" [ref=e420]':
+                - cell "#439" [ref=e421]:
+                  - heading "#439" [level=6] [ref=e422]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e423]':
+                  - generic [ref=e424]:
+                    - paragraph [ref=e425]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e426]'
+                - cell "Могилёв, Витебский пр-т 11 Подробнее" [ref=e427]:
+                  - generic [ref=e428]:
+                    - paragraph [ref=e429]: Могилёв, Витебский пр-т 11
+                    - button "Подробнее" [ref=e430] [cursor=pointer]
+                - cell "Одобрен" [ref=e431]:
+                  - generic [ref=e433]: Одобрен
+                - cell "17.03.26, 21:31" [ref=e434]
+                - 'cell "Выбор водителя для заказа #439 Назначить История" [ref=e435]':
+                  - generic [ref=e436]:
+                    - generic [ref=e438]:
+                      - 'combobox "Выбор водителя для заказа #439" [ref=e439] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e440] [cursor=pointer]
+                    - button "История" [ref=e441] [cursor=pointer]:
+                      - img [ref=e443]
+                      - text: История
+              - 'row "#438 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Челюскинцев 123 Подробнее Одобрен 17.03.26, 21:27 Выбор водителя для заказа #438 Назначить История" [ref=e445]':
+                - cell "#438" [ref=e446]:
+                  - heading "#438" [level=6] [ref=e447]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e448]':
+                  - generic [ref=e449]:
+                    - paragraph [ref=e450]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e451]'
+                - cell "Могилёв, ул. Челюскинцев 123 Подробнее" [ref=e452]:
+                  - generic [ref=e453]:
+                    - paragraph [ref=e454]: Могилёв, ул. Челюскинцев 123
+                    - button "Подробнее" [ref=e455] [cursor=pointer]
+                - cell "Одобрен" [ref=e456]:
+                  - generic [ref=e458]: Одобрен
+                - cell "17.03.26, 21:27" [ref=e459]
+                - 'cell "Выбор водителя для заказа #438 Назначить История" [ref=e460]':
+                  - generic [ref=e461]:
+                    - generic [ref=e463]:
+                      - 'combobox "Выбор водителя для заказа #438" [ref=e464] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e465] [cursor=pointer]
+                    - button "История" [ref=e466] [cursor=pointer]:
+                      - img [ref=e468]
+                      - text: История
+              - 'row "#437 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Космонавтов 41 Подробнее Одобрен 17.03.26, 21:23 Выбор водителя для заказа #437 Назначить История" [ref=e470]':
+                - cell "#437" [ref=e471]:
+                  - heading "#437" [level=6] [ref=e472]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e473]':
+                  - generic [ref=e474]:
+                    - paragraph [ref=e475]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e476]'
+                - cell "Могилёв, ул. Космонавтов 41 Подробнее" [ref=e477]:
+                  - generic [ref=e478]:
+                    - paragraph [ref=e479]: Могилёв, ул. Космонавтов 41
+                    - button "Подробнее" [ref=e480] [cursor=pointer]
+                - cell "Одобрен" [ref=e481]:
+                  - generic [ref=e483]: Одобрен
+                - cell "17.03.26, 21:23" [ref=e484]
+                - 'cell "Выбор водителя для заказа #437 Назначить История" [ref=e485]':
+                  - generic [ref=e486]:
+                    - generic [ref=e488]:
+                      - 'combobox "Выбор водителя для заказа #437" [ref=e489] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e490] [cursor=pointer]
+                    - button "История" [ref=e491] [cursor=pointer]:
+                      - img [ref=e493]
+                      - text: История
+              - 'row "#436 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Терехина 16 Подробнее Одобрен 17.03.26, 21:19 Выбор водителя для заказа #436 Назначить История" [ref=e495]':
+                - cell "#436" [ref=e496]:
+                  - heading "#436" [level=6] [ref=e497]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e498]':
+                  - generic [ref=e499]:
+                    - paragraph [ref=e500]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e501]'
+                - cell "Могилёв, ул. Терехина 16 Подробнее" [ref=e502]:
+                  - generic [ref=e503]:
+                    - paragraph [ref=e504]: Могилёв, ул. Терехина 16
+                    - button "Подробнее" [ref=e505] [cursor=pointer]
+                - cell "Одобрен" [ref=e506]:
+                  - generic [ref=e508]: Одобрен
+                - cell "17.03.26, 21:19" [ref=e509]
+                - 'cell "Выбор водителя для заказа #436 Назначить История" [ref=e510]':
+                  - generic [ref=e511]:
+                    - generic [ref=e513]:
+                      - 'combobox "Выбор водителя для заказа #436" [ref=e514] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e515] [cursor=pointer]
+                    - button "История" [ref=e516] [cursor=pointer]:
+                      - img [ref=e518]
+                      - text: История
+              - 'row "#435 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Симонова 29 Подробнее Одобрен 17.03.26, 21:17 Выбор водителя для заказа #435 Назначить История" [ref=e520]':
+                - cell "#435" [ref=e521]:
+                  - heading "#435" [level=6] [ref=e522]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e523]':
+                  - generic [ref=e524]:
+                    - paragraph [ref=e525]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e526]'
+                - cell "Могилёв, ул. Симонова 29 Подробнее" [ref=e527]:
+                  - generic [ref=e528]:
+                    - paragraph [ref=e529]: Могилёв, ул. Симонова 29
+                    - button "Подробнее" [ref=e530] [cursor=pointer]
+                - cell "Одобрен" [ref=e531]:
+                  - generic [ref=e533]: Одобрен
+                - cell "17.03.26, 21:17" [ref=e534]
+                - 'cell "Выбор водителя для заказа #435 Назначить История" [ref=e535]':
+                  - generic [ref=e536]:
+                    - generic [ref=e538]:
+                      - 'combobox "Выбор водителя для заказа #435" [ref=e539] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e540] [cursor=pointer]
+                    - button "История" [ref=e541] [cursor=pointer]:
+                      - img [ref=e543]
+                      - text: История
+              - 'row "#434 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Симонова 29 Подробнее Одобрен 17.03.26, 21:15 Выбор водителя для заказа #434 Назначить История" [ref=e545]':
+                - cell "#434" [ref=e546]:
+                  - heading "#434" [level=6] [ref=e547]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e548]':
+                  - generic [ref=e549]:
+                    - paragraph [ref=e550]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e551]'
+                - cell "Могилёв, ул. Симонова 29 Подробнее" [ref=e552]:
+                  - generic [ref=e553]:
+                    - paragraph [ref=e554]: Могилёв, ул. Симонова 29
+                    - button "Подробнее" [ref=e555] [cursor=pointer]
+                - cell "Одобрен" [ref=e556]:
+                  - generic [ref=e558]: Одобрен
+                - cell "17.03.26, 21:15" [ref=e559]
+                - 'cell "Выбор водителя для заказа #434 Назначить История" [ref=e560]':
+                  - generic [ref=e561]:
+                    - generic [ref=e563]:
+                      - 'combobox "Выбор водителя для заказа #434" [ref=e564] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e565] [cursor=pointer]
+                    - button "История" [ref=e566] [cursor=pointer]:
+                      - img [ref=e568]
+                      - text: История
+              - 'row "#433 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Островского 21 Подробнее Одобрен 17.03.26, 21:13 Выбор водителя для заказа #433 Назначить История" [ref=e570]':
+                - cell "#433" [ref=e571]:
+                  - heading "#433" [level=6] [ref=e572]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e573]':
+                  - generic [ref=e574]:
+                    - paragraph [ref=e575]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e576]'
+                - cell "Могилёв, ул. Островского 21 Подробнее" [ref=e577]:
+                  - generic [ref=e578]:
+                    - paragraph [ref=e579]: Могилёв, ул. Островского 21
+                    - button "Подробнее" [ref=e580] [cursor=pointer]
+                - cell "Одобрен" [ref=e581]:
+                  - generic [ref=e583]: Одобрен
+                - cell "17.03.26, 21:13" [ref=e584]
+                - 'cell "Выбор водителя для заказа #433 Назначить История" [ref=e585]':
+                  - generic [ref=e586]:
+                    - generic [ref=e588]:
+                      - 'combobox "Выбор водителя для заказа #433" [ref=e589] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e590] [cursor=pointer]
+                    - button "История" [ref=e591] [cursor=pointer]:
+                      - img [ref=e593]
+                      - text: История
+              - 'row "#432 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Островского 21 Подробнее Одобрен 17.03.26, 21:11 Выбор водителя для заказа #432 Назначить История" [ref=e595]':
+                - cell "#432" [ref=e596]:
+                  - heading "#432" [level=6] [ref=e597]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e598]':
+                  - generic [ref=e599]:
+                    - paragraph [ref=e600]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e601]'
+                - cell "Могилёв, ул. Островского 21 Подробнее" [ref=e602]:
+                  - generic [ref=e603]:
+                    - paragraph [ref=e604]: Могилёв, ул. Островского 21
+                    - button "Подробнее" [ref=e605] [cursor=pointer]
+                - cell "Одобрен" [ref=e606]:
+                  - generic [ref=e608]: Одобрен
+                - cell "17.03.26, 21:11" [ref=e609]
+                - 'cell "Выбор водителя для заказа #432 Назначить История" [ref=e610]':
+                  - generic [ref=e611]:
+                    - generic [ref=e613]:
+                      - 'combobox "Выбор водителя для заказа #432" [ref=e614] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e615] [cursor=pointer]
+                    - button "История" [ref=e616] [cursor=pointer]:
+                      - img [ref=e618]
+                      - text: История
+              - 'row "#431 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, Пушкинский пр-т 52 Подробнее Одобрен 17.03.26, 21:09 Выбор водителя для заказа #431 Назначить История" [ref=e620]':
+                - cell "#431" [ref=e621]:
+                  - heading "#431" [level=6] [ref=e622]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e623]':
+                  - generic [ref=e624]:
+                    - paragraph [ref=e625]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e626]'
+                - cell "Могилёв, Пушкинский пр-т 52 Подробнее" [ref=e627]:
+                  - generic [ref=e628]:
+                    - paragraph [ref=e629]: Могилёв, Пушкинский пр-т 52
+                    - button "Подробнее" [ref=e630] [cursor=pointer]
+                - cell "Одобрен" [ref=e631]:
+                  - generic [ref=e633]: Одобрен
+                - cell "17.03.26, 21:09" [ref=e634]
+                - 'cell "Выбор водителя для заказа #431 Назначить История" [ref=e635]':
+                  - generic [ref=e636]:
+                    - generic [ref=e638]:
+                      - 'combobox "Выбор водителя для заказа #431" [ref=e639] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e640] [cursor=pointer]
+                    - button "История" [ref=e641] [cursor=pointer]:
+                      - img [ref=e643]
+                      - text: История
+              - 'row "#430 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, Пушкинский пр-т 52 Подробнее Одобрен 17.03.26, 21:07 Выбор водителя для заказа #430 Назначить История" [ref=e645]':
+                - cell "#430" [ref=e646]:
+                  - heading "#430" [level=6] [ref=e647]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e648]':
+                  - generic [ref=e649]:
+                    - paragraph [ref=e650]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e651]'
+                - cell "Могилёв, Пушкинский пр-т 52 Подробнее" [ref=e652]:
+                  - generic [ref=e653]:
+                    - paragraph [ref=e654]: Могилёв, Пушкинский пр-т 52
+                    - button "Подробнее" [ref=e655] [cursor=pointer]
+                - cell "Одобрен" [ref=e656]:
+                  - generic [ref=e658]: Одобрен
+                - cell "17.03.26, 21:07" [ref=e659]
+                - 'cell "Выбор водителя для заказа #430 Назначить История" [ref=e660]':
+                  - generic [ref=e661]:
+                    - generic [ref=e663]:
+                      - 'combobox "Выбор водителя для заказа #430" [ref=e664] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e665] [cursor=pointer]
+                    - button "История" [ref=e666] [cursor=pointer]:
+                      - img [ref=e668]
+                      - text: История
+              - 'row "#429 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Якубовского 18 Подробнее Одобрен 17.03.26, 21:05 Выбор водителя для заказа #429 Назначить История" [ref=e670]':
+                - cell "#429" [ref=e671]:
+                  - heading "#429" [level=6] [ref=e672]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e673]':
+                  - generic [ref=e674]:
+                    - paragraph [ref=e675]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e676]'
+                - cell "Могилёв, ул. Якубовского 18 Подробнее" [ref=e677]:
+                  - generic [ref=e678]:
+                    - paragraph [ref=e679]: Могилёв, ул. Якубовского 18
+                    - button "Подробнее" [ref=e680] [cursor=pointer]
+                - cell "Одобрен" [ref=e681]:
+                  - generic [ref=e683]: Одобрен
+                - cell "17.03.26, 21:05" [ref=e684]
+                - 'cell "Выбор водителя для заказа #429 Назначить История" [ref=e685]':
+                  - generic [ref=e686]:
+                    - generic [ref=e688]:
+                      - 'combobox "Выбор водителя для заказа #429" [ref=e689] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e690] [cursor=pointer]
+                    - button "История" [ref=e691] [cursor=pointer]:
+                      - img [ref=e693]
+                      - text: История
+              - 'row "#428 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Якубовского 18 Подробнее Одобрен 17.03.26, 21:03 Выбор водителя для заказа #428 Назначить История" [ref=e695]':
+                - cell "#428" [ref=e696]:
+                  - heading "#428" [level=6] [ref=e697]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e698]':
+                  - generic [ref=e699]:
+                    - paragraph [ref=e700]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e701]'
+                - cell "Могилёв, ул. Якубовского 18 Подробнее" [ref=e702]:
+                  - generic [ref=e703]:
+                    - paragraph [ref=e704]: Могилёв, ул. Якубовского 18
+                    - button "Подробнее" [ref=e705] [cursor=pointer]
+                - cell "Одобрен" [ref=e706]:
+                  - generic [ref=e708]: Одобрен
+                - cell "17.03.26, 21:03" [ref=e709]
+                - 'cell "Выбор водителя для заказа #428 Назначить История" [ref=e710]':
+                  - generic [ref=e711]:
+                    - generic [ref=e713]:
+                      - 'combobox "Выбор водителя для заказа #428" [ref=e714] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e715] [cursor=pointer]
+                    - button "История" [ref=e716] [cursor=pointer]:
+                      - img [ref=e718]
+                      - text: История
+              - 'row "#427 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Гагарина 33 Подробнее Одобрен 17.03.26, 21:01 Выбор водителя для заказа #427 Назначить История" [ref=e720]':
+                - cell "#427" [ref=e721]:
+                  - heading "#427" [level=6] [ref=e722]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e723]':
+                  - generic [ref=e724]:
+                    - paragraph [ref=e725]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e726]'
+                - cell "Могилёв, ул. Гагарина 33 Подробнее" [ref=e727]:
+                  - generic [ref=e728]:
+                    - paragraph [ref=e729]: Могилёв, ул. Гагарина 33
+                    - button "Подробнее" [ref=e730] [cursor=pointer]
+                - cell "Одобрен" [ref=e731]:
+                  - generic [ref=e733]: Одобрен
+                - cell "17.03.26, 21:01" [ref=e734]
+                - 'cell "Выбор водителя для заказа #427 Назначить История" [ref=e735]':
+                  - generic [ref=e736]:
+                    - generic [ref=e738]:
+                      - 'combobox "Выбор водителя для заказа #427" [ref=e739] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e740] [cursor=pointer]
+                    - button "История" [ref=e741] [cursor=pointer]:
+                      - img [ref=e743]
+                      - text: История
+              - 'row "#426 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Гагарина 33 Подробнее Одобрен 17.03.26, 20:59 Выбор водителя для заказа #426 Назначить История" [ref=e745]':
+                - cell "#426" [ref=e746]:
+                  - heading "#426" [level=6] [ref=e747]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e748]':
+                  - generic [ref=e749]:
+                    - paragraph [ref=e750]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e751]'
+                - cell "Могилёв, ул. Гагарина 33 Подробнее" [ref=e752]:
+                  - generic [ref=e753]:
+                    - paragraph [ref=e754]: Могилёв, ул. Гагарина 33
+                    - button "Подробнее" [ref=e755] [cursor=pointer]
+                - cell "Одобрен" [ref=e756]:
+                  - generic [ref=e758]: Одобрен
+                - cell "17.03.26, 20:59" [ref=e759]
+                - 'cell "Выбор водителя для заказа #426 Назначить История" [ref=e760]':
+                  - generic [ref=e761]:
+                    - generic [ref=e763]:
+                      - 'combobox "Выбор водителя для заказа #426" [ref=e764] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e765] [cursor=pointer]
+                    - button "История" [ref=e766] [cursor=pointer]:
+                      - img [ref=e768]
+                      - text: История
+              - 'row "#425 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Крупской 51 Подробнее Одобрен 17.03.26, 20:57 Выбор водителя для заказа #425 Назначить История" [ref=e770]':
+                - cell "#425" [ref=e771]:
+                  - heading "#425" [level=6] [ref=e772]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e773]':
+                  - generic [ref=e774]:
+                    - paragraph [ref=e775]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e776]'
+                - cell "Могилёв, ул. Крупской 51 Подробнее" [ref=e777]:
+                  - generic [ref=e778]:
+                    - paragraph [ref=e779]: Могилёв, ул. Крупской 51
+                    - button "Подробнее" [ref=e780] [cursor=pointer]
+                - cell "Одобрен" [ref=e781]:
+                  - generic [ref=e783]: Одобрен
+                - cell "17.03.26, 20:57" [ref=e784]
+                - 'cell "Выбор водителя для заказа #425 Назначить История" [ref=e785]':
+                  - generic [ref=e786]:
+                    - generic [ref=e788]:
+                      - 'combobox "Выбор водителя для заказа #425" [ref=e789] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e790] [cursor=pointer]
+                    - button "История" [ref=e791] [cursor=pointer]:
+                      - img [ref=e793]
+                      - text: История
+              - 'row "#424 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Крупской 51 Подробнее Одобрен 17.03.26, 20:55 Выбор водителя для заказа #424 Назначить История" [ref=e795]':
+                - cell "#424" [ref=e796]:
+                  - heading "#424" [level=6] [ref=e797]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e798]':
+                  - generic [ref=e799]:
+                    - paragraph [ref=e800]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e801]'
+                - cell "Могилёв, ул. Крупской 51 Подробнее" [ref=e802]:
+                  - generic [ref=e803]:
+                    - paragraph [ref=e804]: Могилёв, ул. Крупской 51
+                    - button "Подробнее" [ref=e805] [cursor=pointer]
+                - cell "Одобрен" [ref=e806]:
+                  - generic [ref=e808]: Одобрен
+                - cell "17.03.26, 20:55" [ref=e809]
+                - 'cell "Выбор водителя для заказа #424 Назначить История" [ref=e810]':
+                  - generic [ref=e811]:
+                    - generic [ref=e813]:
+                      - 'combobox "Выбор водителя для заказа #424" [ref=e814] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e815] [cursor=pointer]
+                    - button "История" [ref=e816] [cursor=pointer]:
+                      - img [ref=e818]
+                      - text: История
+              - 'row "#423 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Болдина 27 Подробнее Одобрен 17.03.26, 20:53 Выбор водителя для заказа #423 Назначить История" [ref=e820]':
+                - cell "#423" [ref=e821]:
+                  - heading "#423" [level=6] [ref=e822]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e823]':
+                  - generic [ref=e824]:
+                    - paragraph [ref=e825]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e826]'
+                - cell "Могилёв, ул. Болдина 27 Подробнее" [ref=e827]:
+                  - generic [ref=e828]:
+                    - paragraph [ref=e829]: Могилёв, ул. Болдина 27
+                    - button "Подробнее" [ref=e830] [cursor=pointer]
+                - cell "Одобрен" [ref=e831]:
+                  - generic [ref=e833]: Одобрен
+                - cell "17.03.26, 20:53" [ref=e834]
+                - 'cell "Выбор водителя для заказа #423 Назначить История" [ref=e835]':
+                  - generic [ref=e836]:
+                    - generic [ref=e838]:
+                      - 'combobox "Выбор водителя для заказа #423" [ref=e839] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e840] [cursor=pointer]
+                    - button "История" [ref=e841] [cursor=pointer]:
+                      - img [ref=e843]
+                      - text: История
+              - 'row "#422 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Болдина 27 Подробнее Одобрен 17.03.26, 20:51 Выбор водителя для заказа #422 Назначить История" [ref=e845]':
+                - cell "#422" [ref=e846]:
+                  - heading "#422" [level=6] [ref=e847]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e848]':
+                  - generic [ref=e849]:
+                    - paragraph [ref=e850]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e851]'
+                - cell "Могилёв, ул. Болдина 27 Подробнее" [ref=e852]:
+                  - generic [ref=e853]:
+                    - paragraph [ref=e854]: Могилёв, ул. Болдина 27
+                    - button "Подробнее" [ref=e855] [cursor=pointer]
+                - cell "Одобрен" [ref=e856]:
+                  - generic [ref=e858]: Одобрен
+                - cell "17.03.26, 20:51" [ref=e859]
+                - 'cell "Выбор водителя для заказа #422 Назначить История" [ref=e860]':
+                  - generic [ref=e861]:
+                    - generic [ref=e863]:
+                      - 'combobox "Выбор водителя для заказа #422" [ref=e864] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e865] [cursor=pointer]
+                    - button "История" [ref=e866] [cursor=pointer]:
+                      - img [ref=e868]
+                      - text: История
+              - 'row "#421 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Миронова 9 Подробнее Одобрен 17.03.26, 20:49 Выбор водителя для заказа #421 Назначить История" [ref=e870]':
+                - cell "#421" [ref=e871]:
+                  - heading "#421" [level=6] [ref=e872]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e873]':
+                  - generic [ref=e874]:
+                    - paragraph [ref=e875]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e876]'
+                - cell "Могилёв, ул. Миронова 9 Подробнее" [ref=e877]:
+                  - generic [ref=e878]:
+                    - paragraph [ref=e879]: Могилёв, ул. Миронова 9
+                    - button "Подробнее" [ref=e880] [cursor=pointer]
+                - cell "Одобрен" [ref=e881]:
+                  - generic [ref=e883]: Одобрен
+                - cell "17.03.26, 20:49" [ref=e884]
+                - 'cell "Выбор водителя для заказа #421 Назначить История" [ref=e885]':
+                  - generic [ref=e886]:
+                    - generic [ref=e888]:
+                      - 'combobox "Выбор водителя для заказа #421" [ref=e889] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e890] [cursor=pointer]
+                    - button "История" [ref=e891] [cursor=pointer]:
+                      - img [ref=e893]
+                      - text: История
+              - 'row "#420 Магазин \"Янтарь\" Директор: Наталья Гринько Могилёв, ул. Миронова 9 Подробнее Одобрен 17.03.26, 20:47 Выбор водителя для заказа #420 Назначить История" [ref=e895]':
+                - cell "#420" [ref=e896]:
+                  - heading "#420" [level=6] [ref=e897]
+                - 'cell "Магазин \"Янтарь\" Директор: Наталья Гринько" [ref=e898]':
+                  - generic [ref=e899]:
+                    - paragraph [ref=e900]: Магазин "Янтарь"
+                    - 'generic "Директор: Наталья Гринько" [ref=e901]'
+                - cell "Могилёв, ул. Миронова 9 Подробнее" [ref=e902]:
+                  - generic [ref=e903]:
+                    - paragraph [ref=e904]: Могилёв, ул. Миронова 9
+                    - button "Подробнее" [ref=e905] [cursor=pointer]
+                - cell "Одобрен" [ref=e906]:
+                  - generic [ref=e908]: Одобрен
+                - cell "17.03.26, 20:47" [ref=e909]
+                - 'cell "Выбор водителя для заказа #420 Назначить История" [ref=e910]':
+                  - generic [ref=e911]:
+                    - generic [ref=e913]:
+                      - 'combobox "Выбор водителя для заказа #420" [ref=e914] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e915] [cursor=pointer]
+                    - button "История" [ref=e916] [cursor=pointer]:
+                      - img [ref=e918]
+                      - text: История
+              - 'row "#419 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Ленинская 44 Подробнее Одобрен 17.03.26, 20:45 Выбор водителя для заказа #419 Назначить История" [ref=e920]':
+                - cell "#419" [ref=e921]:
+                  - heading "#419" [level=6] [ref=e922]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e923]':
+                  - generic [ref=e924]:
+                    - paragraph [ref=e925]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e926]'
+                - cell "Могилёв, ул. Ленинская 44 Подробнее" [ref=e927]:
+                  - generic [ref=e928]:
+                    - paragraph [ref=e929]: Могилёв, ул. Ленинская 44
+                    - button "Подробнее" [ref=e930] [cursor=pointer]
+                - cell "Одобрен" [ref=e931]:
+                  - generic [ref=e933]: Одобрен
+                - cell "17.03.26, 20:45" [ref=e934]
+                - 'cell "Выбор водителя для заказа #419 Назначить История" [ref=e935]':
+                  - generic [ref=e936]:
+                    - generic [ref=e938]:
+                      - 'combobox "Выбор водителя для заказа #419" [ref=e939] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e940] [cursor=pointer]
+                    - button "История" [ref=e941] [cursor=pointer]:
+                      - img [ref=e943]
+                      - text: История
+              - 'row "#418 Магазин \"Квартал\" Директор: Павел Лаврентьев Могилёв, ул. Ленинская 44 Подробнее Одобрен 17.03.26, 20:43 Выбор водителя для заказа #418 Назначить История" [ref=e945]':
+                - cell "#418" [ref=e946]:
+                  - heading "#418" [level=6] [ref=e947]
+                - 'cell "Магазин \"Квартал\" Директор: Павел Лаврентьев" [ref=e948]':
+                  - generic [ref=e949]:
+                    - paragraph [ref=e950]: Магазин "Квартал"
+                    - 'generic "Директор: Павел Лаврентьев" [ref=e951]'
+                - cell "Могилёв, ул. Ленинская 44 Подробнее" [ref=e952]:
+                  - generic [ref=e953]:
+                    - paragraph [ref=e954]: Могилёв, ул. Ленинская 44
+                    - button "Подробнее" [ref=e955] [cursor=pointer]
+                - cell "Одобрен" [ref=e956]:
+                  - generic [ref=e958]: Одобрен
+                - cell "17.03.26, 20:43" [ref=e959]
+                - 'cell "Выбор водителя для заказа #418 Назначить История" [ref=e960]':
+                  - generic [ref=e961]:
+                    - generic [ref=e963]:
+                      - 'combobox "Выбор водителя для заказа #418" [ref=e964] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e965] [cursor=pointer]
+                    - button "История" [ref=e966] [cursor=pointer]:
+                      - img [ref=e968]
+                      - text: История
+              - 'row "#417 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Первомайская 18 Подробнее Одобрен 17.03.26, 20:41 Выбор водителя для заказа #417 Назначить История" [ref=e970]':
+                - cell "#417" [ref=e971]:
+                  - heading "#417" [level=6] [ref=e972]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e973]':
+                  - generic [ref=e974]:
+                    - paragraph [ref=e975]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e976]'
+                - cell "Могилёв, ул. Первомайская 18 Подробнее" [ref=e977]:
+                  - generic [ref=e978]:
+                    - paragraph [ref=e979]: Могилёв, ул. Первомайская 18
+                    - button "Подробнее" [ref=e980] [cursor=pointer]
+                - cell "Одобрен" [ref=e981]:
+                  - generic [ref=e983]: Одобрен
+                - cell "17.03.26, 20:41" [ref=e984]
+                - 'cell "Выбор водителя для заказа #417 Назначить История" [ref=e985]':
+                  - generic [ref=e986]:
+                    - generic [ref=e988]:
+                      - 'combobox "Выбор водителя для заказа #417" [ref=e989] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e990] [cursor=pointer]
+                    - button "История" [ref=e991] [cursor=pointer]:
+                      - img [ref=e993]
+                      - text: История
+              - 'row "#416 Магазин \"Берёзка\" Директор: Ирина Соколова Могилёв, ул. Первомайская 18 Подробнее Одобрен 17.03.26, 20:39 Выбор водителя для заказа #416 Назначить История" [ref=e995]':
+                - cell "#416" [ref=e996]:
+                  - heading "#416" [level=6] [ref=e997]
+                - 'cell "Магазин \"Берёзка\" Директор: Ирина Соколова" [ref=e998]':
+                  - generic [ref=e999]:
+                    - paragraph [ref=e1000]: Магазин "Берёзка"
+                    - 'generic "Директор: Ирина Соколова" [ref=e1001]'
+                - cell "Могилёв, ул. Первомайская 18 Подробнее" [ref=e1002]:
+                  - generic [ref=e1003]:
+                    - paragraph [ref=e1004]: Могилёв, ул. Первомайская 18
+                    - button "Подробнее" [ref=e1005] [cursor=pointer]
+                - cell "Одобрен" [ref=e1006]:
+                  - generic [ref=e1008]: Одобрен
+                - cell "17.03.26, 20:39" [ref=e1009]
+                - 'cell "Выбор водителя для заказа #416 Назначить История" [ref=e1010]':
+                  - generic [ref=e1011]:
+                    - generic [ref=e1013]:
+                      - 'combobox "Выбор водителя для заказа #416" [ref=e1014] [cursor=pointer]': Выберите водителя
+                      - textbox
+                      - img
+                      - group
+                    - button "Назначить" [ref=e1015] [cursor=pointer]
+                    - button "История" [ref=e1016] [cursor=pointer]:
+                      - img [ref=e1018]
+                      - text: История

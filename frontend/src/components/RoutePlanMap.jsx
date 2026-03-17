@@ -5,6 +5,10 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { previewAutoAssignRouteGeometry } from '../api.js';
 import { tripStyle } from '../utils/routeColors.js';
+import {
+  createTripKey,
+  selectVisiblePlan
+} from '../utils/routePlanPreview.js';
 
 const transportNumberFormatter = new Intl.NumberFormat('ru-RU', {
   minimumFractionDigits: 0,
@@ -142,18 +146,14 @@ function normalizeTripPoints(points) {
   return normalized;
 }
 
-function createTripKey(routeKey, tripNumber) {
-  return `${routeKey}:${normalizeTripNumber(tripNumber)}`;
-}
-
-function addStyledPolyline(map, layers, path, visual) {
+function addStyledPolyline(layerTarget, layers, path, visual) {
   const halo = L.polyline(path, {
     color: '#ffffff',
     weight: visual.weight + 4,
     opacity: 0.9,
     lineCap: 'round',
     lineJoin: 'round'
-  }).addTo(map);
+  }).addTo(layerTarget);
   const polyline = L.polyline(path, {
     color: visual.color,
     weight: visual.weight,
@@ -161,7 +161,7 @@ function addStyledPolyline(map, layers, path, visual) {
     dashArray: visual.dashArray,
     lineCap: 'round',
     lineJoin: 'round'
-  }).addTo(map);
+  }).addTo(layerTarget);
 
   layers.push(halo, polyline);
 }
@@ -200,72 +200,33 @@ function buildTripGeometryRequests(plan) {
   return requests;
 }
 
-function selectVisiblePlan(plan, visibleDriverId) {
-  if (!plan || !Array.isArray(plan.routes) || visibleDriverId === 'all') {
-    return plan;
-  }
-
-  return {
-    ...plan,
-    routes: plan.routes.filter((route) => String(route?.driverId) === String(visibleDriverId))
-  };
-}
-
-function normalizeTripNumber(value) {
-  return Number.isFinite(Number(value)) && Number(value) > 0 ? Math.trunc(Number(value)) : 1;
-}
-
-function collectTripNumbers(route) {
-  const tripNumbers = new Set();
-
-  if (Array.isArray(route?.trips) && route.trips.length) {
-    route.trips.forEach((trip) => {
-      tripNumbers.add(normalizeTripNumber(trip?.tripNumber));
-    });
-  } else {
-    (route?.displayStops || route?.points || []).forEach((point) => {
-      tripNumbers.add(normalizeTripNumber(point?.tripNumber));
-    });
-  }
-
-  return tripNumbers.size ? [...tripNumbers].sort((left, right) => left - right) : [1];
-}
-
-function buildTripLegendEntries(plan) {
-  if (!plan || !Array.isArray(plan.routes)) {
-    return [];
-  }
-
-  return plan.routes.flatMap((route, routeIndex) => {
-    const colorIndex = Number.isInteger(route?.colorIndex) ? route.colorIndex : routeIndex;
-    const routeKey = route?.driverId || routeIndex;
-
-    return collectTripNumbers(route)
-      .map((tripNumber) => {
-        const visual = tripStyle(colorIndex, tripNumber);
-        return {
-          key: createTripKey(routeKey, tripNumber),
-          label: `${route?.driverName || `Водитель ${routeIndex + 1}`} · Рейс ${tripNumber}`,
-          ...visual
-        };
-      });
-  });
-}
-
-function fitMapToPlan(map, bounds, depotPoint) {
+function fitMapToPlan(map, bounds, depotPoint, { animate = true } = {}) {
   if (!map) {
     return;
   }
 
+  const transitionOptions = animate
+    ? {
+        animate: true,
+        duration: 0.45,
+        easeLinearity: 0.2
+      }
+    : {
+        animate: false
+      };
+
   if (Array.isArray(bounds) && bounds.length > 1) {
     map.fitBounds(L.latLngBounds(bounds), {
       padding: [32, 32],
-      maxZoom: 15
+      maxZoom: 15,
+      ...transitionOptions
     });
     return;
   }
 
-  map.setView(depotPoint, 12);
+  map.setView(depotPoint, 12, {
+    ...transitionOptions
+  });
 }
 
 function buildStopPopupHtml(route, point) {
@@ -314,12 +275,19 @@ function buildStopPopupHtml(route, point) {
   return `<div style="min-width:280px;max-width:340px;line-height:1.45;">${popupLines.join('')}</div>`;
 }
 
-function RoutePlanMap({ plan, token, visibleDriverId = 'all' }) {
+function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber = 'all' }) {
   const containerRef = useRef(null);
+  const mapRef = useRef(null);
+  const overlayLayerRef = useRef(null);
+  const resizeTimeoutRef = useRef(0);
+  const viewportTimeoutRef = useRef(0);
+  const lastViewportPlanRef = useRef(null);
   const [tripGeometry, setTripGeometry] = useState({});
   const [geometryLoading, setGeometryLoading] = useState(false);
-  const visiblePlan = useMemo(() => selectVisiblePlan(plan, visibleDriverId), [plan, visibleDriverId]);
-  const tripLegendEntries = useMemo(() => buildTripLegendEntries(visiblePlan), [visiblePlan]);
+  const visiblePlan = useMemo(
+    () => selectVisiblePlan(plan, visibleDriverId, visibleTripNumber),
+    [plan, visibleDriverId, visibleTripNumber]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -389,20 +357,75 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all' }) {
   }, [plan, token]);
 
   useEffect(() => {
-    if (!visiblePlan || !containerRef.current) {
+    if (!containerRef.current || mapRef.current) {
       return undefined;
     }
 
     const map = L.map(containerRef.current, {
       zoomControl: true,
       attributionControl: false,
-      preferCanvas: true
-    }).setView([visiblePlan.depotLatitude, visiblePlan.depotLongitude], 12);
+      preferCanvas: true,
+      zoomAnimation: true,
+      fadeAnimation: true,
+      markerZoomAnimation: true,
+      zoomSnap: 0.25,
+      zoomDelta: 0.5,
+      wheelDebounceTime: 24
+    }).setView([53.9, 30.33], 12);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19
     }).addTo(map);
 
+    const overlayLayer = L.layerGroup().addTo(map);
+    mapRef.current = map;
+    overlayLayerRef.current = overlayLayer;
+
+    let resizeObserver = null;
+    const invalidateMapSize = () => {
+      if (!mapRef.current) {
+        return;
+      }
+      window.clearTimeout(resizeTimeoutRef.current);
+      resizeTimeoutRef.current = window.setTimeout(() => {
+        if (!mapRef.current) {
+          return;
+        }
+        mapRef.current.invalidateSize({
+          pan: false,
+          debounceMoveend: true
+        });
+      }, 90);
+    };
+
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        invalidateMapSize();
+      });
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return () => {
+      window.clearTimeout(resizeTimeoutRef.current);
+      window.clearTimeout(viewportTimeoutRef.current);
+      resizeObserver?.disconnect();
+      overlayLayerRef.current?.clearLayers();
+      map.stop();
+      map.remove();
+      overlayLayerRef.current = null;
+      mapRef.current = null;
+      lastViewportPlanRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!visiblePlan || !mapRef.current || !overlayLayerRef.current) {
+      return undefined;
+    }
+
+    const map = mapRef.current;
+    const overlayLayer = overlayLayerRef.current;
+    overlayLayer.clearLayers();
     const layers = [];
     const depotPoint = [visiblePlan.depotLatitude, visiblePlan.depotLongitude];
     const depotMarker = L.circleMarker(depotPoint, {
@@ -413,7 +436,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all' }) {
       fillOpacity: 1
     })
       .bindPopup(`Логистический хаб: ${visiblePlan.depotLabel || 'База логистики'}`)
-      .addTo(map);
+      .addTo(overlayLayer);
     layers.push(depotMarker);
 
     const bounds = [depotPoint];
@@ -445,14 +468,14 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all' }) {
             return;
           }
           const visual = tripStyle(colorIndex, trip?.tripNumber || 1);
-          addStyledPolyline(map, layers, tripPath, visual);
+          addStyledPolyline(overlayLayer, layers, tripPath, visual);
           tripPath.forEach((point) => bounds.push(point));
         });
       } else {
         const routePath = normalizeRoutePath(route?.path);
         if (routePath.length >= 2) {
           const visual = tripStyle(colorIndex, 1);
-          addStyledPolyline(map, layers, routePath, visual);
+          addStyledPolyline(overlayLayer, layers, routePath, visual);
           routePath.forEach((point) => bounds.push(point));
         }
       }
@@ -472,33 +495,38 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all' }) {
           keyboard: false
         })
           .bindPopup(buildStopPopupHtml(route, point))
-          .addTo(map);
+          .addTo(overlayLayer);
         layers.push(marker);
         bounds.push(markerPoint);
       });
     });
 
-    fitMapToPlan(map, bounds, depotPoint);
+    const shouldRefit = lastViewportPlanRef.current !== visiblePlan;
+    window.clearTimeout(viewportTimeoutRef.current);
+    viewportTimeoutRef.current = window.setTimeout(() => {
+      if (!mapRef.current || mapRef.current !== map) {
+        return;
+      }
 
-    let resizeObserver = null;
-    const refreshMapLayout = () => {
-      map.invalidateSize(false);
-      fitMapToPlan(map, bounds, depotPoint);
-    };
-
-    const timeoutId = window.setTimeout(refreshMapLayout, 120);
-    if (typeof ResizeObserver !== 'undefined') {
-      resizeObserver = new ResizeObserver(() => {
-        refreshMapLayout();
+      map.invalidateSize({
+        pan: false,
+        debounceMoveend: true
       });
-      resizeObserver.observe(containerRef.current);
-    }
+
+      if (shouldRefit) {
+        map.stop();
+        fitMapToPlan(map, bounds, depotPoint, {
+          animate: true
+        });
+        lastViewportPlanRef.current = visiblePlan;
+      }
+    }, shouldRefit ? 120 : 0);
 
     return () => {
-      window.clearTimeout(timeoutId);
-      resizeObserver?.disconnect();
-      layers.forEach((layer) => layer.remove());
-      map.remove();
+      window.clearTimeout(viewportTimeoutRef.current);
+      layers.forEach((layer) => {
+        overlayLayer.removeLayer(layer);
+      });
     };
   }, [tripGeometry, visiblePlan]);
 
@@ -518,51 +546,6 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all' }) {
           bgcolor: 'background.default'
         }}
       />
-      {tripLegendEntries.length ? (
-        <Box
-          sx={{
-            position: 'absolute',
-            bottom: 10,
-            left: 10,
-            zIndex: 410,
-            maxWidth: 320,
-            maxHeight: 180,
-            overflowY: 'auto',
-            px: 1.25,
-            py: 1,
-            borderRadius: 2,
-            bgcolor: 'rgba(255,255,255,0.94)',
-            border: '1px solid rgba(148,163,184,0.42)',
-            boxShadow: '0 10px 24px rgba(15,23,42,0.14)',
-            backdropFilter: 'blur(6px)'
-          }}
-        >
-          <Box component="div" sx={{ fontSize: 12, fontWeight: 800, color: 'text.primary', mb: 0.25 }}>
-            Цвета рейсов
-          </Box>
-          <Box component="div" sx={{ fontSize: 11.5, color: 'text.secondary', mb: 1 }}>
-            Каждый цвет на карте соответствует конкретному рейсу.
-          </Box>
-          <Box sx={{ display: 'grid', gap: 0.75 }}>
-            {tripLegendEntries.map((entry) => (
-              <Box key={entry.key} sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Box
-                  sx={{
-                    width: 28,
-                    flexShrink: 0,
-                    borderTopWidth: 4,
-                    borderTopStyle: entry.dashArray ? 'dashed' : 'solid',
-                    borderTopColor: entry.color
-                  }}
-                />
-                <Box component="span" sx={{ fontSize: 12.5, fontWeight: 600, color: 'text.primary' }}>
-                  {entry.label}
-                </Box>
-              </Box>
-            ))}
-          </Box>
-        </Box>
-      ) : null}
       {geometryLoading ? (
         <Box
           sx={{

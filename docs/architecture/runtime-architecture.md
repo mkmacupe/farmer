@@ -8,10 +8,9 @@
 - `Backend API` на Spring Boot;
 - база данных.
 
-В production основной контур использует PostgreSQL. Локально доступны два сценария:
+В production основной контур использует PostgreSQL. Локально проект использует тот же тип хранилища:
 
-- PostgreSQL через `docker-compose.yml`;
-- `dev`-профиль backend с H2 fallback.
+- PostgreSQL через Docker Desktop и `docker-compose.yml`.
 
 ## 2. Архитектурный стиль
 

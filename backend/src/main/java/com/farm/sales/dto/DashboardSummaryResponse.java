@@ -11,6 +11,7 @@ public record DashboardSummaryResponse(
     Integer deliveredOrders,
     BigDecimal totalRevenue,
     BigDecimal averageCheck,
+    Integer activeUsers,
     List<DashboardStatusCountResponse> ordersByStatus
 ) {
 }

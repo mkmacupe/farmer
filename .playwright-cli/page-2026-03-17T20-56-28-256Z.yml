@@ -1,0 +1,21 @@
+- main [ref=e3]:
+  - region "Вход" [ref=e4]:
+    - generic [ref=e5]:
+      - heading "Вход" [level=1] [ref=e6]
+      - paragraph [ref=e7]: Введите логин и пароль, чтобы открыть рабочее пространство.
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - generic [ref=e10]: Логин
+        - textbox "Логин" [ref=e11]: logistician
+        - generic [ref=e12]: Пароль
+        - textbox "Пароль" [ref=e13]: LogS7q1wE5
+        - button "Войти" [ref=e14] [cursor=pointer]
+      - group "Демо аккаунты" [ref=e16]:
+        - button "berezka" [ref=e17] [cursor=pointer]
+        - button "kvartal" [ref=e18] [cursor=pointer]
+        - button "yantar" [ref=e19] [cursor=pointer]
+        - button "manager" [ref=e20] [cursor=pointer]
+        - button "logistician" [active] [ref=e21] [cursor=pointer]
+        - button "driver1" [ref=e22] [cursor=pointer]
+        - button "driver2" [ref=e23] [cursor=pointer]
+        - button "driver3" [ref=e24] [cursor=pointer]

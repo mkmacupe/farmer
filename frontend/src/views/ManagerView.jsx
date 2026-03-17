@@ -72,6 +72,7 @@ import Receipt from "@mui/icons-material/Receipt";
 import GroupIcon from "@mui/icons-material/Group";
 import TrendingUpIcon from "@mui/icons-material/TrendingUp";
 import TrendingDownIcon from "@mui/icons-material/TrendingDown";
+import TrendingFlatIcon from "@mui/icons-material/TrendingFlat";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
 
@@ -81,6 +82,10 @@ import {
   filterLocalizedCategories,
   filterLocalizedProducts,
 } from "../utils/productFilters.js";
+import {
+  buildTrendBadge,
+  buildTrendChartModel,
+} from "../utils/dashboardTrend.js";
 import { DashboardSkeleton } from "../components/LoadingSkeletons.jsx";
 import { useStableEvent } from "../utils/useStableEvent.js";
 
@@ -653,6 +658,12 @@ export default function ManagerView({ token, activeSection }) {
       trendSeries.length > 1
         ? trendSeries[trendSeries.length - 2].orders
         : latestOrders;
+    const activeDays = trendSeries.filter((point) => point.orders > 0).length;
+    const peakPoint =
+      trendSeries.reduce(
+        (best, point) => (point.orders > (best?.orders ?? -1) ? point : best),
+        null,
+      ) || null;
     const deviation = latestOrders - averageOrders;
     const deviationPercent = averageOrders
       ? (deviation / averageOrders) * 100
@@ -660,63 +671,68 @@ export default function ManagerView({ token, activeSection }) {
     const momentum = latestOrders - previousOrders;
     return {
       latestOrders,
+      previousOrders,
       averageOrders,
       deviationPercent,
       momentum,
+      activeDays,
+      seriesLength: trendSeries.length,
+      peakOrders: peakPoint?.orders || 0,
+      peakLabel: peakPoint?.label || "",
       totalRevenue: trendSeries.reduce((sum, point) => sum + point.revenue, 0),
     };
   }, [trendSeries]);
 
   const trendChartModel = useMemo(() => {
-    const width = 640;
-    const height = 220;
-    const left = 36;
-    const right = 20;
-    const top = 18;
-    const bottom = 32;
-    const plotWidth = width - left - right;
-    const plotHeight = height - top - bottom;
-    const maxValue = Math.max(1, ...trendSeries.map((point) => point.orders));
-    const points = trendSeries.map((point, index) => {
-      const x =
-        left +
-        (trendSeries.length <= 1
-          ? plotWidth / 2
-          : (index / (trendSeries.length - 1)) * plotWidth);
-      const y = top + plotHeight - (point.orders / maxValue) * plotHeight;
-      return { ...point, x, y };
-    });
-    const linePath = points
-      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
-      .join(" ");
-    const baseY = top + plotHeight;
-    const areaPath =
-      points.length > 1
-        ? `${linePath} L ${points[points.length - 1].x} ${baseY} L ${points[0].x} ${baseY} Z`
-        : "";
-    const tickIndexes = new Set([0, points.length - 1]);
-    if (points.length > 2) tickIndexes.add(Math.floor((points.length - 1) / 2));
-    if (points.length > 6) {
-      tickIndexes.add(Math.floor((points.length - 1) / 3));
-      tickIndexes.add(Math.floor(((points.length - 1) * 2) / 3));
-    }
-    const ticks = [...tickIndexes]
-      .filter((index) => index >= 0 && index < points.length)
-      .sort((a, b) => a - b)
-      .map((index) => points[index]);
+    return buildTrendChartModel(trendSeries, trendMeta.averageOrders);
+  }, [trendMeta.averageOrders, trendSeries]);
 
-    return {
-      width,
-      height,
-      top,
-      baseY,
-      maxValue,
-      points,
-      linePath,
-      areaPath,
-      ticks,
-    };
-  }, [trendSeries]);
+  const trendBadge = useMemo(() => buildTrendBadge(trendMeta), [trendMeta]);
+
+  const trendHighlights = useMemo(
+    () => [
+      {
+        label: "Среднее",
+        value: `${trendMeta.averageOrders.toFixed(1)} заявок/день`,
+      },
+      {
+        label: "Пиковый день",
+        value: trendMeta.peakOrders
+          ? `${trendMeta.peakOrders} заявок · ${trendMeta.peakLabel}`
+          : "Пиков нет",
+      },
+      {
+        label: "Активные дни",
+        value: `${trendMeta.activeDays} из ${trendMeta.seriesLength}`,
+      },
+      {
+        label: "Выручка периода",
+        value: `${formatMoney(trendMeta.totalRevenue)} BYN`,
+      },
+    ],
+    [trendMeta],
+  );
+
+  const trendChartPalette = useMemo(
+    () => ({
+      line: theme.palette.success.dark,
+      lineSoft: alpha(theme.palette.success.main, 0.24),
+      areaTop: alpha(theme.palette.success.main, 0.24),
+      areaBottom: alpha(theme.palette.success.main, 0.02),
+      surfaceTop: alpha(theme.palette.success.light, 0.12),
+      surfaceBottom: alpha(theme.palette.background.paper, 0.98),
+      grid: alpha(theme.palette.success.dark, 0.12),
+      axis: alpha(theme.palette.text.secondary, 0.82),
+      average: alpha(theme.palette.text.secondary, 0.45),
+      averageText: alpha(theme.palette.text.secondary, 0.78),
+      latestBand: alpha(theme.palette.success.main, 0.07),
+      peak: "#B7791F",
+      pointStroke: theme.palette.background.paper,
+      labelFill: alpha(theme.palette.background.paper, 0.94),
+      labelStroke: alpha(theme.palette.divider, 0.9),
+    }),
+    [theme],
+  );
 
   const categoryInsights = useMemo(() => {
     const totals = new Map();
@@ -1274,7 +1290,7 @@ export default function ManagerView({ token, activeSection }) {
     },
     {
       title: "Активные пользователи",
-      value: directors.length,
+      value: dashboard ? dashboard.activeUsers : directors.length + drivers.length,
       icon: <GroupIcon />,
       color: "info",
     },
@@ -1565,18 +1581,17 @@ export default function ManagerView({ token, activeSection }) {
                     <Chip
                       size="small"
                       icon={
-                        trendMeta.momentum >= 0 ? (
+                        trendBadge.direction === "up" ? (
                           <TrendingUpIcon />
-                        ) : (
+                        ) : trendBadge.direction === "down" ? (
                           <TrendingDownIcon />
+                        ) : (
+                          <TrendingFlatIcon />
                         )
                       }
-                      color={trendMeta.momentum >= 0 ? "success" : "warning"}
-                      label={
-                        trendMeta.momentum >= 0
-                          ? "Выше, чем вчера"
-                          : "Ниже, чем вчера"
-                      }
+                      color={trendBadge.color}
+                      variant={trendBadge.variant}
+                      label={trendBadge.label}
                     />
                   </Stack>
                   <Box
@@ -1585,8 +1600,9 @@ export default function ManagerView({ token, activeSection }) {
                       borderRadius: 2,
                       border: "1px solid",
                       borderColor: "divider",
-                      bgcolor: "background.default",
-                      p: 1,
+                      background: `linear-gradient(180deg, ${trendChartPalette.surfaceTop} 0%, ${trendChartPalette.surfaceBottom} 100%)`,
+                      p: 1.25,
+                      overflow: "hidden",
                     }}
                   >
                     {trendChartModel.points.length ? (
@@ -1595,29 +1611,76 @@ export default function ManagerView({ token, activeSection }) {
                         viewBox={`0 0 ${trendChartModel.width} ${trendChartModel.height}`}
                         role="img"
                         aria-label="График тренда заказов по дням"
-                        sx={{ width: "100%", height: 220, display: "block" }}
+                        sx={{ width: "100%", height: 260, display: "block" }}
                       >
-                        {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
-                          const y =
-                            trendChartModel.top +
-                            (trendChartModel.baseY - trendChartModel.top) *
-                              ratio;
-                          return (
+                        <defs>
+                          <linearGradient id="manager-trend-area" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={trendChartPalette.areaTop} />
+                            <stop offset="100%" stopColor={trendChartPalette.areaBottom} />
+                          </linearGradient>
+                        </defs>
+                        {trendChartModel.latestPoint?.orders > 0 && (
+                          <rect
+                            x={Math.max(
+                              trendChartModel.left,
+                              trendChartModel.latestPoint.x - 18,
+                            )}
+                            y={trendChartModel.top}
+                            width="36"
+                            height={trendChartModel.baseY - trendChartModel.top}
+                            rx="18"
+                            fill={trendChartPalette.latestBand}
+                          />
+                        )}
+                        {trendChartModel.yTicks.map((tick) => (
+                          <g key={tick.key}>
                             <line
-                              key={`grid-${ratio}`}
-                              x1={36}
-                              y1={y}
-                              x2={trendChartModel.width - 20}
-                              y2={y}
-                              stroke="#e4e4e7"
+                              x1={trendChartModel.left}
+                              y1={tick.y}
+                              x2={trendChartModel.width - trendChartModel.right}
+                              y2={tick.y}
+                              stroke={trendChartPalette.grid}
                               strokeWidth="1"
                             />
-                          );
-                        })}
+                            <text
+                              x={trendChartModel.left - 10}
+                              y={tick.y + 4}
+                              textAnchor="end"
+                              fill={trendChartPalette.axis}
+                              fontSize="11"
+                            >
+                              {tick.value}
+                            </text>
+                          </g>
+                        ))}
+                        {trendChartModel.averageLineY !== null && (
+                          <>
+                            <line
+                              x1={trendChartModel.left}
+                              y1={trendChartModel.averageLineY}
+                              x2={trendChartModel.width - trendChartModel.right}
+                              y2={trendChartModel.averageLineY}
+                              stroke={trendChartPalette.average}
+                              strokeWidth="1.5"
+                              strokeDasharray="6 6"
+                            />
+                            <text
+                              x={trendChartModel.left + 4}
+                              y={Math.max(
+                                trendChartModel.top + 12,
+                                trendChartModel.averageLineY - 8,
+                              )}
+                              fill={trendChartPalette.averageText}
+                              fontSize="11"
+                            >
+                              среднее {trendMeta.averageOrders.toFixed(1)}
+                            </text>
+                          </>
+                        )}
                         {trendChartModel.areaPath && (
                           <path
                             d={trendChartModel.areaPath}
-                            fill="rgba(46, 91, 78, 0.12)"
+                            fill="url(#manager-trend-area)"
                             stroke="none"
                           />
                         )}
@@ -1625,31 +1688,72 @@ export default function ManagerView({ token, activeSection }) {
                           <path
                             d={trendChartModel.linePath}
                             fill="none"
-                            stroke="#2E5B4E"
+                            stroke={trendChartPalette.line}
                             strokeWidth="3"
                             strokeLinecap="round"
                             strokeLinejoin="round"
                           />
                         )}
                         {trendChartModel.points.map((point) => (
-                          <circle
-                            key={point.key}
-                            cx={point.x}
-                            cy={point.y}
-                            r="4"
-                            fill="#2E5B4E"
-                            stroke="#ffffff"
-                            strokeWidth="2"
-                          />
+                          <g key={point.key}>
+                            {point.showLabel && (
+                              <>
+                                <rect
+                                  x={point.labelX}
+                                  y={point.labelY}
+                                  width={point.labelWidth}
+                                  height="20"
+                                  rx="10"
+                                  fill={trendChartPalette.labelFill}
+                                  stroke={
+                                    point.isPeak
+                                      ? trendChartPalette.peak
+                                      : trendChartPalette.lineSoft
+                                  }
+                                />
+                                <text
+                                  x={point.labelX + point.labelWidth / 2}
+                                  y={point.labelY + 13.5}
+                                  textAnchor="middle"
+                                  fill={
+                                    point.isPeak
+                                      ? trendChartPalette.peak
+                                      : trendChartPalette.line
+                                  }
+                                  fontSize="11"
+                                  fontWeight="700"
+                                >
+                                  {point.valueLabel}
+                                </text>
+                              </>
+                            )}
+                            <circle
+                              cx={point.x}
+                              cy={point.y}
+                              r={point.isLatest || point.isPeak ? 5.5 : 4.5}
+                              fill={
+                                point.isPeak
+                                  ? trendChartPalette.peak
+                                  : trendChartPalette.line
+                              }
+                              stroke={trendChartPalette.pointStroke}
+                              strokeWidth="2.5"
+                            />
+                          </g>
                         ))}
                         {trendChartModel.ticks.map((tick) => (
                           <text
                             key={`tick-${tick.key}`}
                             x={tick.x}
-                            y={trendChartModel.height - 8}
+                            y={trendChartModel.height - 12}
                             textAnchor="middle"
-                            fill="#71717a"
+                            fill={
+                              tick.isLatest || tick.isPeak
+                                ? trendChartPalette.line
+                                : trendChartPalette.axis
+                            }
                             fontSize="11"
+                            fontWeight={tick.isLatest || tick.isPeak ? "700" : "500"}
                           >
                             {tick.label}
                           </text>
@@ -1661,22 +1765,34 @@ export default function ManagerView({ token, activeSection }) {
                       </Typography>
                     )}
                   </Box>
-                  <Stack
-                    direction={{ xs: "column", sm: "row" }}
-                    spacing={2}
-                    sx={{ mt: 1.5 }}
-                  >
-                    <Typography variant="caption" color="text.secondary">
-                      Среднее: {trendMeta.averageOrders.toFixed(1)} заявок/день
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Отклонение: {trendMeta.deviationPercent >= 0 ? "+" : ""}
-                      {trendMeta.deviationPercent.toFixed(0)}%
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Выручка периода: {formatMoney(trendMeta.totalRevenue)} BYN
-                    </Typography>
-                  </Stack>
+                  <Grid container spacing={1.25} sx={{ mt: 1.5 }}>
+                    {trendHighlights.map((item) => (
+                      <Grid key={item.label} size={{ xs: 12, sm: 6, lg: 3 }}>
+                        <Box
+                          sx={{
+                            height: "100%",
+                            px: 1.25,
+                            py: 1,
+                            borderRadius: 2,
+                            border: "1px solid",
+                            borderColor: alpha(theme.palette.divider, 0.9),
+                            bgcolor: alpha(theme.palette.background.default, 0.65),
+                          }}
+                        >
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block", mb: 0.25 }}
+                          >
+                            {item.label}
+                          </Typography>
+                          <Typography variant="body2" fontWeight={600}>
+                            {item.value}
+                          </Typography>
+                        </Box>
+                      </Grid>
+                    ))}
+                  </Grid>
                 </Paper>
               </Grid>
               <Grid size={{ xs: 12, md: 4 }}>

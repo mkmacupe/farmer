@@ -10,6 +10,7 @@ import com.farm.sales.model.OrderItem;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.model.Product;
 import com.farm.sales.repository.OrderRepository;
+import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -19,12 +20,14 @@ import org.junit.jupiter.api.Test;
 
 class DashboardServiceTest {
   private OrderRepository orderRepository;
+  private UserRepository userRepository;
   private DashboardService dashboardService;
 
   @BeforeEach
   void setUp() {
     orderRepository = org.mockito.Mockito.mock(OrderRepository.class);
-    dashboardService = new DashboardService(orderRepository);
+    userRepository = org.mockito.Mockito.mock(UserRepository.class);
+    dashboardService = new DashboardService(orderRepository, userRepository);
   }
 
   @Test
@@ -36,6 +39,7 @@ class DashboardServiceTest {
     Order created = order(OrderStatus.CREATED, "50.00", "2026-01-07T12:00:00Z");
     when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
         .thenReturn(List.of(deliveredA, deliveredB, created));
+    when(userRepository.count()).thenReturn(8L);
 
     var summary = dashboardService.getSummary(from, to);
 
@@ -43,6 +47,7 @@ class DashboardServiceTest {
     assertThat(summary.deliveredOrders()).isEqualTo(2);
     assertThat(summary.totalRevenue()).isEqualByComparingTo("170.00");
     assertThat(summary.averageCheck()).isEqualByComparingTo("73.33");
+    assertThat(summary.activeUsers()).isEqualTo(8);
     assertThat(summary.ordersByStatus()).anySatisfy(row -> {
       assertThat(row.status()).isEqualTo("CREATED");
       assertThat(row.count()).isEqualTo(1L);
@@ -53,6 +58,7 @@ class DashboardServiceTest {
   void summaryHandlesNullAggregateAndZeroTotals() {
     when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
         .thenReturn(List.of());
+    when(userRepository.count()).thenReturn(0L);
 
     var summary = dashboardService.getSummary(null, null);
 
@@ -60,6 +66,7 @@ class DashboardServiceTest {
     assertThat(summary.deliveredOrders()).isZero();
     assertThat(summary.totalRevenue()).isEqualByComparingTo("0.00");
     assertThat(summary.averageCheck()).isEqualByComparingTo("0");
+    assertThat(summary.activeUsers()).isZero();
     assertThat(summary.ordersByStatus())
         .extracting(status -> status.count())
         .containsOnly(0L);
@@ -73,6 +80,7 @@ class DashboardServiceTest {
     Order created = order(OrderStatus.CREATED, "80.00", "2026-01-06T12:00:00Z");
     when(orderRepository.findAllByOrderByCreatedAtDesc(org.mockito.ArgumentMatchers.any()))
         .thenReturn(List.of(delivered, created));
+    when(userRepository.count()).thenReturn(8L);
 
     var summary = dashboardService.getSummary(from, to);
 
@@ -80,6 +88,7 @@ class DashboardServiceTest {
     assertThat(summary.deliveredOrders()).isEqualTo(1);
     assertThat(summary.totalRevenue()).isEqualByComparingTo("120.00");
     assertThat(summary.averageCheck()).isEqualByComparingTo("100.00");
+    assertThat(summary.activeUsers()).isEqualTo(8);
   }
 
   @Test

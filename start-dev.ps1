@@ -22,6 +22,10 @@ $envFilePath = Join-Path $projectRoot ".env"
 Set-Location -LiteralPath $projectRoot
 Write-Host "Starting local dev environment from $projectRoot"
 
+if ($PreferLocalBackend) {
+  throw "Parameter -PreferLocalBackend is no longer supported. Local development now requires Docker Desktop with PostgreSQL via docker compose."
+}
+
 # Clean up a stray Windows "nul" file that can appear from shell redirection in PowerShell.
 $nulPath = Join-Path $projectRoot "nul"
 if (Test-Path -LiteralPath $nulPath) {
@@ -199,54 +203,9 @@ function Invoke-CmdWithTimeout {
       } catch {
         # Ignore kill failures on already-exited processes.
       }
-    }
-
-    $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { "" }
-    $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath -Raw } else { "" }
-    $output = @($stdout, $stderr) -join ""
-
-    if (-not $Quiet -and -not [string]::IsNullOrWhiteSpace($output)) {
-      $output.TrimEnd() | Out-Host
-    }
-
-    return [pscustomobject]@{
-      ExitCode = if ($completed) { $process.ExitCode } else { $null }
-      TimedOut = -not $completed
-      Output = $output
-    }
-  } finally {
-    Remove-Item -LiteralPath $stdoutPath -Force -ErrorAction SilentlyContinue
-    Remove-Item -LiteralPath $stderrPath -Force -ErrorAction SilentlyContinue
-  }
-}
-
-function Invoke-ExecutableWithTimeout {
-  param(
-    [string]$FilePath,
-    [string[]]$Arguments = @(),
-    [int]$TimeoutSeconds = 30,
-    [switch]$Quiet
-  )
-
-  $stdoutPath = [System.IO.Path]::GetTempFileName()
-  $stderrPath = [System.IO.Path]::GetTempFileName()
-  try {
-    $argumentLine = [string]::Join(' ', $Arguments)
-    $process = Start-Process `
-      -FilePath $FilePath `
-      -ArgumentList $argumentLine `
-      -RedirectStandardOutput $stdoutPath `
-      -RedirectStandardError $stderrPath `
-      -PassThru `
-      -WindowStyle Hidden
-
-    $completed = $process.WaitForExit($TimeoutSeconds * 1000)
-    if (-not $completed) {
-      try {
-        $process.Kill($true)
-      } catch {
-        # Ignore kill failures on already-exited processes.
-      }
+    } else {
+      $process.WaitForExit()
+      $process.Refresh()
     }
 
     $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath -Raw } else { "" }
@@ -270,12 +229,8 @@ function Invoke-ExecutableWithTimeout {
 
 function Test-DockerReady {
   try {
-    $result = Invoke-ExecutableWithTimeout `
-      -FilePath "docker.exe" `
-      -Arguments @("version", "--format", "{{.Server.Version}}") `
-      -TimeoutSeconds 5 `
-      -Quiet
-    return (-not $result.TimedOut) -and $result.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($result.Output)
+    $serverVersion = docker version --format "{{.Server.Version}}" 2>$null
+    return $LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace(($serverVersion | Out-String))
   } catch {
     return $false
   }
@@ -617,10 +572,21 @@ function Start-Backend {
     }
 
     Write-Host "Starting backend and database with docker compose (building backend with cache-aware rebuild)..."
-    Invoke-CommandWithDockerRetry `
-      -CommandLine "docker compose --env-file ""$EnvFilePath"" up -d --build" `
-      -FailureMessage "docker compose up -d --build" `
-      -MaxAttempts 5
+    try {
+      Invoke-CommandWithDockerRetry `
+        -CommandLine "docker compose --env-file ""$EnvFilePath"" up -d --build" `
+        -FailureMessage "docker compose up -d --build" `
+        -MaxAttempts 5
+    } catch {
+      $composePsOutput = docker compose --env-file "$EnvFilePath" ps 2>&1 | Out-String
+      $servicesRecovered = $LASTEXITCODE -eq 0 `
+        -and $composePsOutput -match "backend.+Up" `
+        -and $composePsOutput -match "db.+Up"
+      if (-not $servicesRecovered) {
+        throw
+      }
+      Write-Warning "docker compose returned an empty exit code, but backend and db are already running. Continuing with the active containers."
+    }
 
     $actualApiPort = Resolve-ComposeBackendPort -EnvFilePath $EnvFilePath -FallbackPort $ApiPort
     if ($actualApiPort -ne $ApiPort) {
@@ -646,80 +612,6 @@ function Start-Backend {
       $env:APP_CORS_ALLOWED_ORIGINS = $prevCorsAllowedOrigins
     }
   }
-}
-
-function Start-LocalBackend {
-  param(
-    [int]$ApiPort,
-    [Nullable[int]]$FrontendPort,
-    [string]$FrontendHost,
-    [string]$FrontendOrigin,
-    [hashtable]$ComposeEnv
-  )
-
-  if (-not (Test-Path $backendDir)) {
-    throw "Backend directory not found: $backendDir"
-  }
-
-  Require-Command "mvn"
-
-  $origins = @()
-  if ($null -ne $FrontendPort) {
-    $origins += @(
-      "http://127.0.0.1:$FrontendPort",
-      "http://localhost:$FrontendPort"
-    )
-    if (-not [string]::IsNullOrWhiteSpace($FrontendOrigin)) {
-      $origins += $FrontendOrigin.Trim()
-    } elseif (-not [string]::IsNullOrWhiteSpace($FrontendHost) `
-        -and $FrontendHost -ne "127.0.0.1" `
-        -and $FrontendHost -ne "localhost" `
-        -and $FrontendHost -ne "0.0.0.0" `
-        -and $FrontendHost -ne "::") {
-      $origins += "http://${FrontendHost}:$FrontendPort"
-    }
-  } else {
-    $origins += @(
-      "http://127.0.0.1:5173",
-      "http://localhost:5173",
-      "http://127.0.0.1:4173",
-      "http://localhost:4173"
-    )
-  }
-
-  $jwtSecret = if ($ComposeEnv.Contains("JWT_SECRET")) { $ComposeEnv["JWT_SECRET"] } else { New-UrlSafeSecret -Bytes 64 }
-  $demoEnabled = if ($ComposeEnv.Contains("APP_DEMO_ENABLED")) { $ComposeEnv["APP_DEMO_ENABLED"] } else { "true" }
-  $demoSeedOnStartup = if ($ComposeEnv.Contains("APP_DEMO_SEED_ON_STARTUP")) { $ComposeEnv["APP_DEMO_SEED_ON_STARTUP"] } else { "true" }
-
-  $escapedBackendDir = $backendDir.Replace("'", "''")
-  $escapedJwtSecret = $jwtSecret.Replace("'", "''")
-  $escapedCorsOrigins = (($origins | Select-Object -Unique) -join ",").Replace("'", "''")
-  $escapedDemoEnabled = $demoEnabled.Replace("'", "''")
-  $escapedDemoSeedOnStartup = $demoSeedOnStartup.Replace("'", "''")
-  $localBackendLogDir = Join-Path $projectRoot "tmp\start-dev"
-  New-Item -ItemType Directory -Force -Path $localBackendLogDir | Out-Null
-  $stdoutLogPath = Join-Path $localBackendLogDir "backend-local.log"
-  $stderrLogPath = Join-Path $localBackendLogDir "backend-local.err.log"
-  $backendCommand = @(
-    "`$ErrorActionPreference = 'Stop'"
-    "Set-Location -LiteralPath '$escapedBackendDir'"
-    "`$env:SPRING_PROFILES_ACTIVE = 'dev'"
-    "`$env:SERVER_PORT = '$ApiPort'"
-    "`$env:APP_CORS_ALLOWED_ORIGINS = '$escapedCorsOrigins'"
-    "`$env:JWT_SECRET = '$escapedJwtSecret'"
-    "`$env:APP_DEMO_ENABLED = '$escapedDemoEnabled'"
-    "`$env:APP_DEMO_SEED_ON_STARTUP = '$escapedDemoSeedOnStartup'"
-    "mvn spring-boot:run"
-  ) -join "; "
-
-  Write-Warning "Using local backend fallback (Spring Boot dev profile + H2) instead of Docker."
-  Write-Host "Local backend logs: $stdoutLogPath"
-  Start-Process powershell `
-    -ArgumentList "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", $backendCommand `
-    -RedirectStandardOutput $stdoutLogPath `
-    -RedirectStandardError $stderrLogPath `
-    -WindowStyle Hidden | Out-Null
-  return $ApiPort
 }
 
 function Start-Frontend {
@@ -823,6 +715,7 @@ function Stop-StaleDockerProbeProcesses {
 }
 
 function Stop-ProjectLocalBackendProcesses {
+  # Clean up stray local Spring Boot launches from older sessions before starting docker compose.
   $escapedBackendDir = [Regex]::Escape($backendDir)
 
   $launcherProcesses = Get-CimInstance Win32_Process |
@@ -850,20 +743,8 @@ function Stop-ProjectLocalBackendProcesses {
 
 Ensure-GitHooksConfigured
 $composeEnv = Ensure-ComposeEnvFile -Path $envFilePath
-$useDockerBackend = -not $PreferLocalBackend
-
-if ($useDockerBackend) {
-  try {
-    Require-Command "docker"
-    Start-DockerDesktopIfNeeded
-  } catch {
-    Write-Warning $_.Exception.Message
-    Write-Warning "Falling back to local backend startup."
-    $useDockerBackend = $false
-  }
-} else {
-  Write-Host "Local backend mode requested. Docker startup will be skipped."
-}
+Require-Command "docker"
+Start-DockerDesktopIfNeeded
 
 $effectivePostgresPort = Resolve-Port -RequestedPort $PostgresPort -Label "PostgreSQL"
 $effectiveApiPort = Resolve-Port -RequestedPort $ApiPort -Label "API"
@@ -881,29 +762,16 @@ if (-not $NoFrontend) {
 
 $effectiveFrontendHost = $FrontendHost
 
-if ($useDockerBackend) {
-  try {
-    $effectiveApiPort = Start-Backend `
-      -PostgresPort $effectivePostgresPort `
-      -ApiPort $effectiveApiPort `
-      -FrontendPort $effectiveFrontendPort `
-      -FrontendHost $effectiveFrontendHost `
-      -FrontendOrigin $FrontendOrigin `
-      -EnvFilePath $envFilePath
-  } catch {
-    Write-Warning $_.Exception.Message
-    Write-Warning "Docker backend startup failed. Falling back to local backend startup."
-    $useDockerBackend = $false
-  }
-}
-
-if (-not $useDockerBackend) {
-  $effectiveApiPort = Start-LocalBackend `
+try {
+  $effectiveApiPort = Start-Backend `
     -ApiPort $effectiveApiPort `
+    -PostgresPort $effectivePostgresPort `
     -FrontendPort $effectiveFrontendPort `
     -FrontendHost $effectiveFrontendHost `
     -FrontendOrigin $FrontendOrigin `
-    -ComposeEnv $composeEnv
+    -EnvFilePath $envFilePath
+} catch {
+  throw "Docker backend startup failed: $($_.Exception.Message)"
 }
 
 $backendReady = Wait-ForBackendReady -Port $effectiveApiPort -TimeoutSeconds 90
@@ -938,11 +806,7 @@ if (-not $NoBrowser) {
 
 Write-Host "Done."
 Write-Host "Backend API: http://127.0.0.1:$effectiveApiPort/api"
-if ($useDockerBackend) {
-  Write-Host "Backend mode: docker compose"
-} else {
-  Write-Host "Backend mode: local Spring Boot (profile dev, H2)"
-}
+Write-Host "Backend mode: docker compose"
 if (-not $NoFrontend) {
   Write-Host "Frontend: http://${frontendDisplayHost}:$effectiveFrontendPort"
   if ($FrontendProduction) {
