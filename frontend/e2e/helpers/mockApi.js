@@ -63,10 +63,10 @@ export async function installApiMock(page, options = {}) {
     directors: [
       {
         id: 11,
-        username: 'berezka',
-        fullName: 'Ирина Соколова',
-        phone: '+380500000001',
-        legalEntityName: 'Магазин "Берёзка"',
+        username: 'director01',
+        fullName: 'Директор магазина 01',
+        phone: '+375291000001',
+        legalEntityName: 'Магазин "Демо 01"',
         role: 'DIRECTOR'
       }
     ],
@@ -208,9 +208,9 @@ export async function installApiMock(page, options = {}) {
         driver1: 'DRIVER',
         driver2: 'DRIVER',
         driver3: 'DRIVER',
-        berezka: 'DIRECTOR',
-        kvartal: 'DIRECTOR',
-        yantar: 'DIRECTOR'
+        director01: 'DIRECTOR',
+        director02: 'DIRECTOR',
+        director03: 'DIRECTOR'
       };
       if (!roles[username] || !password) {
         await route.fulfill({

@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.IntStream;
 import java.util.stream.Collectors;
@@ -39,6 +40,7 @@ public class DataInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
   private static final String PRODUCT_IMAGE_BASE = "/images/products/";
   private static final int DEMO_PRODUCT_TARGET_COUNT = 200;
+  private static final int DEMO_DIRECTOR_START_INDEX = 1;
   private static final int EXTRA_DIRECTOR_START_INDEX = 4;
   private static final int EXTRA_DIRECTOR_END_INDEX = 30;
   private static final Set<String> CORE_PRODUCT_IMAGES = Set.of(
@@ -68,19 +70,12 @@ public class DataInitializer implements CommandLineRunner {
       Path.of("..", "frontend", "public", "images", "products")
   );
   private static final Map<String, String> SEEDED_USER_PASSWORDS = Map.of(
-      "berezka", "BrzK8r2pQ1",
-      "kvartal", "KvtT4n7xR2",
-      "yantar", "YntP6m9sL3",
       "manager", "MgrD5v8cN4",
       "logistician", "LogS7q1wE5",
       "driver1", "Drv1A9k2Z6",
       "driver2", "Drv2B8m3Y7",
       "driver3", "Drv3C7n4X8"
   );
-  private static final List<String> EXTRA_DEMO_DIRECTOR_USERNAMES = IntStream
-      .rangeClosed(EXTRA_DIRECTOR_START_INDEX, EXTRA_DIRECTOR_END_INDEX)
-      .mapToObj(DataInitializer::formatExtraDirectorUsername)
-      .toList();
   private static final Map<String, CatalogDescriptor> CATALOG_PRODUCT_BY_BASENAME = Map.ofEntries(
       Map.entry("adyghe-cheese", new CatalogDescriptor("Сыр адыгейский 300 г", "Молочная продукция")),
       Map.entry("apple-antonovka", new CatalogDescriptor("Яблоки Антоновка 1 кг", "Фрукты")),
@@ -398,9 +393,9 @@ public class DataInitializer implements CommandLineRunner {
     synchronized (seedLock) {
       if (demoSeeded) return;
       
-      User mDirector = createUserIfMissing("berezka", "Ирина Соколова", "+375291948265", "Магазин \"Берёзка\"", Role.DIRECTOR, seededPassword("berezka"));
-      User lDirector = createUserIfMissing("kvartal", "Павел Лаврентьев", "+375336521874", "Магазин \"Квартал\"", Role.DIRECTOR, seededPassword("kvartal"));
-      User bDirector = createUserIfMissing("yantar", "Наталья Гринько", "+375447318502", "Магазин \"Янтарь\"", Role.DIRECTOR, seededPassword("yantar"));
+      User director01 = createDemoDirector(1);
+      User director02 = createDemoDirector(2);
+      User director03 = createDemoDirector(3);
       seedAdditionalDemoDirectors();
       
       createUserIfMissing("manager", "Менеджер", "+375290000002", null, Role.MANAGER, seededPassword("manager"));
@@ -410,9 +405,9 @@ public class DataInitializer implements CommandLineRunner {
       createUserIfMissing("driver3", "Водитель 3", "+375290000007", null, Role.DRIVER, seededPassword("driver3"));
 
       if (includeDefaultAddresses) {
-        createAddressIfMissing(mDirector, "Берёзка • Центральный", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
-        createAddressIfMissing(lDirector, "Квартал • Проспект Мира", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
-        createAddressIfMissing(bDirector, "Янтарь • Павлова", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
+        createAddressIfMissing(director01, "Демо 01 • Центральный", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
+        createAddressIfMissing(director02, "Демо 02 • Проспект Мира", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
+        createAddressIfMissing(director03, "Демо 03 • Павлова", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
       }
 
       seedProduct("Молоко фермерское 1 л", "Молочная продукция", "3.20", 120, "milk.webp");
@@ -908,6 +903,30 @@ public class DataInitializer implements CommandLineRunner {
     if (existing == null) {
       return userRepository.save(new User(username, passwordEncoder.encode(password), fullName, phone, legal, role));
     }
+    boolean dirty = false;
+    if (!Objects.equals(existing.getFullName(), fullName)) {
+      existing.setFullName(fullName);
+      dirty = true;
+    }
+    if (!Objects.equals(existing.getPhone(), phone)) {
+      existing.setPhone(phone);
+      dirty = true;
+    }
+    if (!Objects.equals(existing.getLegalEntityName(), legal)) {
+      existing.setLegalEntityName(legal);
+      dirty = true;
+    }
+    if (existing.getRole() != role) {
+      existing.setRole(role);
+      dirty = true;
+    }
+    if (password != null && (existing.getPasswordHash() == null || !passwordEncoder.matches(password, existing.getPasswordHash()))) {
+      existing.setPasswordHash(passwordEncoder.encode(password));
+      dirty = true;
+    }
+    if (dirty) {
+      return userRepository.save(existing);
+    }
     return existing;
   }
 
@@ -972,40 +991,46 @@ public class DataInitializer implements CommandLineRunner {
       return staticPassword;
     }
 
-    int extraDirectorIndex = parseExtraDirectorIndex(username);
-    if (extraDirectorIndex >= EXTRA_DIRECTOR_START_INDEX && extraDirectorIndex <= EXTRA_DIRECTOR_END_INDEX) {
-      return String.format("Dir%02dFarm2026", extraDirectorIndex);
+    int demoDirectorIndex = parseDemoDirectorIndex(username);
+    if (demoDirectorIndex >= DEMO_DIRECTOR_START_INDEX && demoDirectorIndex <= EXTRA_DIRECTOR_END_INDEX) {
+      return formatDemoDirectorPassword(demoDirectorIndex);
     }
 
     return null;
   }
 
+  private User createDemoDirector(int index) {
+    return createUserIfMissing(
+        formatDemoDirectorUsername(index),
+        String.format("Директор магазина %02d", index),
+        String.format("+37529%07d", 1000000 + index),
+        String.format("Магазин \"Демо %02d\"", index),
+        Role.DIRECTOR,
+        formatDemoDirectorPassword(index)
+    );
+  }
+
   private void seedAdditionalDemoDirectors() {
-    for (String username : EXTRA_DEMO_DIRECTOR_USERNAMES) {
-      int index = parseExtraDirectorIndex(username);
-      createUserIfMissing(
-          username,
-          String.format("Директор магазина %02d", index),
-          String.format("+37529%07d", 1000000 + index),
-          String.format("Магазин \"Демо %02d\"", index),
-          Role.DIRECTOR,
-          seededPassword(username)
-      );
+    for (int index = EXTRA_DIRECTOR_START_INDEX; index <= EXTRA_DIRECTOR_END_INDEX; index++) {
+      createDemoDirector(index);
     }
   }
 
   public static List<String> demoDirectorUsernames() {
-    return Stream.concat(
-        Stream.of("berezka", "kvartal", "yantar"),
-        EXTRA_DEMO_DIRECTOR_USERNAMES.stream()
-    ).toList();
+    return IntStream.rangeClosed(DEMO_DIRECTOR_START_INDEX, EXTRA_DIRECTOR_END_INDEX)
+        .mapToObj(DataInitializer::formatDemoDirectorUsername)
+        .toList();
   }
 
-  public static String formatExtraDirectorUsername(int index) {
+  public static String formatDemoDirectorUsername(int index) {
     return String.format("director%02d", index);
   }
 
-  public static int parseExtraDirectorIndex(String username) {
+  public static String formatDemoDirectorPassword(int index) {
+    return String.format("Dir%02dFarm2026", index);
+  }
+
+  public static int parseDemoDirectorIndex(String username) {
     if (username == null) {
       return -1;
     }

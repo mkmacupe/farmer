@@ -30,9 +30,9 @@ powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base https://
 
 ## 4. Демо-аккаунты
 
-- `berezka / BrzK8r2pQ1`
-- `kvartal / KvtT4n7xR2`
-- `yantar / YntP6m9sL3`
+- `director01 / Dir01Farm2026`
+- `director02 / Dir02Farm2026`
+- `director03 / Dir03Farm2026`
 - `manager / MgrD5v8cN4`
 - `logistician / LogS7q1wE5`
 - `driver1 / Drv1A9k2Z6`

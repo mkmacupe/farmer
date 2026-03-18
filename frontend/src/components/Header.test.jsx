@@ -5,8 +5,8 @@ import Header from './Header.jsx';
 
 const user = {
   role: 'DIRECTOR',
-  username: 'berezka',
-  fullName: 'Ирина Соколова'
+  username: 'director01',
+  fullName: 'Директор магазина 01'
 };
 
 describe('Header', () => {

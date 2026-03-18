@@ -11,7 +11,7 @@ describe('LoginForm', () => {
     expect(button).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/логин/i), {
-      target: { value: 'berezka' }
+      target: { value: 'director01' }
     });
     expect(button).toBeDisabled();
 

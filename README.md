@@ -92,10 +92,7 @@ Reset очищает накопленное runtime-состояние, пере
 
 | Роль | Логин | Пароль |
 |---|---|---|
-| Director | `berezka` | `BrzK8r2pQ1` |
-| Director | `kvartal` | `KvtT4n7xR2` |
-| Director | `yantar` | `YntP6m9sL3` |
-| Director | `director04` … `director30` | `Dir04Farm2026` … `Dir30Farm2026` |
+| Director | `director01` … `director30` | `Dir01Farm2026` … `Dir30Farm2026` |
 | Manager | `manager` | `MgrD5v8cN4` |
 | Logistician | `logistician` | `LogS7q1wE5` |
 | Driver | `driver1` | `Drv1A9k2Z6` |

@@ -816,6 +816,6 @@ if (-not $NoFrontend) {
   }
 }
 if ($composeEnv["APP_DEMO_ENABLED"] -eq "true") {
-  Write-Host "Demo users: berezka / kvartal / yantar / manager / logistician / driver1 / driver2 / driver3"
+  Write-Host "Demo users: director01 / director02 / director03 / manager / logistician / driver1 / driver2 / driver3"
   Write-Host "Demo passwords are unique per user and stored as bcrypt hashes in DB."
 }
