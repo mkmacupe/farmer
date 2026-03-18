@@ -468,18 +468,6 @@ export default function LogisticianView({ token, activeSection }) {
     [routePlanPreview, routePreviewDriverId, routePreviewTripNumber]
   );
   const tripFilterAvailable = routePreviewDriverId !== 'all' && activePreviewTripNumbers.length > 1;
-  const activePreviewTrips = useMemo(() => {
-    if (!activePreviewRoute) {
-      return [];
-    }
-    if (routePreviewTripNumber === 'all') {
-      return Array.isArray(activePreviewRoute.trips) ? activePreviewRoute.trips : [];
-    }
-    const selectedTrip = normalizeTripNumber(routePreviewTripNumber);
-    return (activePreviewRoute.trips || []).filter(
-      (trip) => normalizeTripNumber(trip?.tripNumber) === selectedTrip
-    );
-  }, [activePreviewRoute, routePreviewTripNumber]);
   const activePreviewStops = useMemo(() => {
     if (!activePreviewRoute) {
       return [];
@@ -1222,27 +1210,9 @@ export default function LogisticianView({ token, activeSection }) {
                 </Grid>
                 {activePreviewRoute ? (
                   <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-                    {activePreviewTrips.length > 0 ? (
-                      <Grid container spacing={1}>
-                        {activePreviewTrips.map((trip) => (
-                          <Grid key={`${activePreviewRoute.driverId}-trip-${trip.tripNumber}`} size={{ xs: 12, md: 6 }}>
-                            <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5, height: '100%' }}>
-                              <Typography variant="subtitle2" fontWeight={700}>
-                                Рейс {trip.tripNumber}
-                              </Typography>
-                              <Typography variant="body2" color="text.secondary">
-                                {orderCountLabel(trip.assignedOrders)} • {stopCountLabel(
-                                  activePreviewStops.filter((stop) => Number(stop?.tripNumber) === Number(trip.tripNumber)).length || 0
-                                )} • {formatTransportNumber(trip.estimatedRouteDistanceKm)} км
-                              </Typography>
-                              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                                Загрузка: {formatTransportNumber(trip.totalWeightKg)} кг ({formatTransportNumber(trip.weightUtilizationPercent)}%) • {formatTransportNumber(trip.totalVolumeM3)} м³ ({formatTransportNumber(trip.volumeUtilizationPercent)}%)
-                              </Typography>
-                            </Paper>
-                          </Grid>
-                        ))}
-                      </Grid>
-                    ) : null}
+                    <Typography variant="subtitle2" fontWeight={700}>
+                      Детали остановок выбранного маршрута
+                    </Typography>
                     <TableContainer component={Paper} variant="outlined">
                       <Table size="small">
                         <TableHead>

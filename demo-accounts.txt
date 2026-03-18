@@ -1,0 +1,44 @@
+Demo accounts
+
+Directors:
+- berezka / BrzK8r2pQ1
+- kvartal / KvtT4n7xR2
+- yantar / YntP6m9sL3
+- director04 / Dir04Farm2026
+- director05 / Dir05Farm2026
+- director06 / Dir06Farm2026
+- director07 / Dir07Farm2026
+- director08 / Dir08Farm2026
+- director09 / Dir09Farm2026
+- director10 / Dir10Farm2026
+- director11 / Dir11Farm2026
+- director12 / Dir12Farm2026
+- director13 / Dir13Farm2026
+- director14 / Dir14Farm2026
+- director15 / Dir15Farm2026
+- director16 / Dir16Farm2026
+- director17 / Dir17Farm2026
+- director18 / Dir18Farm2026
+- director19 / Dir19Farm2026
+- director20 / Dir20Farm2026
+- director21 / Dir21Farm2026
+- director22 / Dir22Farm2026
+- director23 / Dir23Farm2026
+- director24 / Dir24Farm2026
+- director25 / Dir25Farm2026
+- director26 / Dir26Farm2026
+- director27 / Dir27Farm2026
+- director28 / Dir28Farm2026
+- director29 / Dir29Farm2026
+- director30 / Dir30Farm2026
+
+Manager:
+- manager / MgrD5v8cN4
+
+Logistician:
+- logistician / LogS7q1wE5
+
+Drivers:
+- driver1 / Drv1A9k2Z6
+- driver2 / Drv2B8m3Y7
+- driver3 / Drv3C7n4X8
