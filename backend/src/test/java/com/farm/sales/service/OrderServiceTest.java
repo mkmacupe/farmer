@@ -580,7 +580,8 @@ class OrderServiceTest {
     assertThat(preview.totalApprovedOrders()).isEqualTo(61);
     assertThat(preview.plannedOrders()).isEqualTo(61);
     assertThat(preview.approximatePlanningDistances()).isTrue();
-    assertThat(preview.planningHighlights()).anySatisfy(item -> assertThat(item).contains("прямолинейные расстояния"));
+    assertThat(preview.planningHighlights())
+        .anySatisfy(item -> assertThat(item).contains("следующий рейс"));
     assertThat(preview.routes())
         .flatExtracting(route -> route.points())
         .hasSize(61);
@@ -840,7 +841,11 @@ class OrderServiceTest {
       assertThat(preview.totalApprovedOrders()).isEqualTo(orderCount);
       assertThat(preview.plannedOrders()).isEqualTo(orderCount);
       assertThat(preview.unplannedOrders()).isEqualTo(0);
-      assertThat(preview.planningHighlights()).hasSizeGreaterThanOrEqualTo(4);
+      assertThat(preview.planningHighlights()).hasSizeGreaterThanOrEqualTo(2);
+      assertThat(preview.planningHighlights())
+          .anySatisfy(item -> assertThat(item).contains("водителями"));
+      assertThat(preview.planningHighlights())
+          .anySatisfy(item -> assertThat(item).contains("следующий рейс"));
 
       Set<Long> plannedOrderIds = new HashSet<>();
       preview.routes().forEach(route -> {

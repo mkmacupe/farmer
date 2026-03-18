@@ -47,7 +47,7 @@ class DemoTransportScenarioInitializerTest {
   }
 
   @Test
-  void seedDemoScenarioCreatesThirtyPointsAndSixtyApprovedOrders() {
+  void seedDemoScenarioCreatesTwentyFivePointsAndThirtyFiveApprovedOrders() {
     User berezka = user(1L, "berezka", "Берёзка");
     User kvartal = user(2L, "kvartal", "Квартал");
     User yantar = user(3L, "yantar", "Янтарь");
@@ -88,13 +88,13 @@ class DemoTransportScenarioInitializerTest {
     initializer.seedDemoScenario();
 
     ArgumentCaptor<StoreAddress> addressCaptor = ArgumentCaptor.forClass(StoreAddress.class);
-    verify(storeAddressRepository, times(30)).save(addressCaptor.capture());
+    verify(storeAddressRepository, times(25)).save(addressCaptor.capture());
     assertThat(addressCaptor.getAllValues())
         .extracting(StoreAddress::getLabel)
-        .contains("Точка 01", "Точка 15", "Точка 30");
+        .contains("Сценарий 01", "Сценарий 15", "Сценарий 25");
 
     ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-    verify(orderRepository, times(60)).save(orderCaptor.capture());
+    verify(orderRepository, times(35)).save(orderCaptor.capture());
     assertThat(orderCaptor.getAllValues())
         .allSatisfy(order -> {
           assertThat(order.getStatus()).isEqualTo(OrderStatus.APPROVED);
@@ -103,12 +103,17 @@ class DemoTransportScenarioInitializerTest {
           assertThat(order.getItems()).hasSize(2);
           assertThat(order.getTotalAmount()).isNotNull();
         });
-    assertThat(orderCaptor.getAllValues().stream()
-        .collect(java.util.stream.Collectors.groupingBy(Order::getDeliveryAddressText))
-        .values())
+    var ordersByPoint = orderCaptor.getAllValues().stream()
+        .collect(java.util.stream.Collectors.groupingBy(Order::getDeliveryAddressText));
+    assertThat(ordersByPoint).hasSize(25);
+    assertThat(ordersByPoint.values().stream().filter(ordersAtPoint -> ordersAtPoint.size() == 2).count())
+        .isEqualTo(10);
+    assertThat(ordersByPoint.values().stream().filter(ordersAtPoint -> ordersAtPoint.size() == 1).count())
+        .isEqualTo(15);
+    assertThat(ordersByPoint.values())
         .allSatisfy(ordersAtPoint -> {
           double pointWeightKg = ordersAtPoint.stream().mapToDouble(this::orderWeightKg).sum();
-          assertThat(pointWeightKg).isBetween(480.0, 520.0);
+          assertThat(pointWeightKg).isBetween(240.0, 520.0);
         });
   }
 
