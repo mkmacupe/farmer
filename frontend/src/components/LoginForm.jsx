@@ -1,44 +1,7 @@
 import { memo, useEffect, useState } from 'react';
 import './LoginForm.css';
 
-const DEMO_ACCOUNTS = [
-  {
-    label: 'berezka',
-    username: 'berezka',
-    password: 'BrzK8r2pQ1',
-    legacyUsername: 'mogilevkhim',
-    legacyPassword: 'MhvK8r2pQ1'
-  },
-  {
-    label: 'kvartal',
-    username: 'kvartal',
-    password: 'KvtT4n7xR2',
-    legacyUsername: 'mogilevlift',
-    legacyPassword: 'MlvT4n7xR2'
-  },
-  {
-    label: 'yantar',
-    username: 'yantar',
-    password: 'YntP6m9sL3',
-    legacyUsername: 'babushkina',
-    legacyPassword: 'BbkP6m9sL3'
-  },
-  { label: 'manager', username: 'manager', password: 'MgrD5v8cN4' },
-  { label: 'logistician', username: 'logistician', password: 'LogS7q1wE5' },
-  { label: 'driver1', username: 'driver1', password: 'Drv1A9k2Z6' },
-  { label: 'driver2', username: 'driver2', password: 'Drv2B8m3Y7' },
-  { label: 'driver3', username: 'driver3', password: 'Drv3C7n4X8' }
-];
-
-function findDemoAccountByUsername(username) {
-  const normalizedUsername = String(username || '').trim().toLowerCase();
-  return DEMO_ACCOUNTS.find((account) =>
-    account.username.toLowerCase() === normalizedUsername
-    || account.legacyUsername?.toLowerCase() === normalizedUsername
-  ) || null;
-}
-
-function LoginForm({ onLogin, onQuickLogin, loading, error, loadingMessage }) {
+function LoginForm({ onLogin, loading, error, loadingMessage }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showLoadingHint, setShowLoadingHint] = useState(false);
@@ -60,20 +23,9 @@ function LoginForm({ onLogin, onQuickLogin, loading, error, loadingMessage }) {
     };
   }, [loading]);
 
-  const applyDemo = (account) => {
-    setUsername(account.username);
-    setPassword(account.password);
-  };
-
   const submit = (event) => {
     event.preventDefault();
-    const normalizedUsername = username.trim();
-    const demoAccount = findDemoAccountByUsername(normalizedUsername);
-    if (demoAccount && typeof onQuickLogin === 'function') {
-      onQuickLogin(demoAccount);
-      return;
-    }
-    onLogin(normalizedUsername, password);
+    onLogin(username.trim(), password);
   };
 
   return (
@@ -124,22 +76,6 @@ function LoginForm({ onLogin, onQuickLogin, loading, error, loadingMessage }) {
               </p>
             ) : null}
           </form>
-
-          <div className="login-divider" aria-hidden="true" />
-
-          <div className="login-demo" role="group" aria-label="Демо аккаунты">
-            {DEMO_ACCOUNTS.map((account) => (
-              <button
-                key={account.username}
-                type="button"
-                className={username === account.username ? 'is-active' : ''}
-                onClick={() => applyDemo(account)}
-                disabled={loading}
-              >
-                {account.label}
-              </button>
-            ))}
-          </div>
         </div>
       </section>
     </main>

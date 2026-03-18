@@ -28,38 +28,43 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DemoTransportScenarioInitializer.class);
-  private static final List<String> DIRECTOR_USERNAMES = List.of("berezka", "kvartal", "yantar");
-  private static final int TARGET_ORDER_COUNT = 35;
-  private static final int DEMO_ORDER_ITEM_COUNT = 2;
-  private static final double DEMO_ORDER_TARGET_WEIGHT_KG = 250.0;
-  private static final double MIN_ROUTING_DEMO_PRODUCT_WEIGHT_KG = 0.25;
+  private static final List<String> DIRECTOR_USERNAMES = DataInitializer.demoDirectorUsernames();
+  private static final int TARGET_ORDER_COUNT = 30;
+  private static final int TARGET_TOTAL_WEIGHT_KG = 4498;
+  private static final int TARGET_CLUSTER_LOAD_KG = 1500;
   private static final double DEFAULT_PRODUCT_WEIGHT_KG = 1.0;
+  private static final double PREFERRED_SCENARIO_PRODUCT_WEIGHT_KG = 1.0;
   private static final List<DemoPoint> MOGILEV_POINTS = List.of(
-      new DemoPoint("Сценарий 01", "Могилёв, ул. Первомайская 18", "53.9019502", "30.3341576"),
-      new DemoPoint("Сценарий 02", "Могилёв, ул. Ленинская 44", "53.9005400", "30.3364800"),
-      new DemoPoint("Сценарий 03", "Могилёв, ул. Комсомольская 10", "53.8972780", "30.3351973"),
-      new DemoPoint("Сценарий 04", "Могилёв, Брамный пер. 2", "53.8954066", "30.3299772"),
-      new DemoPoint("Сценарий 05", "Могилёв, ул. Чигринова 11", "53.8836878", "30.3385820"),
-      new DemoPoint("Сценарий 06", "Могилёв, ул. Гагарина 33", "53.9074600", "30.3206500"),
-      new DemoPoint("Сценарий 07", "Могилёв, ул. Якубовского 18", "53.9146200", "30.3421800"),
-      new DemoPoint("Сценарий 08", "Могилёв, ул. Миколуцкого 30", "53.9080094", "30.3562839"),
-      new DemoPoint("Сценарий 09", "Могилёв, ул. Островского 21", "53.8993200", "30.3601100"),
-      new DemoPoint("Сценарий 10", "Могилёв, ул. Златоустовского 24", "53.8822252", "30.3632077"),
-      new DemoPoint("Сценарий 11", "Могилёв, ул. Терехина 16", "53.8761200", "30.3504400"),
-      new DemoPoint("Сценарий 12", "Могилёв, ул. Космонавтов 41", "53.8997146", "30.2948063"),
-      new DemoPoint("Сценарий 13", "Могилёв, ул. Челюскинцев 123", "53.8676400", "30.2943600"),
-      new DemoPoint("Сценарий 14", "Могилёв, ул. Прямая 10", "53.8733754", "30.2784216"),
-      new DemoPoint("Сценарий 15", "Могилёв, ул. Габровская 63", "53.8859200", "30.2968100"),
-      new DemoPoint("Сценарий 16", "Могилёв, ул. Романова 1", "53.8941372", "30.3087819"),
-      new DemoPoint("Сценарий 17", "Могилёв, ул. Бялыницкого-Бирули 44", "53.9069800", "30.3099400"),
-      new DemoPoint("Сценарий 18", "Могилёв, ул. Сурганова 21А", "53.9196949", "30.3183777"),
-      new DemoPoint("Сценарий 19", "Могилёв, ул. Строителей 14", "53.9283600", "30.3331200"),
-      new DemoPoint("Сценарий 20", "Могилёв, ул. Фатина 27", "53.9342200", "30.3484600"),
-      new DemoPoint("Сценарий 21", "Могилёв, ул. Алексея Пысина 21", "53.9134022", "30.2851870"),
-      new DemoPoint("Сценарий 22", "Могилёв, ул. Гришина 92", "53.8789400", "30.3601400"),
-      new DemoPoint("Сценарий 23", "Могилёв, пер. Вагнера 30", "53.8842917", "30.3492661"),
-      new DemoPoint("Сценарий 24", "Могилёв, ул. Сурганова 19", "53.9201640", "30.3127560"),
-      new DemoPoint("Сценарий 25", "Могилёв, ул. Якубовского 67", "53.9203246", "30.3035017")
+      new DemoPoint("Сценарий 01", "Могилёв, ул. Челюскинцев 105", "53.8654000", "30.2905000"),
+      new DemoPoint("Сценарий 02", "Могилёв, ул. Челюскинцев 123", "53.8676400", "30.2943600"),
+      new DemoPoint("Сценарий 03", "Могилёв, ул. Прямая 10", "53.8733754", "30.2784216"),
+      new DemoPoint("Сценарий 04", "Могилёв, ул. Терехина 16", "53.8761200", "30.3504400"),
+      new DemoPoint("Сценарий 05", "Могилёв, ул. Гришина 92", "53.8789400", "30.3601400"),
+      new DemoPoint("Сценарий 06", "Могилёв, ул. Златоустовского 24", "53.8822252", "30.3632077"),
+      new DemoPoint("Сценарий 07", "Могилёв, пер. Вагнера 30", "53.8842917", "30.3492661"),
+      new DemoPoint("Сценарий 08", "Могилёв, ул. Габровская 63", "53.8859200", "30.2968100"),
+      new DemoPoint("Сценарий 09", "Могилёв, ул. Чигринова 11", "53.8836878", "30.3385820"),
+      new DemoPoint("Сценарий 10", "Могилёв, ул. Романова 1", "53.8941372", "30.3087819"),
+      new DemoPoint("Сценарий 11", "Могилёв, ул. Комсомольская 10", "53.8972780", "30.3351973"),
+      new DemoPoint("Сценарий 12", "Могилёв, ул. Островского 21", "53.8993200", "30.3601100"),
+      new DemoPoint("Сценарий 13", "Могилёв, ул. Космонавтов 41", "53.8997146", "30.2948063"),
+      new DemoPoint("Сценарий 14", "Могилёв, ул. Ленинская 44", "53.9005400", "30.3364800"),
+      new DemoPoint("Сценарий 15", "Могилёв, ул. Первомайская 18", "53.9019502", "30.3341576"),
+      new DemoPoint("Сценарий 16", "Могилёв, ул. Бялыницкого-Бирули 44", "53.9069800", "30.3099400"),
+      new DemoPoint("Сценарий 17", "Могилёв, ул. Гагарина 33", "53.9074600", "30.3206500"),
+      new DemoPoint("Сценарий 18", "Могилёв, ул. Миколуцкого 30", "53.9080094", "30.3562839"),
+      new DemoPoint("Сценарий 19", "Могилёв, ул. Алексея Пысина 21", "53.9134022", "30.2851870"),
+      new DemoPoint("Сценарий 20", "Могилёв, ул. Якубовского 18", "53.9146200", "30.3421800"),
+      new DemoPoint("Сценарий 21", "Могилёв, ул. Сурганова 21А", "53.9196949", "30.3183777"),
+      new DemoPoint("Сценарий 22", "Могилёв, ул. Сурганова 19", "53.9201640", "30.3127560"),
+      new DemoPoint("Сценарий 23", "Могилёв, ул. Якубовского 67", "53.9203246", "30.3035017"),
+      new DemoPoint("Сценарий 24", "Могилёв, ул. Строителей 14", "53.9283600", "30.3331200"),
+      new DemoPoint("Сценарий 25", "Могилёв, ул. Академика Павлова 3", "53.9342000", "30.2941000"),
+      new DemoPoint("Сценарий 26", "Могилёв, ул. Фатина 27", "53.9342200", "30.3484600"),
+      new DemoPoint("Сценарий 27", "Могилёв, пр-т Мира 42", "53.8948000", "30.3312000"),
+      new DemoPoint("Сценарий 28", "Могилёв, Брамный пер. 2", "53.8954066", "30.3299772"),
+      new DemoPoint("Сценарий 29", "Могилёв, ул. Павлова 12", "53.9316000", "30.3008000"),
+      new DemoPoint("Сценарий 30", "Могилёв, ул. Мовчанского 53", "53.9119000", "30.3661000")
   );
 
   private final UserRepository userRepository;
@@ -120,19 +125,15 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
         log.warn("Пропуск demo-транспортного сида: в каталоге нет товаров с ценой.");
         return;
       }
-      List<Product> routingProducts = products.stream()
-          .filter(product -> effectiveProductWeightKg(product) >= MIN_ROUTING_DEMO_PRODUCT_WEIGHT_KG)
-          .toList();
-      if (routingProducts.isEmpty()) {
-        routingProducts = products;
-      }
 
       if (orderRepository.count() > 0) {
         log.info("Demo transport scenario skipped: orders already exist, destructive reseed disabled.");
         scenarioSeeded = true;
         return;
       }
-      seedOrdersForMogilev(directors, manager, routingProducts);
+
+      storeAddressRepository.deleteAllInBatch();
+      seedOrdersForMogilev(directors, manager, products);
       scenarioSeeded = true;
     }
   }
@@ -156,28 +157,21 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
 
   private void seedOrdersForMogilev(List<User> directors, User manager, List<Product> products) {
     Instant now = Instant.now();
-    int baseOrdersPerPoint = TARGET_ORDER_COUNT / MOGILEV_POINTS.size();
-    int pointsWithExtraOrder = TARGET_ORDER_COUNT % MOGILEV_POINTS.size();
-    int scenarioOrderIndex = 0;
     for (int i = 0; i < MOGILEV_POINTS.size(); i++) {
       DemoPoint point = MOGILEV_POINTS.get(i);
-      User customer = directors.get(i % directors.size());
-      Instant pointBaseCreatedAt = now.minusSeconds((long) (MOGILEV_POINTS.size() - i) * 240L);
-      int ordersForPoint = baseOrdersPerPoint + (i < pointsWithExtraOrder ? 1 : 0);
+      User customer = directors.get(i);
+      Instant createdAt = now.minusSeconds((long) (MOGILEV_POINTS.size() - i) * 180L);
 
-      StoreAddress address = createPointAddress(customer, point, pointBaseCreatedAt.minusSeconds(900));
-      for (int orderVariant = 0; orderVariant < ordersForPoint; orderVariant++) {
-        Instant createdAt = pointBaseCreatedAt.plusSeconds(orderVariant * 75L);
-        Order order = createApprovedOrder(customer, manager, address, products, scenarioOrderIndex, createdAt);
-        orderRepository.save(order);
-        scenarioOrderIndex += 1;
-      }
+      StoreAddress address = createPointAddress(customer, point, createdAt.minusSeconds(600));
+      Order order = createApprovedOrder(customer, manager, address, products, i, createdAt);
+      orderRepository.save(order);
     }
 
     log.info(
-        "Demo transport scenario seeded: {} Mogilev points and {} approved orders created.",
+        "Demo transport scenario seeded: {} Mogilev points and {} approved orders created with total weight {} kg.",
         MOGILEV_POINTS.size(),
-        TARGET_ORDER_COUNT
+        TARGET_ORDER_COUNT,
+        TARGET_TOTAL_WEIGHT_KG
     );
   }
 
@@ -225,33 +219,29 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   }
 
   private List<OrderItem> buildOrderItems(Order order, List<Product> products, int pointIndex) {
-    List<OrderItem> items = new ArrayList<>(DEMO_ORDER_ITEM_COUNT);
-    double remainingTargetWeightKg = DEMO_ORDER_TARGET_WEIGHT_KG;
+    Product product = selectScenarioProduct(products, pointIndex);
+    double productWeightKg = effectiveProductWeightKg(product);
+    int targetWeightKg = targetOrderWeightKg(pointIndex);
+    int quantity = Math.max(1, (int) Math.round(targetWeightKg / productWeightKg));
+    BigDecimal price = product.getPrice();
 
-    // Wholesale demo orders should be heavy enough to force multiple trips in preview.
-    for (int offset = 0; offset < DEMO_ORDER_ITEM_COUNT; offset++) {
-      Product product = products.get((pointIndex * DEMO_ORDER_ITEM_COUNT + offset) % products.size());
-      double productWeightKg = effectiveProductWeightKg(product);
-      int remainingItemSlots = DEMO_ORDER_ITEM_COUNT - offset;
-      double itemTargetWeightKg = remainingItemSlots == 1
-          ? remainingTargetWeightKg
-          : remainingTargetWeightKg / remainingItemSlots;
-      int quantity = remainingItemSlots == 1
-          ? Math.max(1, (int) Math.round(itemTargetWeightKg / productWeightKg))
-          : Math.max(1, (int) Math.floor(itemTargetWeightKg / productWeightKg));
-      BigDecimal price = product.getPrice();
+    OrderItem item = new OrderItem();
+    item.setOrder(order);
+    item.setProduct(product);
+    item.setQuantity(quantity);
+    item.setPrice(price);
+    item.setLineTotal(price.multiply(BigDecimal.valueOf(quantity)));
 
-      OrderItem item = new OrderItem();
-      item.setOrder(order);
-      item.setProduct(product);
-      item.setQuantity(quantity);
-      item.setPrice(price);
-      item.setLineTotal(price.multiply(BigDecimal.valueOf(quantity)));
-      items.add(item);
-      remainingTargetWeightKg = Math.max(0.0, remainingTargetWeightKg - quantity * productWeightKg);
+    return List.of(item);
+  }
+
+  private int targetOrderWeightKg(int pointIndex) {
+    int clusterIndex = pointIndex / 10;
+    int orderIndexWithinCluster = pointIndex % 10;
+    if (clusterIndex < 2 && orderIndexWithinCluster == 0) {
+      return TARGET_CLUSTER_LOAD_KG - 1 - (9 * 150);
     }
-
-    return items;
+    return 150;
   }
 
   private double effectiveProductWeightKg(Product product) {
@@ -259,6 +249,16 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
       return DEFAULT_PRODUCT_WEIGHT_KG;
     }
     return product.getWeightKg();
+  }
+
+  private Product selectScenarioProduct(List<Product> products, int pointIndex) {
+    List<Product> oneKilogramProducts = products.stream()
+        .filter(product -> Math.abs(effectiveProductWeightKg(product) - PREFERRED_SCENARIO_PRODUCT_WEIGHT_KG) < 0.0001)
+        .toList();
+    if (!oneKilogramProducts.isEmpty()) {
+      return oneKilogramProducts.get(pointIndex % oneKilogramProducts.size());
+    }
+    return products.get(pointIndex % products.size());
   }
 
   private record DemoPoint(String label, String addressLine, String latitude, String longitude) {

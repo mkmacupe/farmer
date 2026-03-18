@@ -72,21 +72,21 @@ npm run dev
 
 ## Demo reset
 
-Локальный reset:
+Новый demo reset для локального и задеплоенного backend одновременно:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base http://127.0.0.1:8080/api
+.\demo-reset.bat
 ```
 
-Если backend запущен не через `start-dev.ps1`, а вручную или на другом порту, в `-Base` нужно передать фактический адрес `/api`.
+Скрипт по умолчанию пытается обновить локальный backend, если он доступен, и публичный backend `https://farm-sales-backend.onrender.com/api`. При необходимости можно передать конкретный `-Base` или URL первым аргументом в `.bat`.
 
-Публичный backend:
+Сбросить только заказы до нуля, оставив точки магазинов:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base https://farm-sales-backend.onrender.com/api
+.\demo-clear-orders.bat
 ```
 
-Reset очищает накопленное runtime-состояние, пересоздаёт demo-пользователей и каталог, а затем поднимает канонический транспортный сценарий для защиты: `25` точек доставки и `35` заказов в статусе `APPROVED`.
+Reset очищает накопленное runtime-состояние, пересоздаёт demo-пользователей и каталог, а затем поднимает канонический транспортный сценарий для защиты: `30` точек магазинов и `30` заказов в статусе `APPROVED`, по `1` заказу на точку, суммарным весом `4498 кг`. Это оставляет запас в `2 кг` до общего лимита трёх машин на один рейс (`4500 кг`), поэтому дополнительный заказ весом `2+ кг` отправит одного из водителей на второй рейс.
 
 ## Демо-аккаунты
 
@@ -95,6 +95,7 @@ Reset очищает накопленное runtime-состояние, пере
 | Director | `berezka` | `BrzK8r2pQ1` |
 | Director | `kvartal` | `KvtT4n7xR2` |
 | Director | `yantar` | `YntP6m9sL3` |
+| Director | `director04` … `director30` | `Dir04Farm2026` … `Dir30Farm2026` |
 | Manager | `manager` | `MgrD5v8cN4` |
 | Logistician | `logistician` | `LogS7q1wE5` |
 | Driver | `driver1` | `Drv1A9k2Z6` |
@@ -123,7 +124,8 @@ mvn test
 - `frontend/` — SPA на React/Vite;
 - `backend/` — Spring Boot backend;
 - `render.yaml` — deploy-конфигурация Render;
-- `scripts/demo-reset.ps1` — reset демо-данных;
+- `scripts/demo-reset.ps1` — reset демо-данных на локальном и публичном backend;
+- `scripts/demo-clear-orders.ps1` — очистка заказов без удаления точек магазинов;
 - `docs/` — обзор, архитектура, защита, deploy.
 
 ## Документация

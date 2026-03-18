@@ -47,23 +47,19 @@ class DemoTransportScenarioInitializerTest {
   }
 
   @Test
-  void seedDemoScenarioCreatesTwentyFivePointsAndThirtyFiveApprovedOrders() {
-    User berezka = user(1L, "berezka", "Берёзка");
-    User kvartal = user(2L, "kvartal", "Квартал");
-    User yantar = user(3L, "yantar", "Янтарь");
-    User manager = user(4L, "manager", "Менеджер");
-
-    when(userRepository.findByUsername("berezka")).thenReturn(Optional.of(berezka));
-    when(userRepository.findByUsername("kvartal")).thenReturn(Optional.of(kvartal));
-    when(userRepository.findByUsername("yantar")).thenReturn(Optional.of(yantar));
+  void seedDemoScenarioCreatesThirtyPointsAndThirtyApprovedOrdersWith4498KgTotalWeight() {
+    List<String> directorUsernames = DataInitializer.demoDirectorUsernames();
+    for (int index = 0; index < directorUsernames.size(); index++) {
+      String username = directorUsernames.get(index);
+      when(userRepository.findByUsername(username)).thenReturn(Optional.of(user((long) index + 1, username, "Директор " + (index + 1))));
+    }
+    User manager = user(100L, "manager", "Менеджер");
+    manager.setRole(Role.MANAGER);
     when(userRepository.findByUsername("manager")).thenReturn(Optional.of(manager));
     when(productRepository.findAll()).thenReturn(List.of(
-        product(101L, "Товар 1", "10.50"),
-        product(102L, "Товар 2", "11.20"),
-        product(103L, "Товар 3", "12.00"),
-        product(104L, "Товар 4", "13.40"),
-        product(105L, "Товар 5", "14.10"),
-        product(106L, "Товар 6", "9.90")
+        product(101L, "Товар 1", "10.50", 1.0),
+        product(102L, "Товар 2", "11.20", 1.0),
+        product(103L, "Товар 3", "12.00", 1.0)
     ));
     when(orderRepository.count()).thenReturn(0L);
 
@@ -87,34 +83,32 @@ class DemoTransportScenarioInitializerTest {
 
     initializer.seedDemoScenario();
 
+    verify(storeAddressRepository).deleteAllInBatch();
+
     ArgumentCaptor<StoreAddress> addressCaptor = ArgumentCaptor.forClass(StoreAddress.class);
-    verify(storeAddressRepository, times(25)).save(addressCaptor.capture());
+    verify(storeAddressRepository, times(30)).save(addressCaptor.capture());
     assertThat(addressCaptor.getAllValues())
         .extracting(StoreAddress::getLabel)
-        .contains("Сценарий 01", "Сценарий 15", "Сценарий 25");
+        .contains("Сценарий 01", "Сценарий 15", "Сценарий 30");
 
     ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
-    verify(orderRepository, times(35)).save(orderCaptor.capture());
+    verify(orderRepository, times(30)).save(orderCaptor.capture());
     assertThat(orderCaptor.getAllValues())
         .allSatisfy(order -> {
           assertThat(order.getStatus()).isEqualTo(OrderStatus.APPROVED);
           assertThat(order.getDeliveryAddress()).isNotNull();
           assertThat(order.getApprovedByManager()).isSameAs(manager);
-          assertThat(order.getItems()).hasSize(2);
+          assertThat(order.getItems()).hasSize(1);
           assertThat(order.getTotalAmount()).isNotNull();
         });
+
     var ordersByPoint = orderCaptor.getAllValues().stream()
         .collect(java.util.stream.Collectors.groupingBy(Order::getDeliveryAddressText));
-    assertThat(ordersByPoint).hasSize(25);
-    assertThat(ordersByPoint.values().stream().filter(ordersAtPoint -> ordersAtPoint.size() == 2).count())
-        .isEqualTo(10);
-    assertThat(ordersByPoint.values().stream().filter(ordersAtPoint -> ordersAtPoint.size() == 1).count())
-        .isEqualTo(15);
-    assertThat(ordersByPoint.values())
-        .allSatisfy(ordersAtPoint -> {
-          double pointWeightKg = ordersAtPoint.stream().mapToDouble(this::orderWeightKg).sum();
-          assertThat(pointWeightKg).isBetween(240.0, 520.0);
-        });
+    assertThat(ordersByPoint).hasSize(30);
+    assertThat(ordersByPoint.values()).allSatisfy(ordersAtPoint -> assertThat(ordersAtPoint).hasSize(1));
+
+    double totalWeightKg = orderCaptor.getAllValues().stream().mapToDouble(this::orderWeightKg).sum();
+    assertThat(totalWeightKg).isEqualTo(4498.0);
   }
 
   private User user(Long id, String username, String fullName) {
@@ -122,18 +116,19 @@ class DemoTransportScenarioInitializerTest {
     user.setId(id);
     user.setUsername(username);
     user.setFullName(fullName);
-    user.setRole("manager".equals(username) ? Role.MANAGER : Role.DIRECTOR);
+    user.setRole(Role.DIRECTOR);
     user.setPasswordHash("encoded");
     return user;
   }
 
-  private Product product(Long id, String name, String price) {
+  private Product product(Long id, String name, String price, double weightKg) {
     Product product = new Product();
     product.setId(id);
     product.setName(name);
     product.setCategory("Категория");
     product.setPrice(new BigDecimal(price));
     product.setStockQuantity(100);
+    product.setWeightKg(weightKg);
     return product;
   }
 

@@ -36,59 +36,26 @@ describe('LoginForm', () => {
     expect(onLogin).toHaveBeenCalledWith('manager', 'secret123');
   });
 
-  it('fills credentials via demo button with unique profile password', async () => {
+  it('trims username before submit', () => {
     const onLogin = vi.fn();
     render(<LoginForm onLogin={onLogin} loading={false} error="" />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'manager' }));
+    fireEvent.change(screen.getByLabelText(/логин/i), {
+      target: { value: '  manager  ' }
+    });
+    fireEvent.change(screen.getByLabelText(/пароль/i), {
+      target: { value: 'secret123' }
+    });
+    fireEvent.submit(screen.getByRole('button', { name: /войти/i }).closest('form'));
 
-    expect(screen.getByLabelText(/логин/i)).toHaveValue('manager');
-    expect(screen.getByLabelText(/пароль/i)).toHaveValue('MgrD5v8cN4');
-    expect(onLogin).not.toHaveBeenCalled();
+    expect(onLogin).toHaveBeenCalledWith('manager', 'secret123');
   });
 
-  it('does not auto-login via demo buttons even when onQuickLogin is provided', async () => {
-    const onLogin = vi.fn();
-    const onQuickLogin = vi.fn();
-    render(
-      <LoginForm
-        onLogin={onLogin}
-        onQuickLogin={onQuickLogin}
-        loading={false}
-        error=""
-      />
-    );
+  it('does not render quick demo account buttons', () => {
+    render(<LoginForm onLogin={() => {}} loading={false} error="" />);
 
-    await userEvent.click(screen.getByRole('button', { name: 'manager' }));
-
-    expect(screen.getByLabelText(/логин/i)).toHaveValue('manager');
-    expect(screen.getByLabelText(/пароль/i)).toHaveValue('MgrD5v8cN4');
-    expect(onQuickLogin).not.toHaveBeenCalled();
-    expect(onLogin).not.toHaveBeenCalled();
-  });
-
-  it('submits demo profile via onQuickLogin after autofill', async () => {
-    const onLogin = vi.fn();
-    const onQuickLogin = vi.fn();
-    render(
-      <LoginForm
-        onLogin={onLogin}
-        onQuickLogin={onQuickLogin}
-        loading={false}
-        error=""
-      />
-    );
-
-    await userEvent.click(screen.getByRole('button', { name: 'berezka' }));
-    await userEvent.click(screen.getByRole('button', { name: /войти/i }));
-
-    expect(onQuickLogin).toHaveBeenCalledWith(expect.objectContaining({
-      username: 'berezka',
-      password: 'BrzK8r2pQ1',
-      legacyUsername: 'mogilevkhim',
-      legacyPassword: 'MhvK8r2pQ1'
-    }));
-    expect(onLogin).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'manager' })).toBeNull();
+    expect(screen.queryByRole('group', { name: /демо аккаунты/i })).toBeNull();
   });
 
   it('shows server error message', () => {

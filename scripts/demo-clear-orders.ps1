@@ -95,7 +95,7 @@ function Resolve-FrontendConfiguredBase {
   return $null
 }
 
-function Resolve-ResetBases {
+function Resolve-TargetBases {
   if ($Base -and $Base.Count -gt 0) {
     return $Base
   }
@@ -125,11 +125,10 @@ function Resolve-ResetBases {
     return $bases.ToArray()
   }
 
-  Write-Host "Local backend was not auto-detected. Falling back to local + deployed demo bases."
   return @("http://127.0.0.1:8080/api", $DeployedBase)
 }
 
-function Invoke-DemoReset {
+function Invoke-ClearOrders {
   param(
     [Parameter(Mandatory = $true)][string]$Base
   )
@@ -151,34 +150,29 @@ function Invoke-DemoReset {
 
   return Invoke-LocalRest `
     -Method Post `
-    -Uri "$Base/demo/reset" `
+    -Uri "$Base/demo/clear-orders" `
     -Headers $headers
 }
 
-$basesToReset = Resolve-ResetBases
+$targetBases = Resolve-TargetBases
 $results = New-Object System.Collections.Generic.List[object]
 
-foreach ($resolvedBase in $basesToReset) {
-  Write-Host "Reset base: $resolvedBase"
-  $reset = Invoke-DemoReset -Base $resolvedBase
-  Write-Host "Demo scenario reset completed."
-  Write-Host "Recommended flow:"
-  foreach ($step in $reset.defenseFlow) {
-    Write-Host " - $step"
-  }
-
+foreach ($resolvedBase in $targetBases) {
+  Write-Host "Clear orders base: $resolvedBase"
+  $result = Invoke-ClearOrders -Base $resolvedBase
+  Write-Host "Orders cleared; store points kept."
   $results.Add([pscustomobject]@{
       base = $resolvedBase
-      reset = $reset
+      clear = $result
     })
 }
 
 if ($results.Count -eq 1) {
-  $results[0].reset | ConvertTo-Json -Depth 5
+  $results[0].clear | ConvertTo-Json -Depth 5
   return
 }
 
 [pscustomobject]@{
-  resetBases = $results.base
+  clearBases = $results.base
   results = $results
 } | ConvertTo-Json -Depth 6

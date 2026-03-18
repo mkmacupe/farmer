@@ -3,6 +3,7 @@ package com.farm.sales.service;
 import com.farm.sales.audit.AuditLogRepository;
 import com.farm.sales.config.DataInitializer;
 import com.farm.sales.config.DemoTransportScenarioInitializer;
+import com.farm.sales.dto.DemoClearOrdersResponse;
 import com.farm.sales.dto.DemoResetResponse;
 import com.farm.sales.model.OrderStatus;
 import com.farm.sales.model.Role;
@@ -26,8 +27,9 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioService {
   private static final List<String> DEFENSE_FLOW = List.of(
-      "Менеджер: выполнить demo reset и показать, что система загрузила 25 торговых точек и пакет одобренных заявок для логистики.",
-      "Логист: открыть список APPROVED заказов, запустить preview автоназначения и показать распределение по 3 водителям.",
+      "Менеджер: выполнить demo reset и показать, что система загрузила 30 торговых точек и 30 одобренных заказов.",
+      "Логист: открыть список APPROVED заказов, запустить preview автоназначения и показать, что все 3 водителя укладываются в один рейс.",
+      "Логист: добавить ещё один заказ весом больше 2 кг и показать, что система отправляет одного из водителей на второй рейс.",
       "Логист: подтвердить план и показать маршрутные линии, вес, объём и последовательность остановок.",
       "Водитель driver1: открыть назначенные заказы и отметить одну доставку завершённой."
   );
@@ -92,7 +94,7 @@ public class DemoScenarioService {
     demoTransportScenarioInitializer.seedDemoScenario();
 
     return new DemoResetResponse(
-        "Транспортный demo-сценарий Farm Sales: 25 точек / 35 заказов",
+        "Транспортный demo-сценарий Farm Sales: 30 точек / 30 заказов / 4498 кг",
         Instant.now(),
         userRepository.count(),
         userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR).size(),
@@ -101,6 +103,28 @@ public class DemoScenarioService {
         orderRepository.count(),
         orderRepository.countByStatus(OrderStatus.APPROVED),
         DEFENSE_FLOW
+    );
+  }
+
+  @Transactional
+  @CacheEvict(value = "users-by-role", allEntries = true)
+  public DemoClearOrdersResponse clearOrdersKeepingStorePoints() {
+    realtimeNotificationRepository.deleteAllInBatch();
+    orderTimelineEventRepository.deleteAllInBatch();
+    stockMovementRepository.deleteAllInBatch();
+    auditLogRepository.deleteAllInBatch();
+    orderItemRepository.deleteAllInBatch();
+    orderRepository.deleteAllInBatch();
+    entityManager.flush();
+    entityManager.clear();
+    demoTransportScenarioInitializer.resetSeedState();
+
+    return new DemoClearOrdersResponse(
+        "Заказы очищены, точки магазинов сохранены",
+        Instant.now(),
+        storeAddressRepository.count(),
+        orderRepository.count(),
+        orderRepository.countByStatus(OrderStatus.APPROVED)
     );
   }
 }

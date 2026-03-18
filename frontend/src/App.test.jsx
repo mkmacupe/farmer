@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App.jsx';
 import { clearAuth, loadAuth, saveAuth } from './authStorage.js';
-import { demoLogin, login, primeBackendWarmup } from './api.js';
+import { login, primeBackendWarmup } from './api.js';
 
 vi.mock('./authStorage.js', () => ({
   loadAuth: vi.fn(),
@@ -10,7 +10,6 @@ vi.mock('./authStorage.js', () => ({
 }));
 
 vi.mock('./api.js', () => ({
-  demoLogin: vi.fn(),
   LOGIN_LOADING_MESSAGE: 'Подключаем сервер...',
   login: vi.fn(),
   primeBackendWarmup: vi.fn(() => Promise.resolve(true))
@@ -37,12 +36,6 @@ describe('App', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     loadAuth.mockReturnValue(null);
-    demoLogin.mockResolvedValue({
-      token: 'jwt-token',
-      username: 'driver',
-      fullName: 'Driver One',
-      role: 'DRIVER'
-    });
     login.mockResolvedValue({
       token: 'jwt-token',
       username: 'driver',
@@ -87,35 +80,6 @@ describe('App', () => {
     expect(saveAuth).not.toHaveBeenCalled();
   });
 
-  it('fills login form when profile button is clicked', () => {
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'manager' }));
-
-    expect(screen.getByLabelText(/логин/i)).toHaveValue('manager');
-    expect(screen.getByLabelText(/пароль/i)).toHaveValue('MgrD5v8cN4');
-    expect(demoLogin).not.toHaveBeenCalled();
-    expect(login).not.toHaveBeenCalled();
-  });
-
-  it('logs in with autofilled unique profile password after manual submit', async () => {
-    demoLogin.mockResolvedValueOnce({
-      token: 'manager-token',
-      username: 'manager',
-      fullName: 'Manager',
-      role: 'MANAGER'
-    });
-
-    render(<App />);
-
-    fireEvent.click(screen.getByRole('button', { name: 'manager' }));
-    fireEvent.click(screen.getByRole('button', { name: /войти/i }));
-
-    await waitFor(() => expect(demoLogin).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
-    await waitForWorkspaceReady();
-    expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
-  });
-
   it('trims username before login request', async () => {
     render(<App />);
 
@@ -127,7 +91,7 @@ describe('App', () => {
   });
 
   it('sets role default section after login', async () => {
-    demoLogin.mockResolvedValueOnce({
+    login.mockResolvedValueOnce({
       token: 'manager-token',
       username: 'manager',
       fullName: 'Manager',
@@ -137,10 +101,10 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText(/логин/i), { target: { value: 'manager' } });
-    fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: 'secret123' } });
+    fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: 'MgrD5v8cN4' } });
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
 
-    await waitFor(() => expect(demoLogin).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
+    await waitFor(() => expect(login).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
     await waitForWorkspaceReady();
     expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
     expect(screen.getByTestId('active-section')).toHaveTextContent('manager-dashboard');

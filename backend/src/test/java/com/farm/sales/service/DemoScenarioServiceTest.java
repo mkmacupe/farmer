@@ -77,12 +77,12 @@ class DemoScenarioServiceTest {
     director.setId(1L);
     director.setRole(Role.DIRECTOR);
     director.setFullName("Олег Курилин");
-    when(userRepository.count()).thenReturn(8L);
-    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR)).thenReturn(List.of(director, director, director));
+    when(userRepository.count()).thenReturn(35L);
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR)).thenReturn(java.util.Collections.nCopies(30, director));
     when(productRepository.count()).thenReturn(20L);
-    when(storeAddressRepository.count()).thenReturn(25L);
-    when(orderRepository.count()).thenReturn(35L);
-    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(35L);
+    when(storeAddressRepository.count()).thenReturn(30L);
+    when(orderRepository.count()).thenReturn(30L);
+    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(30L);
 
     var response = service.resetDemoScenario();
 
@@ -116,14 +116,48 @@ class DemoScenarioServiceTest {
     inOrder.verify(dataInitializer).seedDemoDataWithoutAddresses();
     inOrder.verify(demoTransportScenarioInitializer).seedDemoScenario();
 
-    assertThat(response.scenarioName()).contains("25 точек / 35 заказов");
-    assertThat(response.totalUsers()).isEqualTo(8L);
-    assertThat(response.directors()).isEqualTo(3L);
+    assertThat(response.scenarioName()).contains("30 точек / 30 заказов / 4498 кг");
+    assertThat(response.totalUsers()).isEqualTo(35L);
+    assertThat(response.directors()).isEqualTo(30L);
     assertThat(response.products()).isEqualTo(20L);
-    assertThat(response.storeAddresses()).isEqualTo(25L);
-    assertThat(response.totalOrders()).isEqualTo(35L);
-    assertThat(response.approvedOrders()).isEqualTo(35L);
-    assertThat(response.defenseFlow()).hasSize(4);
+    assertThat(response.storeAddresses()).isEqualTo(30L);
+    assertThat(response.totalOrders()).isEqualTo(30L);
+    assertThat(response.approvedOrders()).isEqualTo(30L);
+    assertThat(response.defenseFlow()).hasSize(5);
     verify(orderRepository).countByStatus(OrderStatus.APPROVED);
+  }
+
+  @Test
+  void clearOrdersKeepingStorePointsRemovesOrdersButKeepsAddresses() {
+    when(storeAddressRepository.count()).thenReturn(30L);
+    when(orderRepository.count()).thenReturn(0L);
+    when(orderRepository.countByStatus(OrderStatus.APPROVED)).thenReturn(0L);
+
+    var response = service.clearOrdersKeepingStorePoints();
+
+    InOrder inOrder = inOrder(
+        realtimeNotificationRepository,
+        orderTimelineEventRepository,
+        stockMovementRepository,
+        auditLogRepository,
+        orderItemRepository,
+        orderRepository,
+        entityManager,
+        demoTransportScenarioInitializer
+    );
+    inOrder.verify(realtimeNotificationRepository).deleteAllInBatch();
+    inOrder.verify(orderTimelineEventRepository).deleteAllInBatch();
+    inOrder.verify(stockMovementRepository).deleteAllInBatch();
+    inOrder.verify(auditLogRepository).deleteAllInBatch();
+    inOrder.verify(orderItemRepository).deleteAllInBatch();
+    inOrder.verify(orderRepository).deleteAllInBatch();
+    inOrder.verify(entityManager).flush();
+    inOrder.verify(entityManager).clear();
+    inOrder.verify(demoTransportScenarioInitializer).resetSeedState();
+
+    assertThat(response.message()).contains("точки магазинов сохранены");
+    assertThat(response.storeAddresses()).isEqualTo(30L);
+    assertThat(response.totalOrders()).isZero();
+    assertThat(response.approvedOrders()).isZero();
   }
 }

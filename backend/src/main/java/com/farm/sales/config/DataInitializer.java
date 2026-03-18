@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -38,6 +39,8 @@ public class DataInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
   private static final String PRODUCT_IMAGE_BASE = "/images/products/";
   private static final int DEMO_PRODUCT_TARGET_COUNT = 200;
+  private static final int EXTRA_DIRECTOR_START_INDEX = 4;
+  private static final int EXTRA_DIRECTOR_END_INDEX = 30;
   private static final Set<String> CORE_PRODUCT_IMAGES = Set.of(
       "milk.webp",
       "kefir.webp",
@@ -74,6 +77,10 @@ public class DataInitializer implements CommandLineRunner {
       "driver2", "Drv2B8m3Y7",
       "driver3", "Drv3C7n4X8"
   );
+  private static final List<String> EXTRA_DEMO_DIRECTOR_USERNAMES = IntStream
+      .rangeClosed(EXTRA_DIRECTOR_START_INDEX, EXTRA_DIRECTOR_END_INDEX)
+      .mapToObj(DataInitializer::formatExtraDirectorUsername)
+      .toList();
   private static final Map<String, CatalogDescriptor> CATALOG_PRODUCT_BY_BASENAME = Map.ofEntries(
       Map.entry("adyghe-cheese", new CatalogDescriptor("Сыр адыгейский 300 г", "Молочная продукция")),
       Map.entry("apple-antonovka", new CatalogDescriptor("Яблоки Антоновка 1 кг", "Фрукты")),
@@ -394,6 +401,7 @@ public class DataInitializer implements CommandLineRunner {
       User mDirector = createUserIfMissing("berezka", "Ирина Соколова", "+375291948265", "Магазин \"Берёзка\"", Role.DIRECTOR, seededPassword("berezka"));
       User lDirector = createUserIfMissing("kvartal", "Павел Лаврентьев", "+375336521874", "Магазин \"Квартал\"", Role.DIRECTOR, seededPassword("kvartal"));
       User bDirector = createUserIfMissing("yantar", "Наталья Гринько", "+375447318502", "Магазин \"Янтарь\"", Role.DIRECTOR, seededPassword("yantar"));
+      seedAdditionalDemoDirectors();
       
       createUserIfMissing("manager", "Менеджер", "+375290000002", null, Role.MANAGER, seededPassword("manager"));
       createUserIfMissing("logistician", "Логист", "+375290000003", null, Role.LOGISTICIAN, seededPassword("logistician"));
@@ -959,6 +967,56 @@ public class DataInitializer implements CommandLineRunner {
   }
 
   private String seededPassword(String username) {
-    return SEEDED_USER_PASSWORDS.get(username);
+    String staticPassword = SEEDED_USER_PASSWORDS.get(username);
+    if (staticPassword != null) {
+      return staticPassword;
+    }
+
+    int extraDirectorIndex = parseExtraDirectorIndex(username);
+    if (extraDirectorIndex >= EXTRA_DIRECTOR_START_INDEX && extraDirectorIndex <= EXTRA_DIRECTOR_END_INDEX) {
+      return String.format("Dir%02dFarm2026", extraDirectorIndex);
+    }
+
+    return null;
+  }
+
+  private void seedAdditionalDemoDirectors() {
+    for (String username : EXTRA_DEMO_DIRECTOR_USERNAMES) {
+      int index = parseExtraDirectorIndex(username);
+      createUserIfMissing(
+          username,
+          String.format("Директор магазина %02d", index),
+          String.format("+37529%07d", 1000000 + index),
+          String.format("Магазин \"Демо %02d\"", index),
+          Role.DIRECTOR,
+          seededPassword(username)
+      );
+    }
+  }
+
+  public static List<String> demoDirectorUsernames() {
+    return Stream.concat(
+        Stream.of("berezka", "kvartal", "yantar"),
+        EXTRA_DEMO_DIRECTOR_USERNAMES.stream()
+    ).toList();
+  }
+
+  public static String formatExtraDirectorUsername(int index) {
+    return String.format("director%02d", index);
+  }
+
+  public static int parseExtraDirectorIndex(String username) {
+    if (username == null) {
+      return -1;
+    }
+    String normalized = username.trim().toLowerCase(Locale.ROOT);
+    if (!normalized.startsWith("director")) {
+      return -1;
+    }
+    try {
+      return Integer.parseInt(normalized.substring("director".length()));
+    } catch (NumberFormatException exception) {
+      return -1;
+    }
   }
 }

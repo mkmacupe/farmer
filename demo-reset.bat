@@ -16,7 +16,7 @@ if errorlevel 1 (
   echo Demo reset failed.
   echo Try passing the backend base manually, for example:
   echo   demo-reset.bat http://127.0.0.1:8080/api
-  echo   demo-reset.bat http://127.0.0.1:8081/api
+  echo   demo-reset.bat https://farm-sales-backend.onrender.com/api
   pause >nul
 )
 

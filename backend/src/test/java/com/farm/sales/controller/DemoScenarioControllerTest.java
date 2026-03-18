@@ -5,6 +5,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.farm.sales.dto.DemoClearOrdersResponse;
 import com.farm.sales.dto.DemoResetResponse;
 import com.farm.sales.service.DemoScenarioService;
 import java.time.Instant;
@@ -28,12 +29,12 @@ class DemoScenarioControllerTest {
     DemoResetResponse response = new DemoResetResponse(
         "Демо-сценарий защиты Farm Sales",
         Instant.parse("2026-03-06T20:00:00Z"),
-        8L,
-        3L,
+        35L,
+        30L,
         200L,
         30L,
-        60L,
-        60L,
+        30L,
+        30L,
         List.of("step-1", "step-2")
     );
     when(demoScenarioService.resetDemoScenario()).thenReturn(response);
@@ -43,5 +44,23 @@ class DemoScenarioControllerTest {
     assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(httpResponse.getBody()).isEqualTo(response);
     verify(demoScenarioService).resetDemoScenario();
+  }
+
+  @Test
+  void clearOrdersDelegatesToServiceAndReturnsOk() {
+    DemoClearOrdersResponse response = new DemoClearOrdersResponse(
+        "Заказы очищены, точки магазинов сохранены",
+        Instant.parse("2026-03-06T20:05:00Z"),
+        30L,
+        0L,
+        0L
+    );
+    when(demoScenarioService.clearOrdersKeepingStorePoints()).thenReturn(response);
+
+    var httpResponse = controller.clearOrders();
+
+    assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
+    assertThat(httpResponse.getBody()).isEqualTo(response);
+    verify(demoScenarioService).clearOrdersKeepingStorePoints();
   }
 }

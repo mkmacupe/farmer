@@ -13,6 +13,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,15 +29,16 @@ import org.springframework.web.server.ResponseStatusException;
 @Service
 public class AuthService {
   private static final Set<String> DEMO_USERNAMES = Set.of(
-      "berezka",
-      "kvartal",
-      "yantar",
       "manager",
       "logistician",
       "driver1",
       "driver2",
       "driver3"
-  );
+  ).stream().collect(Collectors.toUnmodifiableSet());
+  private static final Set<String> DEMO_LOGIN_USERNAMES = Stream.concat(
+      DataInitializer.demoDirectorUsernames().stream(),
+      DEMO_USERNAMES.stream()
+  ).collect(Collectors.toUnmodifiableSet());
 
   private final UserRepository userRepository;
   private final PasswordEncoder passwordEncoder;
@@ -94,7 +97,7 @@ public class AuthService {
     }
 
     String normalizedUsername = username == null ? "" : username.trim();
-    if (!DEMO_USERNAMES.contains(normalizedUsername)) {
+    if (!DEMO_LOGIN_USERNAMES.contains(normalizedUsername)) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Неверный логин или пароль");
     }
 
@@ -146,7 +149,7 @@ public class AuthService {
     }
 
     String normalizedDemoUsername = username.toLowerCase(Locale.ROOT);
-    if (!DEMO_USERNAMES.contains(normalizedDemoUsername)) {
+    if (!DEMO_LOGIN_USERNAMES.contains(normalizedDemoUsername)) {
       return null;
     }
 

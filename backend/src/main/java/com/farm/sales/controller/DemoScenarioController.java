@@ -1,5 +1,6 @@
 package com.farm.sales.controller;
 
+import com.farm.sales.dto.DemoClearOrdersResponse;
 import com.farm.sales.dto.DemoResetResponse;
 import com.farm.sales.service.DemoScenarioService;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -22,5 +23,10 @@ public class DemoScenarioController {
   @PostMapping("/reset")
   public ResponseEntity<DemoResetResponse> reset() {
     return ResponseEntity.ok(demoScenarioService.resetDemoScenario());
+  }
+
+  @PostMapping("/clear-orders")
+  public ResponseEntity<DemoClearOrdersResponse> clearOrders() {
+    return ResponseEntity.ok(demoScenarioService.clearOrdersKeepingStorePoints());
   }
 }
