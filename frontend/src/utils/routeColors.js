@@ -1,29 +1,25 @@
-export const ROUTE_COLORS = ['#0b57d0', '#c2410c', '#047857', '#b42318', '#7c2d12', '#5b21b6'];
+export const ROUTE_COLORS = ['#4f7399', '#b07a63', '#5a8a78', '#9b6b78', '#8f7458', '#6f739c'];
 
 const TRIP_VISUAL_VARIANTS = [
   {
-    dashArray: undefined,
     opacity: 0.96,
     weight: 6,
     transform: (baseColor) => baseColor
   },
   {
-    dashArray: '16 10',
     opacity: 0.98,
     weight: 6,
-    transform: (baseColor) => mixColor(baseColor, '#111827', 0.22)
+    transform: (baseColor) => mixColor(baseColor, '#24313f', 0.22)
   },
   {
-    dashArray: '6 10',
     opacity: 0.98,
     weight: 6,
-    transform: (baseColor) => mixColor(baseColor, '#ffffff', 0.16)
+    transform: (baseColor) => mixColor(baseColor, '#f2eadf', 0.22)
   },
   {
-    dashArray: '18 8 4 8',
     opacity: 0.98,
     weight: 6,
-    transform: (baseColor) => mixColor(baseColor, '#0f172a', 0.36)
+    transform: (baseColor) => mixColor(baseColor, '#57483f', 0.56)
   }
 ];
 
@@ -88,14 +84,13 @@ export function tripStyle(routeIndex, tripNumber = 1) {
 
   if (cycleIndex > 0) {
     const cycleTarget = cycleIndex % 2 === 1 ? '#ffffff' : '#0f172a';
-    const cycleRatio = Math.min(0.08 * cycleIndex, 0.24);
+    const cycleRatio = Math.min(0.06 * cycleIndex, 0.18);
     color = mixColor(color, cycleTarget, cycleRatio);
   }
 
   return {
     baseColor,
     color,
-    dashArray: variant.dashArray,
     opacity: variant.opacity,
     tripNumber: normalizedTripNumber,
     weight: variant.weight

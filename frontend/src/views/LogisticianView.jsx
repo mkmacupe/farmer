@@ -108,7 +108,6 @@ function TripLegendSwatch({ visual, width = 22 }) {
         y2="5"
         stroke={visual.color}
         strokeWidth="4"
-        strokeDasharray={visual.dashArray}
         strokeLinecap="round"
       />
     </Box>
@@ -1045,7 +1044,7 @@ export default function LogisticianView({ token, activeSection }) {
                 </Paper>
               )}
               <Grid container spacing={1.25}>
-                <Grid size={{ xs: 12, sm: 4 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
                     <Typography variant="caption" color="text.secondary">Заказов в плане</Typography>
                     <Typography variant="h6" fontWeight={700}>
@@ -1053,13 +1052,7 @@ export default function LogisticianView({ token, activeSection }) {
                     </Typography>
                   </Paper>
                 </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
-                  <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary">Вне плана</Typography>
-                    <Typography variant="h6" fontWeight={700}>{routePlan.unplannedOrders}</Typography>
-                  </Paper>
-                </Grid>
-                <Grid size={{ xs: 6, sm: 4 }}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
                     <Typography variant="caption" color="text.secondary">Километраж</Typography>
                     <Typography variant="h6" fontWeight={700}>{formatTransportNumber(routePlan.estimatedTotalDistanceKm)} км</Typography>
@@ -1108,7 +1101,7 @@ export default function LogisticianView({ token, activeSection }) {
                 {tripFilterAvailable ? (
                   <Stack spacing={1} sx={{ mt: 1.5 }}>
                     <Typography variant="caption" color="text.secondary">
-                      Рейсы выбранного водителя: цвет и тип линии показывают, какой рейс отображается на карте.
+                      Рейсы выбранного водителя различаются оттенком линии на карте.
                     </Typography>
                     <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
                       <Chip

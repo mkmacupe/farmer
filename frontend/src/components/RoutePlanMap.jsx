@@ -1,4 +1,4 @@
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import L from 'leaflet';
@@ -24,7 +24,6 @@ function createStopOrderIcon(stopSequence, color) {
     className: '',
     iconSize: [26, 26],
     iconAnchor: [13, 13],
-    popupAnchor: [0, -14],
     html:
       `<span style="` +
       `display:flex;align-items:center;justify-content:center;` +
@@ -34,6 +33,18 @@ function createStopOrderIcon(stopSequence, color) {
       `box-shadow:0 0 0 1px rgba(15,23,42,0.24),0 4px 10px rgba(17,24,39,0.24);` +
       `">${sequence}</span>`
   });
+}
+
+function getStopOrderIcon(cache, stopSequence, color) {
+  const cacheKey = `${color}:${stopSequence}`;
+  const cachedIcon = cache.get(cacheKey);
+  if (cachedIcon) {
+    return cachedIcon;
+  }
+
+  const icon = createStopOrderIcon(stopSequence, color);
+  cache.set(cacheKey, icon);
+  return icon;
 }
 
 function coordinateKey(latitude, longitude) {
@@ -90,15 +101,6 @@ function formatTransportNumber(value) {
   return transportNumberFormatter.format(numeric);
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
 function normalizeRoutePath(path) {
   if (!Array.isArray(path)) {
     return [];
@@ -146,6 +148,32 @@ function normalizeTripPoints(points) {
   return normalized;
 }
 
+function buildVisiblePlanKey(visiblePlan, visibleDriverId, visibleTripNumber) {
+  if (!visiblePlan || !Array.isArray(visiblePlan.routes)) {
+    return `${visibleDriverId}:${visibleTripNumber}:empty`;
+  }
+
+  const routeKey = visiblePlan.routes
+    .map((route, routeIndex) => {
+      const routeId = route?.driverId ?? routeIndex;
+      const routeStops = Array.isArray(route?.displayStops || route?.points)
+        ? (route.displayStops || route.points)
+        : [];
+      const stopKey = routeStops
+        .map((point) => `${point?.orderId ?? 'x'}:${point?.tripNumber ?? 1}:${point?.displayStopSequence ?? point?.stopSequence ?? 0}`)
+        .join(',');
+      const tripKey = Array.isArray(route?.trips)
+        ? route.trips
+            .map((trip) => `${trip?.tripNumber ?? 1}:${Array.isArray(trip?.points) ? trip.points.length : 0}`)
+            .join(',')
+        : 'no-trips';
+      return `${routeId}|${stopKey}|${tripKey}`;
+    })
+    .join('||');
+
+  return `${visibleDriverId}:${visibleTripNumber}:${routeKey}`;
+}
+
 function addStyledPolyline(layerTarget, layers, path, visual) {
   const halo = L.polyline(path, {
     color: '#ffffff',
@@ -158,7 +186,6 @@ function addStyledPolyline(layerTarget, layers, path, visual) {
     color: visual.color,
     weight: visual.weight,
     opacity: visual.opacity,
-    dashArray: visual.dashArray,
     lineCap: 'round',
     lineJoin: 'round'
   }).addTo(layerTarget);
@@ -200,7 +227,7 @@ function buildTripGeometryRequests(plan) {
   return requests;
 }
 
-function fitMapToPlan(map, bounds, depotPoint, { animate = true } = {}) {
+function fitMapToPlan(map, bounds, depotPoint, { animate = false } = {}) {
   if (!map) {
     return;
   }
@@ -208,8 +235,8 @@ function fitMapToPlan(map, bounds, depotPoint, { animate = true } = {}) {
   const transitionOptions = animate
     ? {
         animate: true,
-        duration: 0.45,
-        easeLinearity: 0.2
+        duration: 0.24,
+        easeLinearity: 0.3
       }
     : {
         animate: false
@@ -229,11 +256,80 @@ function fitMapToPlan(map, bounds, depotPoint, { animate = true } = {}) {
   });
 }
 
-function buildStopPopupHtml(route, point) {
+function StopDetailsPanel({ selectedStop, onClose }) {
+  if (!selectedStop) {
+    return null;
+  }
+
+  if (selectedStop.type === 'depot') {
+    return (
+      <Box
+        sx={{
+          width: { xs: '100%', md: 300 },
+          flexShrink: 0,
+          height: { xs: 'auto', md: 360 },
+          overflow: 'auto',
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          bgcolor: 'background.paper',
+          boxShadow: '0 10px 24px rgba(15,23,42,0.08)',
+          p: 2
+        }}
+      >
+        <Box
+          sx={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: 1.5,
+            mb: 1.5
+          }}
+        >
+          <Box sx={{ minWidth: 0 }}>
+            <Box sx={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>
+              Логистический хаб
+            </Box>
+            <Box sx={{ mt: 0.5, color: 'text.secondary', lineHeight: 1.35 }}>
+              Старт и завершение рейсов
+            </Box>
+          </Box>
+          <Box
+            component="button"
+            type="button"
+            aria-label="Закрыть подробности точки"
+            onClick={onClose}
+            sx={{
+              border: 0,
+              bgcolor: 'transparent',
+              color: 'text.secondary',
+              cursor: 'pointer',
+              fontSize: 20,
+              lineHeight: 1,
+              p: 0,
+              flexShrink: 0
+            }}
+          >
+            ×
+          </Box>
+        </Box>
+
+        <Box sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, mb: 1 }}>
+          {selectedStop.label || 'База логистики'}
+        </Box>
+
+        <Box sx={{ color: 'text.secondary', lineHeight: 1.45 }}>
+          Отсюда начинается построение всех рейсов. Если рейс требует возврата, маршрут также завершится в этой точке.
+        </Box>
+      </Box>
+    );
+  }
+
+  const point = selectedStop.point;
   const stopSequence = Number(point?.displayStopSequence) || Number(point?.stopSequence) || '?';
   const tripNumber = Number(point?.tripNumber) || 1;
   const tripStopCount = Number(point?.tripStopCount) || 0;
-  const tripAssignedOrders = Number(point?.tripAssignedOrders) || Number(route?.assignedOrders) || 0;
+  const tripAssignedOrders = Number(point?.tripAssignedOrders) || Number(selectedStop?.routeAssignedOrders) || 0;
   const orderCount = Number(point?.orderCount) || (point?.orderId != null ? 1 : 0);
   const legLabel = stopSequence === 1 ? 'От склада' : 'От предыдущей остановки';
   const distanceFromPreviousKm = Number(point?.distanceFromPreviousKm) || 0;
@@ -246,54 +342,131 @@ function buildStopPopupHtml(route, point) {
   const returnToDepotDistanceKm = Number(point?.returnToDepotDistanceKm) || 0;
   const returnsToDepot = Boolean(point?.returnsToDepot);
   const isLastStopInTrip = Boolean(point?.isLastStopInTrip);
-  const selectionReason = point?.selectionReason
-    ? escapeHtml(point.selectionReason)
-    : 'Точка включена в маршрут.';
+  const selectionReason = point?.selectionReason || 'Точка включена в маршрут.';
 
-  const popupLines = [
-    `<div style="font-weight:700;font-size:16px;margin-bottom:2px;">${escapeHtml(route.driverName)}</div>`,
-    `<div style="color:#475569;margin-bottom:8px;">Рейс ${tripNumber}${tripStopCount ? ` · точка ${stopSequence} из ${tripStopCount}` : ''}</div>`,
-    `<div style="margin-bottom:4px;"><strong>${escapeHtml(point.deliveryAddress)}</strong></div>`,
-    `<div style="margin-bottom:4px;">${escapeHtml(stopOrderLine(point))}</div>`,
-    `<div style="color:#475569;margin-bottom:8px;">На этой остановке: ${escapeHtml(orderCountLabel(orderCount))}. Всего в рейсе: ${escapeHtml(orderCountLabel(tripAssignedOrders))}.</div>`,
-    `<div style="margin-bottom:2px;">${escapeHtml(legLabel)}: ${formatTransportNumber(distanceFromPreviousKm)} км</div>`,
-    `<div style="margin-bottom:2px;">Накопленный путь к этой точке: ${formatTransportNumber(cumulativeDistanceKm)} км</div>`,
-    `<div style="margin-bottom:2px;">Полный километраж рейса: ${formatTransportNumber(tripEstimatedRouteDistanceKm)} км</div>`,
-    `<div style="margin-bottom:2px;">Загрузка рейса: ${formatTransportNumber(tripTotalWeightKg)} кг (${formatTransportNumber(tripWeightUtilizationPercent)}%) · ${formatTransportNumber(tripTotalVolumeM3)} м³ (${formatTransportNumber(tripVolumeUtilizationPercent)}%)</div>`
-  ];
+  return (
+    <Box
+      sx={{
+        width: { xs: '100%', md: 300 },
+        flexShrink: 0,
+        height: { xs: 'auto', md: 360 },
+        overflow: 'auto',
+        borderRadius: 2,
+        border: '1px solid',
+        borderColor: 'divider',
+        bgcolor: 'background.paper',
+        boxShadow: '0 10px 24px rgba(15,23,42,0.08)',
+        p: 2
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'flex-start',
+          justifyContent: 'space-between',
+          gap: 1.5,
+          mb: 1.5
+        }}
+      >
+        <Box sx={{ minWidth: 0 }}>
+          <Box sx={{ fontSize: 18, fontWeight: 700, lineHeight: 1.25 }}>
+            {selectedStop.driverName}
+          </Box>
+          <Box sx={{ mt: 0.5, color: 'text.secondary', lineHeight: 1.35 }}>
+            Рейс {tripNumber}{tripStopCount ? ` · точка ${stopSequence} из ${tripStopCount}` : ''}
+          </Box>
+        </Box>
+        <Box
+          component="button"
+          type="button"
+          aria-label="Закрыть подробности точки"
+          onClick={onClose}
+          sx={{
+            border: 0,
+            bgcolor: 'transparent',
+            color: 'text.secondary',
+            cursor: 'pointer',
+            fontSize: 20,
+            lineHeight: 1,
+            p: 0,
+            flexShrink: 0
+          }}
+        >
+          ×
+        </Box>
+      </Box>
 
-  if (returnsToDepot && isLastStopInTrip) {
-    popupLines.push(
-      `<div style="margin-bottom:2px;">Возврат на склад после этой точки: ${formatTransportNumber(returnToDepotDistanceKm)} км</div>`
-    );
-  }
+      <Box sx={{ fontSize: 15, fontWeight: 700, lineHeight: 1.35, mb: 1 }}>
+        {point?.deliveryAddress || 'Адрес не указан'}
+      </Box>
 
-  popupLines.push(
-    `<div style="margin-top:8px;padding-top:8px;border-top:1px solid #e2e8f0;color:#334155;">Почему выбрана: ${selectionReason}</div>`
+      <Box sx={{ display: 'grid', gap: 0.9, color: 'text.primary', lineHeight: 1.42 }}>
+        <Box>{stopOrderLine(point)}</Box>
+        <Box sx={{ color: 'text.secondary' }}>
+          На этой остановке: {orderCountLabel(orderCount)}. Всего в рейсе: {orderCountLabel(tripAssignedOrders)}.
+        </Box>
+        <Box>{legLabel}: {formatTransportNumber(distanceFromPreviousKm)} км</Box>
+        <Box>Накопленный путь к этой точке: {formatTransportNumber(cumulativeDistanceKm)} км</Box>
+        <Box>Полный километраж рейса: {formatTransportNumber(tripEstimatedRouteDistanceKm)} км</Box>
+        <Box>
+          Загрузка рейса: {formatTransportNumber(tripTotalWeightKg)} кг ({formatTransportNumber(tripWeightUtilizationPercent)}%) ·{' '}
+          {formatTransportNumber(tripTotalVolumeM3)} м3 ({formatTransportNumber(tripVolumeUtilizationPercent)}%)
+        </Box>
+        {returnsToDepot && isLastStopInTrip ? (
+          <Box>Возврат на склад после этой точки: {formatTransportNumber(returnToDepotDistanceKm)} км</Box>
+        ) : null}
+      </Box>
+
+      <Box
+        sx={{
+          mt: 1.5,
+          pt: 1.5,
+          borderTop: '1px solid',
+          borderColor: 'divider',
+          color: 'text.secondary',
+          lineHeight: 1.45
+        }}
+      >
+        Почему выбрана: {selectionReason}
+      </Box>
+    </Box>
   );
-
-  return `<div style="min-width:280px;max-width:340px;line-height:1.45;">${popupLines.join('')}</div>`;
 }
 
 function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber = 'all' }) {
   const containerRef = useRef(null);
   const mapRef = useRef(null);
   const overlayLayerRef = useRef(null);
+  const iconCacheRef = useRef(new Map());
   const resizeTimeoutRef = useRef(0);
   const viewportTimeoutRef = useRef(0);
   const lastViewportPlanRef = useRef(null);
   const [tripGeometry, setTripGeometry] = useState({});
   const [geometryLoading, setGeometryLoading] = useState(false);
+  const [baseTilesLoaded, setBaseTilesLoaded] = useState(false);
+  const [viewportReadyKey, setViewportReadyKey] = useState('');
+  const [pathsVisible, setPathsVisible] = useState(false);
+  const [selectedStop, setSelectedStop] = useState(null);
   const visiblePlan = useMemo(
     () => selectVisiblePlan(plan, visibleDriverId, visibleTripNumber),
     [plan, visibleDriverId, visibleTripNumber]
   );
+  const visiblePlanKey = useMemo(
+    () => buildVisiblePlanKey(visiblePlan, visibleDriverId, visibleTripNumber),
+    [visibleDriverId, visiblePlan, visibleTripNumber]
+  );
+
+  useLayoutEffect(() => {
+    setSelectedStop(null);
+  }, [visiblePlanKey]);
 
   useEffect(() => {
     let cancelled = false;
     const controllers = new Set();
     const requests = buildTripGeometryRequests(plan);
+    const nextGeometry = {};
     setTripGeometry({});
+    setSelectedStop(null);
 
     if (!token || !requests.length) {
       setGeometryLoading(false);
@@ -326,10 +499,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
           );
           const normalizedGeometry = normalizeRoutePath(geometry);
           if (!cancelled && normalizedGeometry.length >= 2) {
-            setTripGeometry((previous) => ({
-              ...previous,
-              [request.key]: normalizedGeometry
-            }));
+            nextGeometry[request.key] = normalizedGeometry;
           }
         } catch (error) {
           if (!cancelled && !controller.signal.aborted) {
@@ -345,6 +515,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       Array.from({ length: concurrency }, () => loadGeometry())
     ).finally(() => {
       if (!cancelled) {
+        setTripGeometry(nextGeometry);
         setGeometryLoading(false);
       }
     });
@@ -365,21 +536,39 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       zoomControl: true,
       attributionControl: false,
       preferCanvas: true,
-      zoomAnimation: true,
+      zoomAnimation: false,
       fadeAnimation: true,
-      markerZoomAnimation: true,
+      markerZoomAnimation: false,
       zoomSnap: 0.25,
       zoomDelta: 0.5,
-      wheelDebounceTime: 24
+      wheelDebounceTime: 24,
+      wheelPxPerZoomLevel: 82
     }).setView([53.9, 30.33], 12);
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19
+    let disposed = false;
+    const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      keepBuffer: 4,
+      updateWhenIdle: false,
+      updateWhenZooming: true
     }).addTo(map);
+    const markTilesLoaded = () => {
+      if (!disposed) {
+        setBaseTilesLoaded(true);
+      }
+    };
+    tileLayer.once('load', markTilesLoaded);
+    if (typeof tileLayer.isLoading === 'function' && !tileLayer.isLoading()) {
+      markTilesLoaded();
+    }
 
     const overlayLayer = L.layerGroup().addTo(map);
     mapRef.current = map;
     overlayLayerRef.current = overlayLayer;
+    const clearSelectedStop = () => {
+      setSelectedStop(null);
+    };
+    map.on('click', clearSelectedStop);
 
     let resizeObserver = null;
     const invalidateMapSize = () => {
@@ -406,9 +595,12 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
     }
 
     return () => {
+      disposed = true;
       window.clearTimeout(resizeTimeoutRef.current);
       window.clearTimeout(viewportTimeoutRef.current);
       resizeObserver?.disconnect();
+      tileLayer.off('load', markTilesLoaded);
+      map.off('click', clearSelectedStop);
       overlayLayerRef.current?.clearLayers();
       map.stop();
       map.remove();
@@ -419,12 +611,27 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
   }, []);
 
   useEffect(() => {
+    setPathsVisible(false);
+
+    if (!visiblePlan?.routes?.length || !baseTilesLoaded || geometryLoading) {
+      return undefined;
+    }
+    if (viewportReadyKey !== visiblePlanKey) {
+      return undefined;
+    }
+
+    setPathsVisible(true);
+  }, [baseTilesLoaded, geometryLoading, viewportReadyKey, visiblePlan, visiblePlanKey]);
+
+  useEffect(() => {
     if (!visiblePlan || !mapRef.current || !overlayLayerRef.current) {
       return undefined;
     }
 
     const map = mapRef.current;
     const overlayLayer = overlayLayerRef.current;
+    let settleTimeoutId = 0;
+    let viewportListener = null;
     overlayLayer.clearLayers();
     const layers = [];
     const depotPoint = [visiblePlan.depotLatitude, visiblePlan.depotLongitude];
@@ -433,10 +640,16 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       weight: 3,
       color: '#374151',
       fillColor: '#f8fafc',
-      fillOpacity: 1
+      fillOpacity: 1,
+      bubblingMouseEvents: false
     })
-      .bindPopup(`Логистический хаб: ${visiblePlan.depotLabel || 'База логистики'}`)
       .addTo(overlayLayer);
+    depotMarker.on('click', () => {
+      setSelectedStop({
+        type: 'depot',
+        label: visiblePlan.depotLabel || 'База логистики'
+      });
+    });
     layers.push(depotMarker);
 
     const bounds = [depotPoint];
@@ -463,20 +676,21 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       if (tripSegments.length) {
         tripSegments.forEach((trip) => {
           const tripKey = createTripKey(routeKey, trip?.tripNumber);
-          const tripPath = tripGeometry[tripKey] || [];
+          const tripPath = tripGeometry[tripKey] || normalizeRoutePath(trip?.path);
           if (tripPath.length < 2) {
+            return;
+          }
+          if (!pathsVisible) {
             return;
           }
           const visual = tripStyle(colorIndex, trip?.tripNumber || 1);
           addStyledPolyline(overlayLayer, layers, tripPath, visual);
-          tripPath.forEach((point) => bounds.push(point));
         });
       } else {
         const routePath = normalizeRoutePath(route?.path);
-        if (routePath.length >= 2) {
+        if (pathsVisible && routePath.length >= 2) {
           const visual = tripStyle(colorIndex, 1);
           addStyledPolyline(overlayLayer, layers, routePath, visual);
-          routePath.forEach((point) => bounds.push(point));
         }
       }
 
@@ -491,17 +705,23 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
         const markerColor = tripStyle(colorIndex, point.tripNumber || 1).color;
         const displayStopSequence = Number(point?.displayStopSequence) || Number(point?.stopSequence) || '?';
         const marker = L.marker(markerPoint, {
-          icon: createStopOrderIcon(displayStopSequence, markerColor),
+          icon: getStopOrderIcon(iconCacheRef.current, displayStopSequence, markerColor),
           keyboard: false
         })
-          .bindPopup(buildStopPopupHtml(route, point))
           .addTo(overlayLayer);
+        marker.on('click', () => {
+          setSelectedStop({
+            driverName: route?.driverName || 'Водитель',
+            routeAssignedOrders: route?.assignedOrders,
+            point
+          });
+        });
         layers.push(marker);
         bounds.push(markerPoint);
       });
     });
 
-    const shouldRefit = lastViewportPlanRef.current !== visiblePlan;
+    const shouldRefit = lastViewportPlanRef.current !== visiblePlanKey;
     window.clearTimeout(viewportTimeoutRef.current);
     viewportTimeoutRef.current = window.setTimeout(() => {
       if (!mapRef.current || mapRef.current !== map) {
@@ -514,76 +734,129 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       });
 
       if (shouldRefit) {
+        let settled = false;
+        const markViewportReady = () => {
+          if (
+            settled ||
+            !mapRef.current ||
+            mapRef.current !== map ||
+            lastViewportPlanRef.current !== visiblePlanKey
+          ) {
+            return;
+          }
+          settled = true;
+          map.off('moveend', markViewportReady);
+          setViewportReadyKey(visiblePlanKey);
+        };
+
         map.stop();
+        map.once('moveend', markViewportReady);
+        viewportListener = markViewportReady;
         fitMapToPlan(map, bounds, depotPoint, {
-          animate: true
+          animate: false
         });
-        lastViewportPlanRef.current = visiblePlan;
+        lastViewportPlanRef.current = visiblePlanKey;
+        settleTimeoutId = window.setTimeout(markViewportReady, 40);
+        return;
       }
-    }, shouldRefit ? 120 : 0);
+
+      setViewportReadyKey(visiblePlanKey);
+    }, shouldRefit ? 24 : 0);
 
     return () => {
       window.clearTimeout(viewportTimeoutRef.current);
+      window.clearTimeout(settleTimeoutId);
+      if (viewportListener) {
+        map.off('moveend', viewportListener);
+      }
       layers.forEach((layer) => {
         overlayLayer.removeLayer(layer);
       });
     };
-  }, [tripGeometry, visiblePlan]);
+  }, [pathsVisible, tripGeometry, visiblePlan, visiblePlanKey]);
 
   return (
-    <Box sx={{ position: 'relative' }}>
-      <Box
-        ref={containerRef}
-        aria-label="Карта автопостроенных маршрутов"
-        aria-describedby="route-plan-map-description"
-        sx={{
-          width: '100%',
-          height: { xs: 280, md: 360 },
-          borderRadius: 2,
-          border: '1px solid',
-          borderColor: 'divider',
-          overflow: 'hidden',
-          bgcolor: 'background.default'
-        }}
-      />
-      {geometryLoading ? (
+    <Box
+      sx={{
+        display: 'flex',
+        flexDirection: { xs: 'column', md: 'row' },
+        alignItems: 'stretch',
+        gap: 2
+      }}
+    >
+      {selectedStop ? (
+        <StopDetailsPanel
+          selectedStop={selectedStop}
+          onClose={() => {
+            setSelectedStop(null);
+          }}
+        />
+      ) : null}
+      <Box sx={{ position: 'relative', flex: 1, minWidth: 0 }}>
         <Box
+          ref={containerRef}
+          aria-label="Карта автопостроенных маршрутов"
+          aria-describedby="route-plan-map-description"
+          sx={{
+            width: '100%',
+            height: { xs: 280, md: 360 },
+            borderRadius: 2,
+            border: '1px solid',
+            borderColor: 'divider',
+            overflow: 'hidden',
+            bgcolor: 'background.default',
+            visibility: geometryLoading ? 'hidden' : 'visible'
+          }}
+        />
+        {geometryLoading ? (
+          <Box
+            sx={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              px: 2,
+              borderRadius: 2,
+              border: '1px solid',
+              borderColor: 'divider',
+              bgcolor: 'rgba(248,250,252,0.96)',
+              backdropFilter: 'blur(2px)'
+            }}
+          >
+            <Box
+              sx={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: 1.25,
+                textAlign: 'center',
+                color: 'text.secondary'
+              }}
+            >
+              <CircularProgress size={28} />
+              <Box component="span" sx={{ fontSize: 13, lineHeight: 1.45 }}>
+                Прокладываем маршруты между точками
+              </Box>
+            </Box>
+          </Box>
+        ) : null}
+        <Box
+          id="route-plan-map-description"
           sx={{
             position: 'absolute',
-            top: 10,
-            right: 10,
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 0.75,
-            px: 1,
-            py: 0.5,
-            borderRadius: 999,
-            bgcolor: 'rgba(255,255,255,0.92)',
-            border: '1px solid rgba(148,163,184,0.45)',
-            boxShadow: '0 4px 14px rgba(15,23,42,0.08)',
-            fontSize: 12,
-            color: 'text.secondary'
+            width: 1,
+            height: 1,
+            p: 0,
+            m: -1,
+            overflow: 'hidden',
+            clip: 'rect(0 0 0 0)',
+            whiteSpace: 'nowrap',
+            border: 0
           }}
         >
-          <CircularProgress size={14} />
-          <Box component="span">Маршруты по дорогам загружаются</Box>
+          Визуальная схема маршрутов. Подробности точки открываются в отдельной карточке рядом с картой.
         </Box>
-      ) : null}
-      <Box
-        id="route-plan-map-description"
-        sx={{
-          position: 'absolute',
-          width: 1,
-          height: 1,
-          p: 0,
-          m: -1,
-          overflow: 'hidden',
-          clip: 'rect(0 0 0 0)',
-          whiteSpace: 'nowrap',
-          border: 0
-        }}
-      >
-        Визуальная схема маршрутов. Подробности точек доступны в таблице маршрутного плана.
       </Box>
     </Box>
   );
