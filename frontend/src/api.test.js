@@ -118,7 +118,7 @@ describe('api', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, options] = fetchMock.mock.calls[0];
     const parsed = new URL(url, 'http://localhost');
-    expect(parsed.pathname).toBe('/api/auth/demo-login');
+    expect(parsed.pathname).toBe('/api/auth/seed-login');
     expect(options.method).toBe('POST');
     expect(options.headers['Content-Type']).toBe('application/json');
     expect(options.body).toBe(JSON.stringify({ username: 'manager', password: 'secret' }));

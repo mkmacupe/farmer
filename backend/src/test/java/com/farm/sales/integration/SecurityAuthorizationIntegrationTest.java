@@ -41,6 +41,14 @@ class SecurityAuthorizationIntegrationTest {
   }
 
   @Test
+  void seedLoginIsPublic() throws Exception {
+    mockMvc.perform(post("/api/auth/seed-login")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{}"))
+        .andExpect(status().isBadRequest());
+  }
+
+  @Test
   void directorCannotCreateProduct() throws Exception {
     mockMvc.perform(post("/api/products")
             .with(jwtFor("director", 10L, "DIRECTOR"))

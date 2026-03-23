@@ -27,7 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioService {
   private static final List<String> DEFENSE_FLOW = List.of(
-      "Менеджер: выполнить demo reset и показать, что система загрузила 30 торговых точек и 30 одобренных заказов.",
+      "Менеджер: выполнить scenario reset и показать, что система загрузила 30 торговых точек и 30 одобренных заказов.",
       "Логист: открыть список APPROVED заказов, запустить preview автоназначения и показать, что все 3 водителя укладываются в один рейс.",
       "Логист: добавить ещё один заказ весом больше 2 кг и показать, что система отправляет одного из водителей на второй рейс.",
       "Логист: подтвердить план и показать маршрутные линии, вес, объём и последовательность остановок.",
@@ -94,7 +94,7 @@ public class DemoScenarioService {
     demoTransportScenarioInitializer.seedDemoScenario();
 
     return new DemoResetResponse(
-        "Транспортный demo-сценарий Farm Sales: 30 точек / 30 заказов / 4498 кг",
+        "Транспортный учебный сценарий Farm Sales: 30 точек / 30 заказов / 4498 кг",
         Instant.now(),
         userRepository.count(),
         userRepository.findAllByRoleOrderByFullNameAsc(Role.DIRECTOR).size(),

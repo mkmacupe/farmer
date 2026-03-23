@@ -29,7 +29,7 @@ public class AuthController {
     return ResponseEntity.ok(authService.login(request));
   }
 
-  @PostMapping("/demo-login")
+  @PostMapping("/seed-login")
   public ResponseEntity<AuthResponse> demoLogin(@Valid @RequestBody DemoLoginRequest request) {
     return ResponseEntity.ok(authService.demoLogin(request.username(), request.password(), demoEnabled));
   }

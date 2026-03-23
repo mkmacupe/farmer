@@ -5,7 +5,7 @@
 | Endpoint | DIRECTOR | MANAGER | LOGISTICIAN | DRIVER | ANONYMOUS |
 |---|---:|---:|---:|---:|---:|
 | `POST /api/auth/login` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `POST /api/auth/demo-login` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `POST /api/auth/seed-login` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `GET /api/products` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /api/products/categories` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `POST /api/products` | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -45,7 +45,7 @@
 | `GET /api/stock-movements` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/reports/orders` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/audit/logs` | ❌ | ✅ | ❌ | ❌ | ❌ |
-| `POST /api/demo/reset` | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `POST /api/scenario/reset` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/notifications/stream` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /actuator/health` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `GET /actuator/health/readiness` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -59,4 +59,4 @@
 - `DIRECTOR` может видеть timeline только своих заказов.
 - `DRIVER` может видеть timeline только заказов, назначенных на него.
 - Права RBAC дополняются бизнес-валидацией статусов, ownership и ограничениями переходов состояний.
-- `POST /api/demo/reset` доступен только при `app.demo.enabled=true` и нужен для подготовки проекта к защите.
+- `POST /api/scenario/reset` доступен только при `app.demo.enabled=true` и нужен для подготовки проекта к защите.

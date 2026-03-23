@@ -35,6 +35,44 @@ function toDateKey(value) {
   }
 }
 
+function resolveMockRole(username) {
+  const roles = {
+    director: 'DIRECTOR',
+    manager: 'MANAGER',
+    logistician: 'LOGISTICIAN',
+    driver1: 'DRIVER',
+    driver2: 'DRIVER',
+    driver3: 'DRIVER'
+  };
+  return roles[username] || (username.startsWith('dir') ? 'DIRECTOR' : null);
+}
+
+function resolveMockFullName(username, state) {
+  const knownUser = [...state.directors, ...state.drivers].find((candidate) => candidate.username === username);
+  if (knownUser?.fullName) {
+    return knownUser.fullName;
+  }
+
+  const fallbackNames = {
+    director: 'Директор',
+    manager: 'Менеджер',
+    logistician: 'Логист',
+    driver1: 'Водитель 1',
+    driver2: 'Водитель 2',
+    driver3: 'Водитель 3'
+  };
+  return fallbackNames[username] || (username[0].toUpperCase() + username.slice(1));
+}
+
+function buildAuthResponse(username, role, state) {
+  return {
+    token: `token-${username}`,
+    username,
+    fullName: resolveMockFullName(username, state),
+    role
+  };
+}
+
 export async function installApiMock(page, options = {}) {
   const state = {
     nextOrderId: 400,
@@ -63,10 +101,10 @@ export async function installApiMock(page, options = {}) {
     directors: [
       {
         id: 11,
-        username: 'director01',
-        fullName: 'Директор магазина 01',
+        username: 'diralekseev',
+        fullName: 'Андрей Алексеев',
         phone: '+375291000001',
-        legalEntityName: 'Магазин "Демо 01"',
+        legalEntityName: 'ООО "Лавка Полесья"',
         role: 'DIRECTOR'
       }
     ],
@@ -168,15 +206,8 @@ export async function installApiMock(page, options = {}) {
     if (path.endsWith('/api/auth/login') && method === 'POST') {
       const payload = JSON.parse(request.postData() || '{}');
       const username = String(payload.username || '').trim().toLowerCase();
-      const roles = {
-        director: 'DIRECTOR',
-        manager: 'MANAGER',
-        logistician: 'LOGISTICIAN',
-        driver1: 'DRIVER',
-        driver2: 'DRIVER',
-        driver3: 'DRIVER'
-      };
-      if (!roles[username]) {
+      const resolvedRole = resolveMockRole(username);
+      if (!resolvedRole) {
         await route.fulfill({
           status: 401,
           contentType: 'application/json',
@@ -187,48 +218,28 @@ export async function installApiMock(page, options = {}) {
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          token: `token-${username}`,
-          username,
-          fullName: username[0].toUpperCase() + username.slice(1),
-          role: roles[username]
-        })
+        body: JSON.stringify(buildAuthResponse(username, resolvedRole, state))
       });
       return;
     }
 
-    if (path.endsWith('/api/auth/demo-login') && method === 'POST') {
+    if (path.endsWith('/api/auth/seed-login') && method === 'POST') {
       const payload = JSON.parse(request.postData() || '{}');
       const username = String(payload.username || '').trim().toLowerCase();
       const password = String(payload.password || '');
-      const roles = {
-        director: 'DIRECTOR',
-        manager: 'MANAGER',
-        logistician: 'LOGISTICIAN',
-        driver1: 'DRIVER',
-        driver2: 'DRIVER',
-        driver3: 'DRIVER',
-        director01: 'DIRECTOR',
-        director02: 'DIRECTOR',
-        director03: 'DIRECTOR'
-      };
-      if (!roles[username] || !password) {
+      const resolvedRole = resolveMockRole(username);
+      if (!resolvedRole || !password) {
         await route.fulfill({
           status: 401,
           contentType: 'application/json',
-          body: JSON.stringify({ message: 'Invalid demo credentials' })
+          body: JSON.stringify({ message: 'Invalid seeded credentials' })
         });
         return;
       }
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({
-          token: `token-${username}`,
-          username,
-          fullName: username[0].toUpperCase() + username.slice(1),
-          role: roles[username]
-        })
+        body: JSON.stringify(buildAuthResponse(username, resolvedRole, state))
       });
       return;
     }
@@ -333,7 +344,7 @@ export async function installApiMock(page, options = {}) {
     }
 
     if (path.endsWith('/api/orders/my/page') && method === 'GET') {
-      const items = tokenUser === 'director'
+      const items = tokenUser === 'director' || tokenUser.startsWith('dir')
         ? state.orders.filter((order) => order.customerId === 11)
         : [];
       await route.fulfill({

@@ -1,0 +1,44 @@
+Accounts
+
+Directors:
+- Андрей Алексеев, ООО "Лавка Полесья" — diralekseev / AlekseevFarm26
+- Виктория Баранова, ООО "Сезонный Двор" — dirbaranova / BaranovaFarm26
+- Сергей Василевский, ООО "Усадьба Урожая" — dirvasilevsky / VasilevskyFarm26
+- Елена Громова, ООО "Зелёная Полка" — dirgromova / GromovaFarm26
+- Игорь Дроздов, ООО "Фермерский Погребок" — dirdrozdov / DrozdovFarm26
+- Наталья Ермакова, ООО "Солнечный Огород" — dirermakova / ErmakovaFarm26
+- Павел Журавлёв, ООО "Хуторская Лавка" — dirzhuravlev / ZhuravlevFarm26
+- Оксана Зимина, ООО "Добрый Улей" — dirzimina / ZiminaFarm26
+- Максим Ивашкевич, ООО "Рынок Сезона" — dirivashkevich / IvashkevichFarm26
+- Татьяна Ковалёва, ООО "Кладовая Фермера" — dirkovaleva / KovalevaFarm26
+- Артём Лавриненко, ООО "Берёзовый Двор" — dirlavrinenko / LavrinenkoFarm26
+- Марина Мельник, ООО "Дары Слободы" — dirmelnik / MelnikFarm26
+- Денис Новик, ООО "Поле и Печь" — dirnovik / NovikFarm26
+- Светлана Осипова, ООО "Корзина Хозяина" — dirosipova / OsipovaFarm26
+- Роман Пархоменко, ООО "Грядка у Дома" — dirparkhomenko / ParkhomenkoFarm26
+- Ирина Руденко, ООО "Золотой Амбар" — dirrudenko / RudenkoFarm26
+- Кирилл Савчук, ООО "Свежий Стан" — dirsavchuk / SavchukFarm26
+- Ольга Тарасова, ООО "Сельский Прилавок" — dirtarasova / TarasovaFarm26
+- Константин Ульянов, ООО "Луговой Ряд" — dirulyanov / UlyanovFarm26
+- Вероника Федорова, ООО "Пчелиный Берег" — dirfedorova / FedorovaFarm26
+- Евгений Харитонов, ООО "Натуральный Двор" — dirharitonov / HaritonovFarm26
+- Анна Соколова, ООО "Садовая Кладовая" — dirsokolova / SokolovaFarm26
+- Дмитрий Чернов, ООО "Белый Колос" — dirchernov / ChernovFarm26
+- Юлия Шевцова, ООО "Ярмарка Урожая" — dirshevtsova / ShevtsovaFarm26
+- Николай Яшин, ООО "Овощная Артель" — diryashin / YashinFarm26
+- Лариса Абрамова, ООО "Тёплый Сеновал" — dirabramova / AbramovaFarm26
+- Борис Беляев, ООО "Родной Луг" — dirbelyaev / BelyaevFarm26
+- Галина Воронова, ООО "Зерно и Травы" — dirvoronova / VoronovaFarm26
+- Степан Гришин, ООО "Чистый Сбор" — dirgrishin / GrishinFarm26
+- Дарья Данилова, ООО "Яблоневый Двор" — dirdanilova / DanilovaFarm26
+
+Manager:
+- manager / MgrD5v8cN4
+
+Logistician:
+- logistician / LogS7q1wE5
+
+Drivers:
+- driver1 / Drv1A9k2Z6
+- driver2 / Drv2B8m3Y7
+- driver3 / Drv3C7n4X8

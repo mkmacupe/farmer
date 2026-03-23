@@ -10,10 +10,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-@RequestMapping("/api/demo")
+@RequestMapping("/api/scenario")
 @ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioController {
-  // Dedicated endpoint for returning the coursework demo to a known-good defense state.
+  // Dedicated endpoint for returning the coursework scenario to a known-good defense state.
   private final DemoScenarioService demoScenarioService;
 
   public DemoScenarioController(DemoScenarioService demoScenarioService) {

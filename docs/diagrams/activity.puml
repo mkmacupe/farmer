@@ -1,6 +1,6 @@
 @startuml
 start
-:Manager resets demo scenario;
+:Manager resets training scenario;
 :Director logs in;
 :Shows profile and addresses;
 :Builds cart from catalog;

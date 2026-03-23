@@ -18,9 +18,11 @@ import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
@@ -76,11 +78,22 @@ class DataInitializerTest {
     dataInitializer.run();
 
     ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
-    verify(userRepository, times(8)).save(userCaptor.capture());
+    verify(userRepository, times(expectedSeededUsernames().size())).save(userCaptor.capture());
+    assertThat(userCaptor.getAllValues())
+        .extracting(User::getUsername)
+        .containsExactlyInAnyOrderElementsOf(expectedSeededUsernames());
     
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
     verify(productRepository, atLeast(200)).save(productCaptor.capture());
-    verify(storeAddressRepository, times(3)).save(any(StoreAddress.class));
+    ArgumentCaptor<StoreAddress> addressCaptor = ArgumentCaptor.forClass(StoreAddress.class);
+    verify(storeAddressRepository, times(3)).save(addressCaptor.capture());
+    assertThat(addressCaptor.getAllValues())
+        .extracting(StoreAddress::getLabel)
+        .containsExactly(
+            "Лавка Полесья • Центральный",
+            "Сезонный Двор • Проспект Мира",
+            "Усадьба Урожая • Павлова"
+        );
 
     Product firstProduct = productCaptor.getAllValues().get(0);
     assertThat(firstProduct.getWeightKg()).isNotNull();
@@ -264,5 +277,46 @@ class DataInitializerTest {
     assertThat(honeyLinden.getId()).isNotEqualTo(lindenHoney.getId());
     assertThat(honeyLinden.getName()).isEqualTo("Мёд липовый 500 г");
     assertThat(lindenHoney.getName()).isEqualTo("Мёд липовый 500 г");
+  }
+
+  private Set<String> expectedSeededUsernames() {
+    Set<String> usernames = new LinkedHashSet<>(List.of(
+        "diralekseev",
+        "dirbaranova",
+        "dirvasilevsky",
+        "dirgromova",
+        "dirdrozdov",
+        "dirermakova",
+        "dirzhuravlev",
+        "dirzimina",
+        "dirivashkevich",
+        "dirkovaleva",
+        "dirlavrinenko",
+        "dirmelnik",
+        "dirnovik",
+        "dirosipova",
+        "dirparkhomenko",
+        "dirrudenko",
+        "dirsavchuk",
+        "dirtarasova",
+        "dirulyanov",
+        "dirfedorova",
+        "dirharitonov",
+        "dirsokolova",
+        "dirchernov",
+        "dirshevtsova",
+        "diryashin",
+        "dirabramova",
+        "dirbelyaev",
+        "dirvoronova",
+        "dirgrishin",
+        "dirdanilova"
+    ));
+    usernames.add("manager");
+    usernames.add("logistician");
+    usernames.add("driver1");
+    usernames.add("driver2");
+    usernames.add("driver3");
+    return usernames;
   }
 }

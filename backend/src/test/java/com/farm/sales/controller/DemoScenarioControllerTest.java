@@ -9,10 +9,13 @@ import com.farm.sales.dto.DemoClearOrdersResponse;
 import com.farm.sales.dto.DemoResetResponse;
 import com.farm.sales.service.DemoScenarioService;
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 
 class DemoScenarioControllerTest {
   private DemoScenarioService demoScenarioService;
@@ -27,7 +30,7 @@ class DemoScenarioControllerTest {
   @Test
   void resetDelegatesToServiceAndReturnsOk() {
     DemoResetResponse response = new DemoResetResponse(
-        "Демо-сценарий защиты Farm Sales",
+        "Транспортный учебный сценарий Farm Sales",
         Instant.parse("2026-03-06T20:00:00Z"),
         35L,
         30L,
@@ -62,5 +65,23 @@ class DemoScenarioControllerTest {
     assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(httpResponse.getBody()).isEqualTo(response);
     verify(demoScenarioService).clearOrdersKeepingStorePoints();
+  }
+
+  @Test
+  void scenarioControllerUsesScenarioApiBasePath() {
+    RequestMapping mapping = DemoScenarioController.class.getAnnotation(RequestMapping.class);
+
+    assertThat(mapping).isNotNull();
+    assertThat(Arrays.asList(mapping.value())).containsExactly("/api/scenario");
+  }
+
+  @Test
+  void clearOrdersKeepsClearOrdersSubpath() throws NoSuchMethodException {
+    PostMapping mapping = DemoScenarioController.class
+        .getDeclaredMethod("clearOrders")
+        .getAnnotation(PostMapping.class);
+
+    assertThat(mapping).isNotNull();
+    assertThat(Arrays.asList(mapping.value())).containsExactly("/clear-orders");
   }
 }

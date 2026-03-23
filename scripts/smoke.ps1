@@ -5,10 +5,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
- $DemoUserPasswords = @{
-  "director01" = "Dir01Farm2026"
-  "director02" = "Dir02Farm2026"
-  "director03" = "Dir03Farm2026"
+$SeededUserPasswords = @{
+  "diralekseev" = "AlekseevFarm26"
+  "dirbaranova" = "BaranovaFarm26"
+  "dirvasilevsky" = "VasilevskyFarm26"
   "manager" = "MgrD5v8cN4"
   "logistician" = "LogS7q1wE5"
   "driver1" = "Drv1A9k2Z6"
@@ -69,13 +69,13 @@ function Invoke-LocalWeb {
 function Login {
   param([string]$Username)
 
-  if (-not $DemoUserPasswords.ContainsKey($Username)) {
-    throw "Unknown demo username '$Username'."
+  if (-not $SeededUserPasswords.ContainsKey($Username)) {
+    throw "Unknown seeded username '$Username'."
   }
 
   $body = @{
     username = $Username
-    password = $DemoUserPasswords[$Username]
+    password = $SeededUserPasswords[$Username]
   } | ConvertTo-Json
 
   return Invoke-LocalRest `
@@ -108,7 +108,7 @@ function Normalize-Collection {
   return @($Payload)
 }
 
-$director = Login -Username "director01"
+$director = Login -Username "diralekseev"
 $manager = Login -Username "manager"
 $logistician = Login -Username "logistician"
 $driver = Login -Username "driver1"
@@ -161,13 +161,13 @@ if ($approved.status -ne "APPROVED") {
 }
 
 $drivers = Invoke-LocalRest -Method Get -Uri "$Base/users/drivers" -Headers (AuthHeaders $logistician.token)
-$demoDriver = $drivers | Where-Object { $_.username -eq "driver1" } | Select-Object -First 1
-if (-not $demoDriver) {
-  throw "Demo driver 'driver1' was not found in /users/drivers."
+$seededDriver = $drivers | Where-Object { $_.username -eq "driver1" } | Select-Object -First 1
+if (-not $seededDriver) {
+  throw "Seeded driver 'driver1' was not found in /users/drivers."
 }
 
 $assignBody = @{
-  driverId = $demoDriver.id
+  driverId = $seededDriver.id
 } | ConvertTo-Json
 
 $assigned = Invoke-LocalRest `
@@ -183,7 +183,7 @@ if ($assigned.status -ne "ASSIGNED") {
 
 $driverOrders = Invoke-LocalRest -Method Get -Uri "$Base/orders/assigned" -Headers (AuthHeaders $driver.token)
 if (-not ($driverOrders | Where-Object { $_.id -eq $orderId })) {
-  throw "Assigned order $orderId is missing in /orders/assigned for demo driver."
+  throw "Assigned order $orderId is missing in /orders/assigned for seeded driver."
 }
 
 $delivered = Invoke-LocalRest `

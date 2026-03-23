@@ -9,7 +9,7 @@ actor "Driver" as driver
 
 rectangle "Farm Sales System" {
   usecase "Login" as UC_Login
-  usecase "Reset demo scenario" as UC_ResetDemo
+  usecase "Reset training scenario" as UC_ResetDemo
   usecase "Manage profile and store addresses" as UC_Profile
   usecase "Browse catalog with filters" as UC_Catalog
   usecase "Create delivery request" as UC_CreateOrder

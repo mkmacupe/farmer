@@ -1,4 +1,4 @@
-# Demo Scenario For Defense
+# Defense Scenario
 
 ## 1. Цель
 
@@ -9,7 +9,7 @@
 ### Локально
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base http://127.0.0.1:8080/api
+powershell -ExecutionPolicy Bypass -File .\scripts\scenario-reset.ps1 -Base http://127.0.0.1:8080/api
 ```
 
 Если backend запущен вручную или на другом порту, в `-Base` нужно указать фактический адрес `/api`.
@@ -17,22 +17,22 @@ powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base http://1
 ### На публичном backend
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base https://farm-sales-backend.onrender.com/api
+powershell -ExecutionPolicy Bypass -File .\scripts\scenario-reset.ps1 -Base https://farm-sales-backend.onrender.com/api
 ```
 
 ## 3. Что делает reset
 
 - очищает накопленные заказы, позиции заказов, timeline, аудит, складские движения и realtime-уведомления;
-- пересоздаёт канонических demo-пользователей и каталог;
-- заново поднимает транспортный demo-сценарий;
-- возвращает предсказуемую стартовую точку для логистики: `20` точек доставки и `30` заказов в статусе `APPROVED`;
+- пересоздаёт предзаполненные учетные записи и каталог;
+- заново поднимает транспортный сценарий;
+- возвращает предсказуемую стартовую точку для логистики: `30` точек доставки и `30` заказов в статусе `APPROVED` с суммарным весом `4498 кг`;
 - в ответе API отдаёт краткий `defenseFlow`, по которому можно сразу начинать показ.
 
-## 4. Демо-аккаунты
+## 4. Аккаунты
 
-- `director01 / Dir01Farm2026`
-- `director02 / Dir02Farm2026`
-- `director03 / Dir03Farm2026`
+- Андрей Алексеев, ООО "Лавка Полесья" — `diralekseev / AlekseevFarm26`
+- Виктория Баранова, ООО "Сезонный Двор" — `dirbaranova / BaranovaFarm26`
+- Сергей Василевский, ООО "Усадьба Урожая" — `dirvasilevsky / VasilevskyFarm26`
 - `manager / MgrD5v8cN4`
 - `logistician / LogS7q1wE5`
 - `driver1 / Drv1A9k2Z6`
@@ -44,8 +44,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base https://
 ### Шаг 1. Менеджер
 
 - войти под `manager`
-- выполнить demo reset
-- показать, что система подняла `20` точек и `30` одобренных заказов для транспортной задачи
+- выполнить scenario reset
+- показать, что система подняла `30` точек, `30` одобренных заказов и суммарный вес `4498 кг` для транспортной задачи
 - при желании показать `Сводку`, аналитику и категории спроса
 
 ### Шаг 2. Логист
@@ -77,5 +77,5 @@ powershell -ExecutionPolicy Bypass -File .\scripts\demo-reset.ps1 -Base https://
 - заказ проходит через полный жизненный цикл, а reset отдельно готовит канонический логистический сценарий;
 - backend ведёт аудит и timeline;
 - frontend получает realtime-обновления;
-- проект развёрнут публично и содержит механизм reset демонстрационных данных;
+- проект развёрнут публично и содержит механизм reset учебного сценария;
 - после reset преподавателю можно сразу показать транспортную задачу без ручной подготовки заказов.

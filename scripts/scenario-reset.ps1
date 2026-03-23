@@ -125,11 +125,11 @@ function Resolve-ResetBases {
     return $bases.ToArray()
   }
 
-  Write-Host "Local backend was not auto-detected. Falling back to local + deployed demo bases."
+  Write-Host "Local backend was not auto-detected. Falling back to local + deployed public bases."
   return @("http://127.0.0.1:8080/api", $DeployedBase)
 }
 
-function Invoke-DemoReset {
+function Invoke-ScenarioReset {
   param(
     [Parameter(Mandatory = $true)][string]$Base
   )
@@ -149,10 +149,26 @@ function Invoke-DemoReset {
     Authorization = "Bearer $($auth.token)"
   }
 
-  return Invoke-LocalRest `
-    -Method Post `
-    -Uri "$Base/demo/reset" `
-    -Headers $headers
+  $preferredUri = "$Base/scenario/reset"
+  $legacyUri = "$Base/demo/reset"
+
+  try {
+    return Invoke-LocalRest `
+      -Method Post `
+      -Uri $preferredUri `
+      -Headers $headers
+  } catch {
+    $statusCode = $_.Exception.Response.StatusCode.value__
+    if ($statusCode -ne 404) {
+      throw
+    }
+
+    Write-Warning "Route $preferredUri returned 404. Falling back to legacy route $legacyUri."
+    return Invoke-LocalRest `
+      -Method Post `
+      -Uri $legacyUri `
+      -Headers $headers
+  }
 }
 
 $basesToReset = Resolve-ResetBases
@@ -160,8 +176,8 @@ $results = New-Object System.Collections.Generic.List[object]
 
 foreach ($resolvedBase in $basesToReset) {
   Write-Host "Reset base: $resolvedBase"
-  $reset = Invoke-DemoReset -Base $resolvedBase
-  Write-Host "Demo scenario reset completed."
+  $reset = Invoke-ScenarioReset -Base $resolvedBase
+  Write-Host "Scenario reset completed."
   Write-Host "Recommended flow:"
   foreach ($step in $reset.defenseFlow) {
     Write-Host " - $step"

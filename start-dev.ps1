@@ -382,7 +382,7 @@ function Wait-ForBackendReady {
     try {
       $loginPayload = @{ username = "manager"; password = "MgrD5v8cN4" } | ConvertTo-Json -Compress
       $loginResponse = Invoke-RestMethod `
-        -Uri "http://127.0.0.1:$Port/api/auth/demo-login" `
+        -Uri "http://127.0.0.1:$Port/api/auth/seed-login" `
         -Method Post `
         -ContentType "application/json" `
         -Body $loginPayload `
@@ -816,6 +816,7 @@ if (-not $NoFrontend) {
   }
 }
 if ($composeEnv["APP_DEMO_ENABLED"] -eq "true") {
-  Write-Host "Demo users: director01 / director02 / director03 / manager / logistician / driver1 / driver2 / driver3"
-  Write-Host "Demo passwords are unique per user and stored as bcrypt hashes in DB."
+  Write-Host "Accounts: diralekseev / dirbaranova / dirvasilevsky / manager / logistician / driver1 / driver2 / driver3"
+  Write-Host "Full director list: accounts.txt"
+  Write-Host "Passwords are unique per user and stored as bcrypt hashes in DB."
 }

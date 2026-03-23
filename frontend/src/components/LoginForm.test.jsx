@@ -11,7 +11,7 @@ describe('LoginForm', () => {
     expect(button).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText(/логин/i), {
-      target: { value: 'director01' }
+      target: { value: 'diralekseev' }
     });
     expect(button).toBeDisabled();
 
@@ -51,11 +51,11 @@ describe('LoginForm', () => {
     expect(onLogin).toHaveBeenCalledWith('manager', 'secret123');
   });
 
-  it('does not render quick demo account buttons', () => {
+  it('does not render quick account buttons', () => {
     render(<LoginForm onLogin={() => {}} loading={false} error="" />);
 
     expect(screen.queryByRole('button', { name: 'manager' })).toBeNull();
-    expect(screen.queryByRole('group', { name: /демо аккаунты/i })).toBeNull();
+    expect(screen.queryByRole('group', { name: /аккаунты/i })).toBeNull();
   });
 
   it('shows server error message', () => {

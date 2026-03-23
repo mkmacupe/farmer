@@ -111,4 +111,4 @@ Backend организован как модульный монолит: вся 
 
 - [README](../README.md)
 - [Runtime architecture](./architecture/runtime-architecture.md)
-- [Demo scenario](./defense/demo-scenario.md)
+- [Defense scenario](./defense/scenario.md)

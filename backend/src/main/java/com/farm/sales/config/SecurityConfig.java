@@ -47,7 +47,7 @@ public class SecurityConfig {
         .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
         .authorizeHttpRequests(auth -> auth
             .requestMatchers(HttpMethod.POST, "/api/auth/login").permitAll()
-            .requestMatchers(HttpMethod.POST, "/api/auth/demo-login").permitAll()
+            .requestMatchers(HttpMethod.POST, "/api/auth/seed-login").permitAll()
             .requestMatchers("/favicon.ico", "/error").permitAll()
             .requestMatchers(HttpMethod.GET, "/api/notifications/stream")
             .hasAnyRole("DIRECTOR", "MANAGER", "LOGISTICIAN", "DRIVER")
@@ -68,7 +68,7 @@ public class SecurityConfig {
             .requestMatchers(HttpMethod.POST, "/api/orders/*/approve").hasRole("MANAGER")
             .requestMatchers(HttpMethod.POST, "/api/orders/*/assign-driver").hasRole("LOGISTICIAN")
             .requestMatchers(HttpMethod.POST, "/api/orders/*/deliver").hasRole("DRIVER")
-            .requestMatchers(HttpMethod.POST, "/api/demo/reset", "/api/demo/clear-orders").hasRole("MANAGER")
+            .requestMatchers(HttpMethod.POST, "/api/scenario/reset", "/api/scenario/clear-orders").hasRole("MANAGER")
             .requestMatchers(HttpMethod.GET, "/api/orders/*/timeline")
             .hasAnyRole("DIRECTOR", "MANAGER", "LOGISTICIAN", "DRIVER")
             .requestMatchers("/api/director/**").hasRole("DIRECTOR")

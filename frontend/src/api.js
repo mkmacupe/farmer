@@ -514,7 +514,7 @@ export async function login(username, password) {
 }
 
 export async function demoLogin(username, password) {
-  return authenticateWithWarmup('demo-login', username, password, false);
+  return authenticateWithWarmup('seed-login', username, password, false);
 }
 
 export async function getProductsPage(token, params = {}) {

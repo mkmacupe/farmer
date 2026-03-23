@@ -12,7 +12,7 @@
 - транспортная задача с preview-маршрута и подтверждением автоназначения;
 - realtime-уведомления через SSE;
 - Excel-отчёты и менеджерская аналитика;
-- reset демо-сценария перед защитой.
+- reset учебного сценария перед защитой.
 
 ## Стек
 
@@ -70,12 +70,12 @@ npm run dev
 Для ручного сценария backend также остаётся в docker-compose-контуре с PostgreSQL.
 Если backend запускается отдельно через Maven или IDE, передайте те же `SPRING_DATASOURCE_*`, `POSTGRES_PORT` и `JWT_SECRET`, что используются в `.env`.
 
-## Demo reset
+## Scenario Reset
 
-Новый demo reset для локального и задеплоенного backend одновременно:
+Новый scenario reset для локального и задеплоенного backend одновременно:
 
 ```powershell
-.\demo-reset.bat
+.\scenario-reset.bat
 ```
 
 Скрипт по умолчанию пытается обновить локальный backend, если он доступен, и публичный backend `https://farm-sales-backend.onrender.com/api`. При необходимости можно передать конкретный `-Base` или URL первым аргументом в `.bat`.
@@ -83,16 +83,16 @@ npm run dev
 Сбросить только заказы до нуля, оставив точки магазинов:
 
 ```powershell
-.\demo-clear-orders.bat
+.\scenario-clear-orders.bat
 ```
 
-Reset очищает накопленное runtime-состояние, пересоздаёт demo-пользователей и каталог, а затем поднимает канонический транспортный сценарий для защиты: `30` точек магазинов и `30` заказов в статусе `APPROVED`, по `1` заказу на точку, суммарным весом `4498 кг`. Это оставляет запас в `2 кг` до общего лимита трёх машин на один рейс (`4500 кг`), поэтому дополнительный заказ весом `2+ кг` отправит одного из водителей на второй рейс.
+Reset очищает накопленное runtime-состояние, пересоздаёт предзаполненные учетные записи и каталог, а затем поднимает канонический транспортный сценарий для защиты: `30` точек магазинов и `30` заказов в статусе `APPROVED`, по `1` заказу на точку, суммарным весом `4498 кг`. Это оставляет запас в `2 кг` до общего лимита трёх машин на один рейс (`4500 кг`), поэтому дополнительный заказ весом `2+ кг` отправит одного из водителей на второй рейс.
 
-## Демо-аккаунты
+## Аккаунты
 
 | Роль | Логин | Пароль |
 |---|---|---|
-| Director | `director01` … `director30` | `Dir01Farm2026` … `Dir30Farm2026` |
+| Director | полный список в `accounts.txt` | полный список в `accounts.txt` |
 | Manager | `manager` | `MgrD5v8cN4` |
 | Logistician | `logistician` | `LogS7q1wE5` |
 | Driver | `driver1` | `Drv1A9k2Z6` |
@@ -121,14 +121,14 @@ mvn test
 - `frontend/` — SPA на React/Vite;
 - `backend/` — Spring Boot backend;
 - `render.yaml` — deploy-конфигурация Render;
-- `scripts/demo-reset.ps1` — reset демо-данных на локальном и публичном backend;
-- `scripts/demo-clear-orders.ps1` — очистка заказов без удаления точек магазинов;
+- `scripts/scenario-reset.ps1` — reset учебного сценария на локальном и публичном backend;
+- `scripts/scenario-clear-orders.ps1` — очистка заказов без удаления точек магазинов;
 - `docs/` — обзор, архитектура, защита, deploy.
 
 ## Документация
 
 - [Технический обзор](docs/PROJECT_OVERVIEW.md)
 - [Runtime architecture](docs/architecture/runtime-architecture.md)
-- [Сценарий защиты](docs/defense/demo-scenario.md)
+- [Сценарий защиты](docs/defense/scenario.md)
 - [Транспортная задача](docs/defense/transport-task.md)
 - [Deploy notes](docs/deploy/free-deploy-render-cloudflare.md)

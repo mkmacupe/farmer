@@ -36,10 +36,10 @@ class DirectorProfileControllerTest {
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(42L);
     ProfileResponse response = new ProfileResponse(
         42L,
-        "director01",
-        "Директор магазина 01",
+        "diralekseev",
+        "Андрей Алексеев",
         "+375291000001",
-        "Магазин \"Демо 01\""
+        "ООО \"Лавка Полесья\""
     );
     when(directorProfileService.getProfile(42L)).thenReturn(response);
 

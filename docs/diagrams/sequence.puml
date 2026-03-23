@@ -18,10 +18,10 @@ Manager -> UI: Login as manager
 UI -> Auth: POST /api/auth/login
 Auth --> UI: JWT
 
-Manager -> UI: Reset demo scenario
-UI -> Demo: POST /api/demo/reset
+Manager -> UI: Reset training scenario
+UI -> Demo: POST /api/scenario/reset
 Demo -> Service: resetDemoScenario()
-Service -> DB: delete mutable demo data
+Service -> DB: delete mutable scenario data
 Service -> DB: reseed users/products/addresses/orders
 Demo --> UI: DemoResetResponse
 

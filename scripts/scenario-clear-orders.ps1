@@ -148,10 +148,26 @@ function Invoke-ClearOrders {
     Authorization = "Bearer $($auth.token)"
   }
 
-  return Invoke-LocalRest `
-    -Method Post `
-    -Uri "$Base/demo/clear-orders" `
-    -Headers $headers
+  $preferredUri = "$Base/scenario/clear-orders"
+  $legacyUri = "$Base/demo/clear-orders"
+
+  try {
+    return Invoke-LocalRest `
+      -Method Post `
+      -Uri $preferredUri `
+      -Headers $headers
+  } catch {
+    $statusCode = $_.Exception.Response.StatusCode.value__
+    if ($statusCode -ne 404) {
+      throw
+    }
+
+    Write-Warning "Route $preferredUri returned 404. Falling back to legacy route $legacyUri."
+    return Invoke-LocalRest `
+      -Method Post `
+      -Uri $legacyUri `
+      -Headers $headers
+  }
 }
 
 $targetBases = Resolve-TargetBases

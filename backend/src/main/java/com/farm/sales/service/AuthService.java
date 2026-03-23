@@ -93,7 +93,7 @@ public class AuthService {
 
   public AuthResponse demoLogin(String username, String password, boolean demoEnabled) {
     if (!demoEnabled) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Демо-вход отключён");
+      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Вход по предзаполненным учетным записям отключён");
     }
 
     String normalizedUsername = username == null ? "" : username.trim();

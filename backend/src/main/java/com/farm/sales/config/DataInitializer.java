@@ -20,7 +20,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.IntStream;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.slf4j.Logger;
@@ -40,9 +39,6 @@ public class DataInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
   private static final String PRODUCT_IMAGE_BASE = "/images/products/";
   private static final int DEMO_PRODUCT_TARGET_COUNT = 200;
-  private static final int DEMO_DIRECTOR_START_INDEX = 1;
-  private static final int EXTRA_DIRECTOR_START_INDEX = 4;
-  private static final int EXTRA_DIRECTOR_END_INDEX = 30;
   private static final Set<String> CORE_PRODUCT_IMAGES = Set.of(
       "milk.webp",
       "kefir.webp",
@@ -349,6 +345,48 @@ public class DataInitializer implements CommandLineRunner {
   private record CatalogDescriptor(String name, String category) {
   }
 
+  private record DirectorSeedProfile(
+      String username,
+      String password,
+      String fullName,
+      String phone,
+      String legalEntityName
+  ) {
+  }
+
+  private static final List<DirectorSeedProfile> SEEDED_DIRECTOR_PROFILES = List.of(
+      new DirectorSeedProfile("diralekseev", "AlekseevFarm26", "Андрей Алексеев", "+375291000001", "ООО \"Лавка Полесья\""),
+      new DirectorSeedProfile("dirbaranova", "BaranovaFarm26", "Виктория Баранова", "+375291000002", "ООО \"Сезонный Двор\""),
+      new DirectorSeedProfile("dirvasilevsky", "VasilevskyFarm26", "Сергей Василевский", "+375291000003", "ООО \"Усадьба Урожая\""),
+      new DirectorSeedProfile("dirgromova", "GromovaFarm26", "Елена Громова", "+375291000004", "ООО \"Зелёная Полка\""),
+      new DirectorSeedProfile("dirdrozdov", "DrozdovFarm26", "Игорь Дроздов", "+375291000005", "ООО \"Фермерский Погребок\""),
+      new DirectorSeedProfile("dirermakova", "ErmakovaFarm26", "Наталья Ермакова", "+375291000006", "ООО \"Солнечный Огород\""),
+      new DirectorSeedProfile("dirzhuravlev", "ZhuravlevFarm26", "Павел Журавлёв", "+375291000007", "ООО \"Хуторская Лавка\""),
+      new DirectorSeedProfile("dirzimina", "ZiminaFarm26", "Оксана Зимина", "+375291000008", "ООО \"Добрый Улей\""),
+      new DirectorSeedProfile("dirivashkevich", "IvashkevichFarm26", "Максим Ивашкевич", "+375291000009", "ООО \"Рынок Сезона\""),
+      new DirectorSeedProfile("dirkovaleva", "KovalevaFarm26", "Татьяна Ковалёва", "+375291000010", "ООО \"Кладовая Фермера\""),
+      new DirectorSeedProfile("dirlavrinenko", "LavrinenkoFarm26", "Артём Лавриненко", "+375291000011", "ООО \"Берёзовый Двор\""),
+      new DirectorSeedProfile("dirmelnik", "MelnikFarm26", "Марина Мельник", "+375291000012", "ООО \"Дары Слободы\""),
+      new DirectorSeedProfile("dirnovik", "NovikFarm26", "Денис Новик", "+375291000013", "ООО \"Поле и Печь\""),
+      new DirectorSeedProfile("dirosipova", "OsipovaFarm26", "Светлана Осипова", "+375291000014", "ООО \"Корзина Хозяина\""),
+      new DirectorSeedProfile("dirparkhomenko", "ParkhomenkoFarm26", "Роман Пархоменко", "+375291000015", "ООО \"Грядка у Дома\""),
+      new DirectorSeedProfile("dirrudenko", "RudenkoFarm26", "Ирина Руденко", "+375291000016", "ООО \"Золотой Амбар\""),
+      new DirectorSeedProfile("dirsavchuk", "SavchukFarm26", "Кирилл Савчук", "+375291000017", "ООО \"Свежий Стан\""),
+      new DirectorSeedProfile("dirtarasova", "TarasovaFarm26", "Ольга Тарасова", "+375291000018", "ООО \"Сельский Прилавок\""),
+      new DirectorSeedProfile("dirulyanov", "UlyanovFarm26", "Константин Ульянов", "+375291000019", "ООО \"Луговой Ряд\""),
+      new DirectorSeedProfile("dirfedorova", "FedorovaFarm26", "Вероника Федорова", "+375291000020", "ООО \"Пчелиный Берег\""),
+      new DirectorSeedProfile("dirharitonov", "HaritonovFarm26", "Евгений Харитонов", "+375291000021", "ООО \"Натуральный Двор\""),
+      new DirectorSeedProfile("dirsokolova", "SokolovaFarm26", "Анна Соколова", "+375291000022", "ООО \"Садовая Кладовая\""),
+      new DirectorSeedProfile("dirchernov", "ChernovFarm26", "Дмитрий Чернов", "+375291000023", "ООО \"Белый Колос\""),
+      new DirectorSeedProfile("dirshevtsova", "ShevtsovaFarm26", "Юлия Шевцова", "+375291000024", "ООО \"Ярмарка Урожая\""),
+      new DirectorSeedProfile("diryashin", "YashinFarm26", "Николай Яшин", "+375291000025", "ООО \"Овощная Артель\""),
+      new DirectorSeedProfile("dirabramova", "AbramovaFarm26", "Лариса Абрамова", "+375291000026", "ООО \"Тёплый Сеновал\""),
+      new DirectorSeedProfile("dirbelyaev", "BelyaevFarm26", "Борис Беляев", "+375291000027", "ООО \"Родной Луг\""),
+      new DirectorSeedProfile("dirvoronova", "VoronovaFarm26", "Галина Воронова", "+375291000028", "ООО \"Зерно и Травы\""),
+      new DirectorSeedProfile("dirgrishin", "GrishinFarm26", "Степан Гришин", "+375291000029", "ООО \"Чистый Сбор\""),
+      new DirectorSeedProfile("dirdanilova", "DanilovaFarm26", "Дарья Данилова", "+375291000030", "ООО \"Яблоневый Двор\"")
+  );
+
   private final UserRepository userRepository;
   private final ProductRepository productRepository;
   private final StoreAddressRepository storeAddressRepository;
@@ -392,11 +430,13 @@ public class DataInitializer implements CommandLineRunner {
     if (demoSeeded) return;
     synchronized (seedLock) {
       if (demoSeeded) return;
-      
-      User director01 = createDemoDirector(1);
-      User director02 = createDemoDirector(2);
-      User director03 = createDemoDirector(3);
-      seedAdditionalDemoDirectors();
+
+      List<User> directors = SEEDED_DIRECTOR_PROFILES.stream()
+          .map(this::createDemoDirector)
+          .toList();
+      User firstDirector = directors.get(0);
+      User secondDirector = directors.get(1);
+      User thirdDirector = directors.get(2);
       
       createUserIfMissing("manager", "Менеджер", "+375290000002", null, Role.MANAGER, seededPassword("manager"));
       createUserIfMissing("logistician", "Логист", "+375290000003", null, Role.LOGISTICIAN, seededPassword("logistician"));
@@ -405,9 +445,9 @@ public class DataInitializer implements CommandLineRunner {
       createUserIfMissing("driver3", "Водитель 3", "+375290000007", null, Role.DRIVER, seededPassword("driver3"));
 
       if (includeDefaultAddresses) {
-        createAddressIfMissing(director01, "Демо 01 • Центральный", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
-        createAddressIfMissing(director02, "Демо 02 • Проспект Мира", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
-        createAddressIfMissing(director03, "Демо 03 • Павлова", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
+        createAddressIfMissing(firstDirector, "Лавка Полесья • Центральный", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
+        createAddressIfMissing(secondDirector, "Сезонный Двор • Проспект Мира", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
+        createAddressIfMissing(thirdDirector, "Усадьба Урожая • Павлова", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
       }
 
       seedProduct("Молоко фермерское 1 л", "Молочная продукция", "3.20", 120, "milk.webp");
@@ -991,57 +1031,73 @@ public class DataInitializer implements CommandLineRunner {
       return staticPassword;
     }
 
-    int demoDirectorIndex = parseDemoDirectorIndex(username);
-    if (demoDirectorIndex >= DEMO_DIRECTOR_START_INDEX && demoDirectorIndex <= EXTRA_DIRECTOR_END_INDEX) {
-      return formatDemoDirectorPassword(demoDirectorIndex);
+    DirectorSeedProfile directorProfile = findDirectorSeedProfile(username);
+    if (directorProfile != null) {
+      return directorProfile.password();
     }
 
     return null;
   }
 
-  private User createDemoDirector(int index) {
+  private User createDemoDirector(DirectorSeedProfile profile) {
     return createUserIfMissing(
-        formatDemoDirectorUsername(index),
-        String.format("Директор магазина %02d", index),
-        String.format("+37529%07d", 1000000 + index),
-        String.format("Магазин \"Демо %02d\"", index),
+        profile.username(),
+        profile.fullName(),
+        profile.phone(),
+        profile.legalEntityName(),
         Role.DIRECTOR,
-        formatDemoDirectorPassword(index)
+        profile.password()
     );
   }
 
-  private void seedAdditionalDemoDirectors() {
-    for (int index = EXTRA_DIRECTOR_START_INDEX; index <= EXTRA_DIRECTOR_END_INDEX; index++) {
-      createDemoDirector(index);
-    }
+  private User createDemoDirector(int index) {
+    return createDemoDirector(directorProfile(index));
   }
 
   public static List<String> demoDirectorUsernames() {
-    return IntStream.rangeClosed(DEMO_DIRECTOR_START_INDEX, EXTRA_DIRECTOR_END_INDEX)
-        .mapToObj(DataInitializer::formatDemoDirectorUsername)
+    return SEEDED_DIRECTOR_PROFILES.stream()
+        .map(DirectorSeedProfile::username)
         .toList();
   }
 
   public static String formatDemoDirectorUsername(int index) {
-    return String.format("director%02d", index);
+    return directorProfile(index).username();
   }
 
   public static String formatDemoDirectorPassword(int index) {
-    return String.format("Dir%02dFarm2026", index);
+    return directorProfile(index).password();
   }
 
   public static int parseDemoDirectorIndex(String username) {
+    int profileIndex = directorProfileIndex(username);
+    return profileIndex < 0 ? -1 : profileIndex + 1;
+  }
+
+  private static DirectorSeedProfile directorProfile(int index) {
+    if (index < 1 || index > SEEDED_DIRECTOR_PROFILES.size()) {
+      throw new IllegalArgumentException("Director index is out of range: " + index);
+    }
+    return SEEDED_DIRECTOR_PROFILES.get(index - 1);
+  }
+
+  private static DirectorSeedProfile findDirectorSeedProfile(String username) {
+    int profileIndex = directorProfileIndex(username);
+    if (profileIndex < 0) {
+      return null;
+    }
+    return SEEDED_DIRECTOR_PROFILES.get(profileIndex);
+  }
+
+  private static int directorProfileIndex(String username) {
     if (username == null) {
       return -1;
     }
     String normalized = username.trim().toLowerCase(Locale.ROOT);
-    if (!normalized.startsWith("director")) {
-      return -1;
+    for (int index = 0; index < SEEDED_DIRECTOR_PROFILES.size(); index++) {
+      if (SEEDED_DIRECTOR_PROFILES.get(index).username().equalsIgnoreCase(normalized)) {
+        return index;
+      }
     }
-    try {
-      return Integer.parseInt(normalized.substring("director".length()));
-    } catch (NumberFormatException exception) {
-      return -1;
-    }
+    return -1;
   }
 }
