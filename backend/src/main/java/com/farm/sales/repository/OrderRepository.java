@@ -86,6 +86,9 @@ public interface OrderRepository extends JpaRepository<Order, Long> {
   List<Order> findByStatus(OrderStatus status);
 
   @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
+  List<Order> findByDeliveryAddressId(Long deliveryAddressId);
+
+  @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})
   List<Order> findByCustomerIdOrderByCreatedAtDesc(Long customerId, Pageable pageable);
 
   @EntityGraph(attributePaths = {"customer", "deliveryAddress", "assignedDriver", "items", "items.product"})

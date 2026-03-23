@@ -4,6 +4,7 @@ import com.farm.sales.model.Product;
 import com.farm.sales.model.Role;
 import com.farm.sales.model.StoreAddress;
 import com.farm.sales.model.User;
+import com.farm.sales.repository.OrderRepository;
 import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
@@ -13,6 +14,7 @@ import java.math.RoundingMode;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
@@ -28,6 +30,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -354,6 +357,15 @@ public class DataInitializer implements CommandLineRunner {
   ) {
   }
 
+  private record SeededAddressProfile(
+      String label,
+      String addressLine,
+      String latitude,
+      String longitude,
+      List<String> legacyLabels
+  ) {
+  }
+
   private static final List<DirectorSeedProfile> SEEDED_DIRECTOR_PROFILES = List.of(
       new DirectorSeedProfile("diralekseev", "AlekseevFarm26", "Андрей Алексеев", "+375291000001", "ООО \"Лавка Полесья\""),
       new DirectorSeedProfile("dirbaranova", "BaranovaFarm26", "Виктория Баранова", "+375291000002", "ООО \"Сезонный Двор\""),
@@ -386,8 +398,32 @@ public class DataInitializer implements CommandLineRunner {
       new DirectorSeedProfile("dirgrishin", "GrishinFarm26", "Степан Гришин", "+375291000029", "ООО \"Чистый Сбор\""),
       new DirectorSeedProfile("dirdanilova", "DanilovaFarm26", "Дарья Данилова", "+375291000030", "ООО \"Яблоневый Двор\"")
   );
+  private static final List<SeededAddressProfile> DEFAULT_DIRECTOR_ADDRESS_PROFILES = List.of(
+      new SeededAddressProfile(
+          "Лавка Полесья • Центральный",
+          "Могилёв, ул. Челюскинцев 105",
+          "53.8654",
+          "30.2905",
+          List.of("Демо 01 • Центральный", "Берёзка • Центральный", "МХВ Точка 01")
+      ),
+      new SeededAddressProfile(
+          "Сезонный Двор • Проспект Мира",
+          "Могилёв, пр-т Мира 42",
+          "53.8948",
+          "30.3312",
+          List.of("Демо 02 • Проспект Мира", "Квартал • Проспект Мира", "МЛМ Точка 01")
+      ),
+      new SeededAddressProfile(
+          "Усадьба Урожая • Павлова",
+          "Могилёв, ул. Академика Павлова 3",
+          "53.9342",
+          "30.2941",
+          List.of("Демо 03 • Павлова", "Янтарь • Павлова", "БК Точка 01")
+      )
+  );
 
   private final UserRepository userRepository;
+  private final OrderRepository orderRepository;
   private final ProductRepository productRepository;
   private final StoreAddressRepository storeAddressRepository;
   private final PasswordEncoder passwordEncoder;
@@ -397,10 +433,12 @@ public class DataInitializer implements CommandLineRunner {
   private volatile boolean demoSeeded;
 
   public DataInitializer(UserRepository userRepository,
+                         OrderRepository orderRepository,
                          ProductRepository productRepository,
                          StoreAddressRepository storeAddressRepository,
                          PasswordEncoder passwordEncoder) {
     this.userRepository = userRepository;
+    this.orderRepository = orderRepository;
     this.productRepository = productRepository;
     this.storeAddressRepository = storeAddressRepository;
     this.passwordEncoder = passwordEncoder;
@@ -445,9 +483,9 @@ public class DataInitializer implements CommandLineRunner {
       createUserIfMissing("driver3", "Водитель 3", "+375290000007", null, Role.DRIVER, seededPassword("driver3"));
 
       if (includeDefaultAddresses) {
-        createAddressIfMissing(firstDirector, "Лавка Полесья • Центральный", "Могилёв, ул. Челюскинцев 105", "53.8654", "30.2905");
-        createAddressIfMissing(secondDirector, "Сезонный Двор • Проспект Мира", "Могилёв, пр-т Мира 42", "53.8948", "30.3312");
-        createAddressIfMissing(thirdDirector, "Усадьба Урожая • Павлова", "Могилёв, ул. Академика Павлова 3", "53.9342", "30.2941");
+        createAddressIfMissing(firstDirector, DEFAULT_DIRECTOR_ADDRESS_PROFILES.get(0));
+        createAddressIfMissing(secondDirector, DEFAULT_DIRECTOR_ADDRESS_PROFILES.get(1));
+        createAddressIfMissing(thirdDirector, DEFAULT_DIRECTOR_ADDRESS_PROFILES.get(2));
       }
 
       seedProduct("Молоко фермерское 1 л", "Молочная продукция", "3.20", 120, "milk.webp");
@@ -938,12 +976,22 @@ public class DataInitializer implements CommandLineRunner {
     return 30 + Math.floorMod(imageName.hashCode(), 121);
   }
 
-  private User createUserIfMissing(String username, String fullName, String phone, String legal, Role role, String password) {
-    User existing = userRepository.findByUsername(username).orElse(null);
+  private User createUserIfMissing(String username,
+                                   String fullName,
+                                   String phone,
+                                   String legal,
+                                   Role role,
+                                   String password,
+                                   String... legacyAliases) {
+    User existing = findUserByUsernameOrAliases(username, legacyAliases);
     if (existing == null) {
       return userRepository.save(new User(username, passwordEncoder.encode(password), fullName, phone, legal, role));
     }
     boolean dirty = false;
+    if (!Objects.equals(existing.getUsername(), username)) {
+      existing.setUsername(username);
+      dirty = true;
+    }
     if (!Objects.equals(existing.getFullName(), fullName)) {
       existing.setFullName(fullName);
       dirty = true;
@@ -970,17 +1018,145 @@ public class DataInitializer implements CommandLineRunner {
     return existing;
   }
 
-  private void createAddressIfMissing(User user, String label, String addressLine, String lat, String lon) {
-    if (storeAddressRepository.existsByUserIdAndLabelIgnoreCase(user.getId(), label)) return;
-    StoreAddress a = new StoreAddress();
-    a.setUser(user);
-    a.setLabel(label);
-    a.setAddressLine(addressLine);
-    a.setLatitude(new BigDecimal(lat));
-    a.setLongitude(new BigDecimal(lon));
-    a.setCreatedAt(Instant.now());
-    a.setUpdatedAt(Instant.now());
-    storeAddressRepository.save(a);
+  private User findUserByUsernameOrAliases(String username, String... legacyAliases) {
+    User currentUser = userRepository.findByUsername(username).orElse(null);
+    List<User> legacyUsers = new ArrayList<>();
+    for (String legacyAlias : legacyAliases) {
+      if (legacyAlias == null || legacyAlias.isBlank() || legacyAlias.equalsIgnoreCase(username)) {
+        continue;
+      }
+      User legacyUser = userRepository.findByUsername(legacyAlias).orElse(null);
+      if (legacyUser != null && legacyUsers.stream().noneMatch(existing -> Objects.equals(existing.getId(), legacyUser.getId()))) {
+        legacyUsers.add(legacyUser);
+      }
+    }
+    if (currentUser != null) {
+      for (User legacyUser : legacyUsers) {
+        if (!Objects.equals(currentUser.getId(), legacyUser.getId())) {
+          mergeLegacyDirectorIntoCurrentUser(currentUser, legacyUser);
+        }
+      }
+      return currentUser;
+    }
+    if (legacyUsers.isEmpty()) {
+      return null;
+    }
+
+    User canonicalLegacyUser = legacyUsers.get(0);
+    for (int index = 1; index < legacyUsers.size(); index++) {
+      mergeLegacyDirectorIntoCurrentUser(canonicalLegacyUser, legacyUsers.get(index));
+    }
+    return canonicalLegacyUser;
+  }
+
+  private void createAddressIfMissing(User user, SeededAddressProfile profile) {
+    StoreAddress existing = storeAddressRepository.findByUserIdAndLabelIgnoreCase(user.getId(), profile.label()).orElse(null);
+    if (existing == null) {
+      existing = findLegacyAddressByAliases(user.getId(), profile.legacyLabels());
+    }
+    if (existing == null) {
+      StoreAddress address = new StoreAddress();
+      address.setUser(user);
+      address.setLabel(profile.label());
+      address.setAddressLine(profile.addressLine());
+      address.setLatitude(new BigDecimal(profile.latitude()));
+      address.setLongitude(new BigDecimal(profile.longitude()));
+      address.setCreatedAt(Instant.now());
+      address.setUpdatedAt(Instant.now());
+      storeAddressRepository.save(address);
+      return;
+    }
+
+    boolean dirty = synchronizeSeededAddress(existing, user, profile);
+    if (dirty) {
+      existing.setUpdatedAt(Instant.now());
+      storeAddressRepository.save(existing);
+    }
+    removeLegacyAddressAliases(user.getId(), existing, profile.legacyLabels());
+  }
+
+  private boolean synchronizeSeededAddress(StoreAddress address, User user, SeededAddressProfile profile) {
+    boolean dirty = false;
+    if (!Objects.equals(address.getUser(), user)) {
+      address.setUser(user);
+      dirty = true;
+    }
+    if (!Objects.equals(address.getLabel(), profile.label())) {
+      address.setLabel(profile.label());
+      dirty = true;
+    }
+    if (!Objects.equals(address.getAddressLine(), profile.addressLine())) {
+      address.setAddressLine(profile.addressLine());
+      dirty = true;
+    }
+    BigDecimal latitude = new BigDecimal(profile.latitude());
+    if (!Objects.equals(address.getLatitude(), latitude)) {
+      address.setLatitude(latitude);
+      dirty = true;
+    }
+    BigDecimal longitude = new BigDecimal(profile.longitude());
+    if (!Objects.equals(address.getLongitude(), longitude)) {
+      address.setLongitude(longitude);
+      dirty = true;
+    }
+    return dirty;
+  }
+
+  private StoreAddress findLegacyAddressByAliases(Long userId, List<String> legacyLabels) {
+    for (String legacyLabel : legacyLabels) {
+      StoreAddress existing = storeAddressRepository.findByUserIdAndLabelIgnoreCase(userId, legacyLabel).orElse(null);
+      if (existing != null) {
+        return existing;
+      }
+    }
+    return null;
+  }
+
+  private void removeLegacyAddressAliases(Long userId, StoreAddress canonicalAddress, List<String> legacyLabels) {
+    for (String legacyLabel : legacyLabels) {
+      StoreAddress legacyAddress = storeAddressRepository.findByUserIdAndLabelIgnoreCase(userId, legacyLabel).orElse(null);
+      if (legacyAddress == null || Objects.equals(legacyAddress.getId(), canonicalAddress.getId())) {
+        continue;
+      }
+      reassignDeliveryAddressReferences(canonicalAddress, legacyAddress);
+      storeAddressRepository.delete(legacyAddress);
+    }
+  }
+
+  private void reassignDeliveryAddressReferences(StoreAddress canonicalAddress, StoreAddress legacyAddress) {
+    List<com.farm.sales.model.Order> orders = orderRepository.findByDeliveryAddressId(legacyAddress.getId());
+    if (orders.isEmpty()) {
+      return;
+    }
+    for (com.farm.sales.model.Order order : orders) {
+      order.setDeliveryAddress(canonicalAddress);
+      order.setDeliveryAddressText(canonicalAddress.getAddressLine());
+      order.setDeliveryLatitude(canonicalAddress.getLatitude());
+      order.setDeliveryLongitude(canonicalAddress.getLongitude());
+    }
+    orderRepository.saveAll(orders);
+  }
+
+  private void mergeLegacyDirectorIntoCurrentUser(User currentUser, User legacyUser) {
+    List<com.farm.sales.model.Order> legacyOrders = orderRepository.findByCustomerIdOrderByCreatedAtDesc(
+        legacyUser.getId(),
+        Pageable.unpaged()
+    );
+    if (!legacyOrders.isEmpty()) {
+      for (com.farm.sales.model.Order order : legacyOrders) {
+        order.setCustomer(currentUser);
+      }
+      orderRepository.saveAll(legacyOrders);
+    }
+
+    List<StoreAddress> legacyAddresses = storeAddressRepository.findByUserIdOrderByCreatedAtDesc(legacyUser.getId());
+    for (StoreAddress legacyAddress : legacyAddresses) {
+      legacyAddress.setUser(currentUser);
+      legacyAddress.setUpdatedAt(Instant.now());
+      storeAddressRepository.save(legacyAddress);
+    }
+
+    userRepository.delete(legacyUser);
   }
 
   private double parseWeight(String name) {
@@ -1046,7 +1222,8 @@ public class DataInitializer implements CommandLineRunner {
         profile.phone(),
         profile.legalEntityName(),
         Role.DIRECTOR,
-        profile.password()
+        profile.password(),
+        legacyDirectorAliases(profile).toArray(String[]::new)
     );
   }
 
@@ -1094,10 +1271,28 @@ public class DataInitializer implements CommandLineRunner {
     }
     String normalized = username.trim().toLowerCase(Locale.ROOT);
     for (int index = 0; index < SEEDED_DIRECTOR_PROFILES.size(); index++) {
-      if (SEEDED_DIRECTOR_PROFILES.get(index).username().equalsIgnoreCase(normalized)) {
+      if (SEEDED_DIRECTOR_PROFILES.get(index).username().equalsIgnoreCase(normalized)
+          || legacyDirectorAliases(index + 1).stream().anyMatch(alias -> alias.equalsIgnoreCase(normalized))) {
         return index;
       }
     }
     return -1;
+  }
+
+  private static List<String> legacyDirectorAliases(DirectorSeedProfile profile) {
+    return legacyDirectorAliases(SEEDED_DIRECTOR_PROFILES.indexOf(profile) + 1);
+  }
+
+  private static List<String> legacyDirectorAliases(int index) {
+    List<String> aliases = new ArrayList<>();
+    aliases.add(String.format(Locale.ROOT, "director%02d", index));
+    switch (index) {
+      case 1 -> aliases.add("berezka");
+      case 2 -> aliases.add("kvartal");
+      case 3 -> aliases.add("yantar");
+      default -> {
+      }
+    }
+    return aliases;
   }
 }
