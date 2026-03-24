@@ -19,7 +19,7 @@ const palette = {
     dark: "#3f7059",
   },
   warning: {
-    main: "#b18a52",
+    main: "#8a632d",
     light: "#f7efe2",
     dark: "#6f522e",
   },
@@ -29,7 +29,7 @@ const palette = {
     dark: "#975f5f",
   },
   info: {
-    main: "#5a7fa8",
+    main: "#48688b",
     light: "#e8eef5",
     dark: "#48688b",
   },
@@ -69,6 +69,26 @@ const themeMinimal = createTheme({
     caption: { fontSize: "0.75rem", color: palette.text.secondary },
   },
   components: {
+    MuiTypography: {
+      defaultProps: {
+        variantMapping: {
+          h1: "h1",
+          h2: "h2",
+          h3: "h3",
+          h4: "h4",
+          h5: "h5",
+          h6: "h6",
+          subtitle1: "p",
+          subtitle2: "p",
+          body1: "p",
+          body2: "p",
+          inherit: "p",
+          button: "span",
+          caption: "span",
+          overline: "span",
+        },
+      },
+    },
     MuiCssBaseline: {
       styleOverrides: {
         body: {
@@ -101,6 +121,18 @@ const themeMinimal = createTheme({
           borderColor: "#d4d4d8",
           color: palette.text.primary,
           backgroundColor: palette.background.paper,
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        filledWarning: {
+          backgroundColor: palette.warning.main,
+          color: palette.warning.contrastText || "#FFFFFF",
+        },
+        filledInfo: {
+          backgroundColor: palette.info.main,
+          color: palette.info.contrastText || "#FFFFFF",
         },
       },
     },
@@ -147,6 +179,16 @@ const themeMinimal = createTheme({
         variant: "outlined",
         size: "small",
         fullWidth: true,
+      },
+    },
+    MuiFormHelperText: {
+      styleOverrides: {
+        root: {
+          color: palette.text.secondary,
+          "&.Mui-disabled": {
+            color: palette.text.secondary,
+          },
+        },
       },
     },
     MuiOutlinedInput: {

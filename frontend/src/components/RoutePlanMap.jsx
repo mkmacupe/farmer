@@ -451,6 +451,14 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
     () => selectVisiblePlan(plan, visibleDriverId, visibleTripNumber),
     [plan, visibleDriverId, visibleTripNumber]
   );
+  const geometryRequests = useMemo(
+    () => buildTripGeometryRequests(visiblePlan),
+    [visiblePlan]
+  );
+  const pendingGeometryRequests = useMemo(
+    () => geometryRequests.filter((request) => !tripGeometry[request.key]),
+    [geometryRequests, tripGeometry]
+  );
   const visiblePlanKey = useMemo(
     () => buildVisiblePlanKey(visiblePlan, visibleDriverId, visibleTripNumber),
     [visibleDriverId, visiblePlan, visibleTripNumber]
@@ -461,31 +469,33 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
   }, [visiblePlanKey]);
 
   useEffect(() => {
+    setTripGeometry({});
+  }, [plan]);
+
+  useEffect(() => {
     let cancelled = false;
     const controllers = new Set();
-    const requests = buildTripGeometryRequests(plan);
     const nextGeometry = {};
-    setTripGeometry({});
     setSelectedStop(null);
 
-    if (!token || !requests.length) {
+    if (!token || !pendingGeometryRequests.length) {
       setGeometryLoading(false);
       return undefined;
     }
 
     setGeometryLoading(true);
     let cursor = 0;
-    const concurrency = Math.min(4, requests.length);
+    const concurrency = Math.min(3, pendingGeometryRequests.length);
 
     const loadGeometry = async () => {
       while (!cancelled) {
         const currentIndex = cursor;
         cursor += 1;
-        if (currentIndex >= requests.length) {
+        if (currentIndex >= pendingGeometryRequests.length) {
           return;
         }
 
-        const request = requests[currentIndex];
+        const request = pendingGeometryRequests[currentIndex];
         const controller = new AbortController();
         controllers.add(controller);
         try {
@@ -515,7 +525,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       Array.from({ length: concurrency }, () => loadGeometry())
     ).finally(() => {
       if (!cancelled) {
-        setTripGeometry(nextGeometry);
+        setTripGeometry((prev) => ({ ...prev, ...nextGeometry }));
         setGeometryLoading(false);
       }
     });
@@ -525,7 +535,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       controllers.forEach((controller) => controller.abort());
       controllers.clear();
     };
-  }, [plan, token]);
+  }, [pendingGeometryRequests, token]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) {

@@ -18,22 +18,13 @@ const DEFAULT_SECTION_BY_ROLE = {
   DRIVER: "driver-orders",
 };
 
-const ROLE_VIEW_PRELOADERS = {
-  DIRECTOR: () => import("./views/DirectorView.jsx"),
-  MANAGER: () => import("./views/ManagerView.jsx"),
-  LOGISTICIAN: () => import("./views/LogisticianView.jsx"),
-  DRIVER: () => import("./views/DriverView.jsx"),
-};
-
 function defaultSectionForRole(role) {
   return DEFAULT_SECTION_BY_ROLE[role] || "";
 }
 
 export default function App() {
   const [auth, setAuth] = useState(() => loadAuth());
-  const [activeSection, setActiveSection] = useState(() =>
-    defaultSectionForRole(loadAuth()?.role),
-  );
+  const [activeSection, setActiveSection] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -55,10 +46,7 @@ export default function App() {
     }
   }, [auth, activeSection]);
 
-  const applyAuthResponse = useCallback(async (response) => {
-    const appShellPromise = import("./AuthenticatedApp.jsx");
-    ROLE_VIEW_PRELOADERS[response.role]?.().catch(() => null);
-    await appShellPromise;
+  const applyAuthResponse = useCallback((response) => {
     const newAuth = {
       token: response.token,
       username: response.username,
@@ -78,7 +66,7 @@ export default function App() {
     setError("");
     try {
       const response = await login(username, password);
-      await applyAuthResponse(response);
+      applyAuthResponse(response);
     } catch (err) {
       setError(err.message || "Не удалось войти");
     } finally {

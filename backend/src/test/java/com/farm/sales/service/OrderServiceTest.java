@@ -716,6 +716,80 @@ class OrderServiceTest {
   }
 
   @Test
+  void previewAutoAssignPlanSwapsLaterTripPointIntoEarlierNearbyTripWhenCapacityIsTight() {
+    User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
+    User driverOne = user(3L, "Driver 1", Role.DRIVER);
+    User driverTwo = user(4L, "Driver 2", Role.DRIVER);
+    User driverThree = user(5L, "Driver 3", Role.DRIVER);
+    driverOne.setUsername("driver1");
+    driverTwo.setUsername("driver2");
+    driverThree.setUsername("driver3");
+    User director = user(7L, "Director", Role.DIRECTOR);
+
+    Product load800 = product(21L, "Груз 800", "5.00", 100);
+    load800.setWeightKg(800.0);
+    load800.setVolumeM3(1.0);
+    Product load700 = product(22L, "Груз 700", "5.00", 100);
+    load700.setWeightKg(700.0);
+    load700.setVolumeM3(1.0);
+    Product load1500 = product(23L, "Груз 1500", "5.00", 100);
+    load1500.setWeightKg(1500.0);
+    load1500.setVolumeM3(1.0);
+
+    Order eastAnchor = orderWithCoordinates(901L, director, OrderStatus.APPROVED, "53.9100000", "30.3600000");
+    eastAnchor.setItems(List.of(item(eastAnchor, load800, 1)));
+    Order eastOuter = orderWithCoordinates(902L, director, OrderStatus.APPROVED, "53.9120000", "30.3680000");
+    eastOuter.setItems(List.of(item(eastOuter, load700, 1)));
+    Order southHeavy = orderWithCoordinates(903L, director, OrderStatus.APPROVED, "53.8500000", "30.3320000");
+    southHeavy.setItems(List.of(item(southHeavy, load1500, 1)));
+    Order westInner = orderWithCoordinates(904L, director, OrderStatus.APPROVED, "53.9000000", "30.2700000");
+    westInner.setItems(List.of(item(westInner, load700, 1)));
+    Order westMiddle = orderWithCoordinates(905L, director, OrderStatus.APPROVED, "53.9000000", "30.2500000");
+    westMiddle.setItems(List.of(item(westMiddle, load800, 1)));
+    Order westOuter = orderWithCoordinates(906L, director, OrderStatus.APPROVED, "53.9000000", "30.2300000");
+    westOuter.setItems(List.of(item(westOuter, load700, 1)));
+
+    when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
+    when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
+        .thenReturn(List.of(eastAnchor, eastOuter, southHeavy, westInner, westMiddle, westOuter));
+    when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER))
+        .thenReturn(List.of(driverOne, driverTwo, driverThree));
+    doReturn(List.of(
+        List.of(5.0, 7.0, 6.0, 8.0, 10.0, 12.0, 0.0),
+        List.of(0.0, 2.0, 20.0, 20.0, 22.0, 24.0, 5.0),
+        List.of(2.0, 0.0, 18.0, 22.0, 24.0, 26.0, 7.0),
+        List.of(20.0, 18.0, 0.0, 20.0, 22.0, 24.0, 6.0),
+        List.of(20.0, 22.0, 20.0, 0.0, 2.0, 4.0, 8.0),
+        List.of(22.0, 24.0, 22.0, 2.0, 0.0, 2.0, 10.0),
+        List.of(24.0, 26.0, 24.0, 4.0, 2.0, 0.0, 12.0)
+    )).when(roadRoutingService).drivingDistanceMatrixKm(any(), any());
+
+    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L, List.of(3L, 4L, 5L));
+
+    var assignmentByOrderId = preview.routes().stream()
+        .flatMap(route -> route.points().stream().map(point -> java.util.Map.entry(point.orderId(), java.util.Map.entry(route.driverId(), point.tripNumber()))))
+        .collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
+
+    assertThat(assignmentByOrderId.get(906L)).isEqualTo(java.util.Map.entry(5L, 1));
+    assertThat(assignmentByOrderId.get(904L)).isEqualTo(java.util.Map.entry(3L, 2));
+
+    var driverThreeRoute = preview.routes().stream()
+        .filter(route -> route.driverId().equals(5L))
+        .findFirst()
+        .orElseThrow();
+    assertThat(driverThreeRoute.points())
+        .extracting(point -> point.orderId())
+        .containsExactly(905L, 906L);
+    assertThat(driverThreeRoute.points())
+        .extracting(point -> point.tripNumber())
+        .containsExactly(1, 1);
+    assertThat(driverThreeRoute.trips()).singleElement().satisfies(trip -> {
+      assertThat(trip.totalWeightKg()).isLessThanOrEqualTo(1500.01);
+      assertThat(trip.totalVolumeM3()).isLessThanOrEqualTo(12.01);
+    });
+  }
+
+  @Test
   void previewAutoAssignPlanStartsEveryTripFromDepotAndReturnsOnlyBetweenTrips() {
     User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
     User driverNorth = user(3L, "Driver 1", Role.DRIVER);
@@ -784,7 +858,6 @@ class OrderServiceTest {
     verify(roadRoutingService, times(4)).drivingDistanceKm(any(), any());
   }
 
-  @Test
   void previewAutoAssignPlanMaintainsCapacityAndExplainsRoutesAcrossRandomizedScenarios() {
     User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
     User driverNorth = user(3L, "Driver 1", Role.DRIVER);
@@ -876,7 +949,7 @@ class OrderServiceTest {
   }
 
   @Test
-  void previewAutoAssignPlanFallsBackWhenLegacyProductLogisticsMetricsAreMissing() {
+  void previewAutoAssignPlanRejectsProductsWithoutTransportMetrics() {
     User logistician = user(2L, "Logistician", Role.LOGISTICIAN);
     User driver = user(3L, "Driver A", Role.DRIVER);
     User director = user(7L, "Director", Role.DIRECTOR);
@@ -893,13 +966,15 @@ class OrderServiceTest {
         .thenReturn(List.of(approved));
     when(userRepository.findAllByRoleOrderByFullNameAsc(Role.DRIVER)).thenReturn(List.of(driver));
 
-    AutoAssignPreviewResponse preview = orderService.previewAutoAssignPlan(2L);
-
-    assertThat(preview.totalApprovedOrders()).isEqualTo(1);
-    assertThat(preview.plannedOrders()).isEqualTo(1);
-    assertThat(preview.routes()).hasSize(1);
-    assertThat(preview.routes().getFirst().totalWeightKg()).isEqualTo(2.0);
-    assertThat(preview.routes().getFirst().totalVolumeM3()).isEqualTo(0.0);
+    assertThatThrownBy(() -> orderService.previewAutoAssignPlan(2L))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+          assertThat(ex.getReason()).contains("weightKg");
+          assertThat(ex.getReason()).contains("volumeM3");
+          assertThat(ex.getReason()).contains("Старый товар");
+        });
   }
 
   @Test
@@ -1055,6 +1130,8 @@ class OrderServiceTest {
     product.setDescription(name + " desc");
     product.setPrice(new BigDecimal(price));
     product.setStockQuantity(stock);
+    product.setWeightKg(1.0);
+    product.setVolumeM3(0.001);
     return product;
   }
 

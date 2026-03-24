@@ -32,7 +32,6 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private static final int TARGET_ORDER_COUNT = 30;
   private static final int TARGET_TOTAL_WEIGHT_KG = 4498;
   private static final int TARGET_CLUSTER_LOAD_KG = 1500;
-  private static final double DEFAULT_PRODUCT_WEIGHT_KG = 1.0;
   private static final double PREFERRED_SCENARIO_PRODUCT_WEIGHT_KG = 1.0;
   private static final List<DemoPoint> MOGILEV_POINTS = List.of(
       new DemoPoint("Сценарий 01", "Могилёв, ул. Челюскинцев 105", "53.8654000", "30.2905000"),
@@ -125,6 +124,7 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
         log.warn("Пропуск demo-транспортного сида: в каталоге нет товаров с ценой.");
         return;
       }
+      validateScenarioProducts(products);
 
       if (orderRepository.count() > 0) {
         log.info("Demo transport scenario skipped: orders already exist, destructive reseed disabled.");
@@ -220,7 +220,7 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
 
   private List<OrderItem> buildOrderItems(Order order, List<Product> products, int pointIndex) {
     Product product = selectScenarioProduct(products, pointIndex);
-    double productWeightKg = effectiveProductWeightKg(product);
+    double productWeightKg = requireScenarioProductWeightKg(product);
     int targetWeightKg = targetOrderWeightKg(pointIndex);
     int quantity = Math.max(1, (int) Math.round(targetWeightKg / productWeightKg));
     BigDecimal price = product.getPrice();
@@ -244,21 +244,50 @@ public class DemoTransportScenarioInitializer implements CommandLineRunner {
     return 150;
   }
 
-  private double effectiveProductWeightKg(Product product) {
-    if (product == null || product.getWeightKg() == null || product.getWeightKg() <= 0) {
-      return DEFAULT_PRODUCT_WEIGHT_KG;
-    }
+  private double requireScenarioProductWeightKg(Product product) {
     return product.getWeightKg();
   }
 
+  private void validateScenarioProducts(List<Product> products) {
+    List<String> invalidProducts = products.stream()
+        .filter(product -> !hasValidTransportMetrics(product))
+        .map(product -> product == null || product.getName() == null || product.getName().isBlank()
+            ? "Товар без названия"
+            : product.getName())
+        .distinct()
+        .toList();
+    if (!invalidProducts.isEmpty()) {
+      throw new IllegalStateException(
+          "Demo transport scenario requires explicit positive weightKg and volumeM3 for all products: "
+              + String.join(", ", invalidProducts)
+      );
+    }
+  }
+
   private Product selectScenarioProduct(List<Product> products, int pointIndex) {
-    List<Product> oneKilogramProducts = products.stream()
-        .filter(product -> Math.abs(effectiveProductWeightKg(product) - PREFERRED_SCENARIO_PRODUCT_WEIGHT_KG) < 0.0001)
+    List<Product> validProducts = products.stream()
+        .filter(this::hasValidTransportMetrics)
+        .toList();
+    if (validProducts.isEmpty()) {
+      throw new IllegalStateException(
+          "Demo transport scenario requires at least one product with explicit positive weightKg and volumeM3"
+      );
+    }
+    List<Product> oneKilogramProducts = validProducts.stream()
+        .filter(product -> Math.abs(product.getWeightKg() - PREFERRED_SCENARIO_PRODUCT_WEIGHT_KG) < 0.0001)
         .toList();
     if (!oneKilogramProducts.isEmpty()) {
       return oneKilogramProducts.get(pointIndex % oneKilogramProducts.size());
     }
-    return products.get(pointIndex % products.size());
+    return validProducts.get(pointIndex % validProducts.size());
+  }
+
+  private boolean hasValidTransportMetrics(Product product) {
+    return product != null
+        && product.getWeightKg() != null
+        && product.getWeightKg() > 0.0
+        && product.getVolumeM3() != null
+        && product.getVolumeM3() > 0.0;
   }
 
   private record DemoPoint(String label, String addressLine, String latitude, String longitude) {

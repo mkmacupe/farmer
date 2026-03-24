@@ -13,7 +13,6 @@ import {
   updateDirectorAddress,
   updateDirectorProfile,
 } from "../api.js";
-import OrdersTable from "../components/OrdersTable.jsx";
 
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
@@ -33,7 +32,6 @@ import CardActions from "@mui/material/CardActions";
 import IconButton from "@mui/material/IconButton";
 import Avatar from "@mui/material/Avatar";
 import Chip from "@mui/material/Chip";
-import Divider from "@mui/material/Divider";
 import Fab from "@mui/material/Fab";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import { useTheme } from "@mui/material/styles";
@@ -49,6 +47,7 @@ import RefreshIcon from "@mui/icons-material/Refresh";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import LocationOnOutlinedIcon from "@mui/icons-material/LocationOnOutlined";
+import DirectorProfileOverview from "../components/DirectorProfileOverview.jsx";
 import ProductImage from "../components/ProductImage.jsx";
 import { formatMoney } from "../utils/formatters.js";
 import {
@@ -68,18 +67,10 @@ import InboxOutlinedIcon from "@mui/icons-material/InboxOutlined";
 const AddressMapPicker = lazy(
   () => import("../components/AddressMapPicker.jsx"),
 );
-
-function formatShortDate(value) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const DirectorCartPanel = lazy(
+  () => import("../components/DirectorCartPanel.jsx"),
+);
+const OrdersTable = lazy(() => import("../components/OrdersTable.jsx"));
 
 function mapUrl(latitude, longitude) {
   if (latitude == null || longitude == null) {
@@ -876,109 +867,23 @@ export default function DirectorView({ token, activeSection }) {
   };
 
   const cartPanel = (
-    <Paper
-      variant="outlined"
-      sx={{
-        p: 2.5,
-        borderRadius: 3,
-        position: { md: "sticky" },
-        top: { md: 96 },
-      }}
-    >
-      <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-        Корзина
-      </Typography>
-      <Stack spacing={1.5}>
-        {selectedItems.length > 0 ? (
-          <Stack spacing={1}>
-            {selectedItems.map((item) => (
-              <Box
-                key={item.product.id}
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 1,
-                  alignItems: "baseline",
-                }}
-              >
-                <Typography
-                  variant="body2"
-                  noWrap={!isCompactLayout}
-                  sx={{ maxWidth: isCompactLayout ? "100%" : 180 }}
-                >
-                  {item.product.name}
-                </Typography>
-                <Typography
-                  variant="body2"
-                  fontWeight={600}
-                  whiteSpace="nowrap"
-                >
-                  {item.quantity} × {formatMoney(item.product.price)}
-                </Typography>
-              </Box>
-            ))}
-          </Stack>
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            Корзина пуста
-          </Typography>
-        )}
-        <Divider />
-        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Typography variant="body2" color="text.secondary">
-            Позиций
-          </Typography>
-          <Typography fontWeight={600}>{selectedProductsCount}</Typography>
-        </Box>
-        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Typography variant="body2" color="text.secondary">
-            Единиц
-          </Typography>
-          <Typography fontWeight={600}>{selectedUnitsCount}</Typography>
-        </Box>
-        <Divider />
-        <Box sx={{ display: "flex", justifyContent: "space-between" }}>
-          <Typography variant="subtitle2" fontWeight={600}>
-            Итого
-          </Typography>
-          <Typography variant="subtitle1" fontWeight={800} color="primary">
-            {formatMoney(selectedTotal)} BYN
-          </Typography>
-        </Box>
-        <TextField
-          select
-          label="Адрес доставки"
-          fullWidth
-          size="small"
-          value={selectedAddressId}
-          onChange={(event) => setSelectedAddressId(event.target.value)}
-          helperText={addressHelperText}
-        >
-          <MenuItem value="">Выберите адрес</MenuItem>
-          {addresses.map((address) => (
-            <MenuItem key={address.id} value={address.id}>
-              {address.label}
-            </MenuItem>
-          ))}
-        </TextField>
-        <Button
-          variant="contained"
-          size="large"
-          startIcon={<ShoppingCartIcon />}
-          onClick={handleCreateOrder}
-          disabled={loading || !canCreateOrder}
-        >
-          Отправить заявку
-        </Button>
-        <Button
-          variant="outlined"
-          onClick={() => setCartItems({})}
-          disabled={loading}
-        >
-          Очистить
-        </Button>
-      </Stack>
-    </Paper>
+    <Suspense fallback={null}>
+      <DirectorCartPanel
+        selectedItems={selectedItems}
+        selectedProductsCount={selectedProductsCount}
+        selectedUnitsCount={selectedUnitsCount}
+        selectedTotal={selectedTotal}
+        addresses={addresses}
+        selectedAddressId={selectedAddressId}
+        onSelectAddress={setSelectedAddressId}
+        addressHelperText={addressHelperText}
+        onCreateOrder={handleCreateOrder}
+        onClearCart={() => setCartItems({})}
+        loading={loading}
+        canCreateOrder={canCreateOrder}
+        isCompactLayout={isCompactLayout}
+      />
+    </Suspense>
   );
 
   const renderOrderActions = useCallback(
@@ -1024,162 +929,11 @@ export default function DirectorView({ token, activeSection }) {
       </Snackbar>
 
       {showSection("director-profile") && (
-        <Box
-          sx={{
-            p: { xs: 2.5, md: 3 },
-            borderRadius: 3,
-            border: "1px solid",
-            borderColor: "divider",
-            bgcolor: "background.paper",
-          }}
-        >
-          <Grid container spacing={3} alignItems="center">
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Typography variant="overline" sx={{ color: "text.secondary" }}>
-                Панель директора
-              </Typography>
-              <Typography
-                variant="h5"
-                fontWeight={600}
-                sx={{ mt: 0.5, mb: 0.5, letterSpacing: "-0.02em" }}
-              >
-                Закупки без лишних шагов
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Сводка по заказам, текущая корзина и уведомления.
-              </Typography>
-            </Grid>
-            <Grid size={{ xs: 12, md: 6 }}>
-              <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-                <Box
-                  sx={{
-                    flex: 1,
-                    p: 2,
-                    borderRadius: 2.5,
-                    bgcolor: "#f0fdf4",
-                    border: "1px solid #dcfce7",
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={500}
-                  >
-                    Корзина
-                  </Typography>
-                  <Typography
-                    variant="h5"
-                    fontWeight={600}
-                    sx={{ mt: 0.5, color: "primary.main" }}
-                  >
-                    {formatMoney(selectedTotal)}{" "}
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      fontWeight={500}
-                    >
-                      BYN
-                    </Typography>
-                  </Typography>
-                </Box>
-                <Box
-                  sx={{
-                    flex: 1,
-                    p: 2,
-                    borderRadius: 2.5,
-                    bgcolor: "#f4f4f5",
-                    border: "1px solid #e4e4e7",
-                  }}
-                >
-                  <Typography
-                    variant="caption"
-                    color="text.secondary"
-                    fontWeight={500}
-                  >
-                    Активные заказы
-                  </Typography>
-                  <Typography variant="h5" fontWeight={600} sx={{ mt: 0.5 }}>
-                    {activeOrdersCount}
-                  </Typography>
-                </Box>
-              </Stack>
-            </Grid>
-          </Grid>
-
-          <Box
-            sx={{
-              mt: 3,
-              pt: 2.5,
-              borderTop: "1px solid",
-              borderColor: "divider",
-            }}
-          >
-            <Typography
-              variant="overline"
-              sx={{ color: "text.secondary", mb: 1.5, display: "block" }}
-            >
-              Последние заказы
-            </Typography>
-            {recentOrders.length > 0 ? (
-              <Stack spacing={1.5}>
-                {recentOrders.map((order) => (
-                  <Box
-                    key={order.id}
-                    sx={{
-                      p: 1.5,
-                      borderRadius: 2,
-                      border: "1px solid",
-                      borderColor: "divider",
-                      bgcolor: "background.default",
-                    }}
-                  >
-                    <Stack
-                      direction="row"
-                      alignItems="center"
-                      justifyContent="space-between"
-                    >
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        Заказ #{order.id}
-                      </Typography>
-                      <Chip
-                        label={
-                          order.status === "DELIVERED"
-                            ? "Доставлен"
-                            : order.status === "ASSIGNED"
-                              ? "На маршруте"
-                              : order.status === "APPROVED"
-                                ? "Одобрен"
-                                : "Создан"
-                        }
-                        size="small"
-                        variant="outlined"
-                      />
-                    </Stack>
-                    <Typography variant="body2" color="text.secondary" noWrap>
-                      {order.deliveryAddressText || "Адрес не указан"}
-                    </Typography>
-                    <Stack
-                      direction="row"
-                      justifyContent="space-between"
-                      sx={{ mt: 0.5 }}
-                    >
-                      <Typography variant="caption" color="text.secondary">
-                        {formatShortDate(order.createdAt) || "—"}
-                      </Typography>
-                      <Typography variant="subtitle2" fontWeight={600}>
-                        {formatMoney(order.totalAmount)} BYN
-                      </Typography>
-                    </Stack>
-                  </Box>
-                ))}
-              </Stack>
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Пока нет заказов. Вы можете сформировать заказ из каталога.
-              </Typography>
-            )}
-          </Box>
-        </Box>
+        <DirectorProfileOverview
+          selectedTotal={selectedTotal}
+          activeOrdersCount={activeOrdersCount}
+          recentOrders={recentOrders}
+        />
       )}
 
       {!!latestNotifications.length && (
@@ -1237,7 +991,7 @@ export default function DirectorView({ token, activeSection }) {
           }}
           id="director-profile"
         >
-          <Typography variant="h6" fontWeight={600} sx={{ mb: 2.5 }}>
+          <Typography variant="h6" component="h2" fontWeight={600} sx={{ mb: 2.5 }}>
             Профиль директора
           </Typography>
 
@@ -1314,7 +1068,7 @@ export default function DirectorView({ token, activeSection }) {
             mb={2.5}
             spacing={1}
           >
-            <Typography variant="h6" fontWeight={600}>
+            <Typography variant="h6" component="h2" fontWeight={600}>
               Адреса доставки
             </Typography>
             {editingAddressId && (
@@ -1530,7 +1284,7 @@ export default function DirectorView({ token, activeSection }) {
             mb={2.5}
             spacing={1}
           >
-            <Typography variant="h6" fontWeight={600}>
+            <Typography variant="h6" component="h2" fontWeight={600}>
               Каталог и корзина
             </Typography>
           </Stack>
@@ -1770,18 +1524,20 @@ export default function DirectorView({ token, activeSection }) {
           }}
           id="director-orders"
         >
-          <Typography variant="h6" fontWeight={600} gutterBottom>
+          <Typography variant="h6" component="h2" fontWeight={600} gutterBottom>
             История заказов
           </Typography>
-          <OrdersTable
-            orders={orders}
-            loading={loading && !orders.length}
-            showCustomer={false}
-            compactView
-            emptyText="История заказов пуста."
-            actionRenderer={renderOrderActions}
-            maxRendered={orders.length}
-          />
+          <Suspense fallback={null}>
+            <OrdersTable
+              orders={orders}
+              loading={loading && !orders.length}
+              showCustomer={false}
+              compactView
+              emptyText="История заказов пуста."
+              actionRenderer={renderOrderActions}
+              maxRendered={orders.length}
+            />
+          </Suspense>
           {ordersHasNext && (
             <Stack alignItems="center" spacing={1} sx={{ mt: 2 }}>
               <Button

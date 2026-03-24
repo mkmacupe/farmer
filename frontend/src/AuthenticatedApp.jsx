@@ -6,10 +6,10 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 import Typography from "@mui/material/Typography";
 import Button from "@mui/material/Button";
 import Header from "./components/Header.jsx";
+import Sidebar from "./components/Sidebar.jsx";
+import BottomNav from "./components/BottomNav.jsx";
 import themeMinimal from "./themeMinimal.js";
 
-const Sidebar = lazy(() => import("./components/Sidebar.jsx"));
-const BottomNav = lazy(() => import("./components/BottomNav.jsx"));
 const DirectorView = lazy(() => import("./views/DirectorView.jsx"));
 const LogisticianView = lazy(() => import("./views/LogisticianView.jsx"));
 const DriverView = lazy(() => import("./views/DriverView.jsx"));
@@ -109,14 +109,12 @@ export default function AuthenticatedApp({
       </a>
       <Box sx={rootSx}>
         {!isMobile && (
-          <Suspense fallback={null}>
-            <Sidebar
-              user={auth}
-              activeSection={activeSection}
+          <Sidebar
+            user={auth}
+            activeSection={activeSection}
             onNavigate={onNavigate}
           />
-        </Suspense>
-      )}
+        )}
         <Box component="main" id="main-content" tabIndex={-1} sx={mainSx}>
           <Header
             user={auth}
@@ -152,13 +150,11 @@ export default function AuthenticatedApp({
           </Box>
         </Box>
         {useBottomNav && (
-          <Suspense fallback={null}>
-            <BottomNav
-              role={auth.role}
-              activeSection={activeSection}
-              onNavigate={onNavigate}
-            />
-          </Suspense>
+          <BottomNav
+            role={auth.role}
+            activeSection={activeSection}
+            onNavigate={onNavigate}
+          />
         )}
       </Box>
     </ThemeProvider>

@@ -30,9 +30,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\scenario-reset.ps1 -Base http
 
 ## 4. Аккаунты
 
-- Андрей Алексеев, ООО "Лавка Полесья" — `diralekseev / AlekseevFarm26`
-- Виктория Баранова, ООО "Сезонный Двор" — `dirbaranova / BaranovaFarm26`
-- Сергей Василевский, ООО "Усадьба Урожая" — `dirvasilevsky / VasilevskyFarm26`
+- В сценарий входят `30` предзаполненных директоров с отдельными ФИО, магазинами, логинами и паролями.
+- Полный список директорских учётных записей вынесен в [accounts.txt](/C:/Users/allam/OneDrive/Робочий%20стіл/Курсовой%20проект/accounts.txt).
 - `manager / MgrD5v8cN4`
 - `logistician / LogS7q1wE5`
 - `driver1 / Drv1A9k2Z6`

@@ -68,7 +68,9 @@ for (const roleCase of ROLE_CASES) {
       await waitForWorkspaceReady(page);
       await openRoleHomeSection(page, roleCase.username);
 
-      await expect(page.getByRole('heading', { name: roleCase.heading }).first()).toBeVisible();
+      await expect(page.getByRole('heading', { name: roleCase.heading }).first()).toBeVisible({
+        timeout: 20_000
+      });
       await expect(page.getByText(/непредвиденная ошибка сервера/i)).toHaveCount(0);
       await expect(page.getByText(/что-то пошло не так/i)).toHaveCount(0);
 

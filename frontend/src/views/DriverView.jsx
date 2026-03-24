@@ -344,7 +344,7 @@ export default function DriverView({ token, activeSection }) {
           <Paper sx={{ p: 3, borderRadius: 4, border: '1px solid', borderColor: 'divider' }} elevation={0}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ sm: 'center' }} justifyContent="space-between">
               <Box>
-                <Typography variant="h5" fontWeight={800} gutterBottom>Маршрутный лист</Typography>
+                <Typography variant="h5" component="h2" fontWeight={800} gutterBottom>Маршрутный лист</Typography>
                 <Typography variant="body2" color="text.secondary">
                   Остановок: {routeStops.length} · Заказов: {fullRoute.length} · Активных заказов: {activeDeliveries}
                 </Typography>
@@ -366,7 +366,7 @@ export default function DriverView({ token, activeSection }) {
 
             {!!displayedRouteStops.length && (
               <Box sx={{ mt: 4 }}>
-                <Typography variant="subtitle2" color="primary" fontWeight={700} sx={{ mb: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
+                <Typography variant="subtitle2" component="h3" color="primary" fontWeight={700} sx={{ mb: 2, textTransform: 'uppercase', letterSpacing: 1 }}>
                   Последовательность доставок
                 </Typography>
                 <Stepper orientation="vertical" nonLinear sx={{ ml: 1 }}>

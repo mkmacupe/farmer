@@ -148,8 +148,11 @@ test.describe('Logistician Flows', () => {
     // Ensure orders are loaded and button is active
     await expect(page.getByTestId('auto-assign-button')).toBeEnabled({ timeout: 10_000 });
     await page.getByTestId('auto-assign-button').click();
-    
-    // Wait for the dialog title specifically
+
+    const driverSelectionTitle = page.getByRole('heading', { name: /выбор водителей/i });
+    await expect(driverSelectionTitle).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: /построить план/i }).click();
+
     const dialogTitle = page.getByTestId('auto-assign-dialog-title');
     await expect(dialogTitle).toBeVisible({ timeout: 15_000 });
     
@@ -188,8 +191,10 @@ test.describe('Driver Flows', () => {
     await page.getByRole('button', { name: /доставленным/i }).click();
     await expect(page.locator('.MuiAlert-message').first()).toContainText(/доставлен/i);
     
-    await page.waitForTimeout(1000);
-    await expect(page.locator('.MuiStep-root').filter({ hasText: /заказ #303/i })).toHaveCount(0);
+    await expect(page.getByText(/активных заказов:\s*0/i)).toBeVisible();
+    await expect(page.getByText(/статус:\s*доставлен/i)).toBeVisible();
+    await expect(page.getByRole('button', { name: /уже доставлен/i })).toBeDisabled();
+    await expect(page.getByRole('button', { name: /отметить доставленным/i })).toHaveCount(0);
   });
 });
 

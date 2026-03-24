@@ -1,5 +1,6 @@
 import {
-  memo,
+  Suspense,
+  lazy,
   startTransition,
   useCallback,
   useEffect,
@@ -88,6 +89,25 @@ import {
 } from "../utils/dashboardTrend.js";
 import { DashboardSkeleton } from "../components/LoadingSkeletons.jsx";
 import { useStableEvent } from "../utils/useStableEvent.js";
+import {
+  CATEGORY_COLORS,
+  DAY_MS,
+  MAX_DASHBOARD_DAYS,
+  PRODUCT_PHOTO_URL_PATTERN,
+  REPORT_STATUS_ALL,
+  dayKey,
+  formatDateTime,
+  formatDayLabel,
+  formatLocalDateValue,
+  generateProductPhotoUrl,
+  isMethodNotAllowedError,
+  orderTimestamp,
+  parseDateInput,
+  reportStatusLabel,
+  startOfDay,
+  statusLabel,
+  todayDateValue,
+} from "./managerViewUtils.js";
 
 const KANBAN_COLUMNS = [
   { id: "CREATED", title: "Создан", color: "info" },
@@ -95,374 +115,12 @@ const KANBAN_COLUMNS = [
   { id: "ASSIGNED", title: "Назначен", color: "secondary" },
   { id: "DELIVERED", title: "Доставлен", color: "success" },
 ];
+const ManagerKanbanCard = lazy(
+  () => import("../components/ManagerKanbanCard.jsx"),
+);
 const KANBAN_COLUMN_BY_ID = Object.fromEntries(
   KANBAN_COLUMNS.map((column) => [column.id, column]),
 );
-const STATUS_LABELS = {
-  CREATED: "Создан",
-  APPROVED: "Одобрен",
-  ASSIGNED: "Назначен",
-  DELIVERED: "Доставлен",
-};
-const REPORT_STATUS_ALL = "__ALL__";
-
-function formatLocalDateValue(value) {
-  const date = new Date(value);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-function todayDateValue() {
-  return formatLocalDateValue(new Date());
-}
-
-function isMethodNotAllowedError(error) {
-  const message = String(error?.message || "").toLowerCase();
-  return message.includes("method not allowed") || message.includes("405");
-}
-
-function statusLabel(status) {
-  return STATUS_LABELS[status] || status || "-";
-}
-
-function reportStatusLabel(status) {
-  return status === REPORT_STATUS_ALL ? "Все статусы" : statusLabel(status);
-}
-
-function formatDateTime(value) {
-  if (!value) return "";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "";
-  return parsed.toLocaleString("ru-RU");
-}
-
-function orderStoreName(order) {
-  return order?.storeName || order?.customerName || "Магазин";
-}
-
-function orderDirectorName(order) {
-  return order?.customerName || "Директор магазина";
-}
-
-function orderInitials(order) {
-  const source = orderStoreName(order).replace(/["«»]/g, " ");
-  const parts = source
-    .split(/\s+/)
-    .map((part) => part.trim())
-    .filter(Boolean)
-    .slice(0, 2);
-  if (!parts.length) {
-    return "М";
-  }
-  return parts.map((part) => part[0]?.toUpperCase() || "").join("");
-}
-
-function stabilizeProductLabel(value) {
-  return String(value || "").replace(
-    /(\d+(?:[.,]\d+)?)\s+(кг|г|л|мл|шт|%)/giu,
-    "$1\u00a0$2",
-  ).replace(/\s+×\s+(\d+)/gu, "\u00a0×\u00a0$1");
-}
-
-function orderAmountBreakdown(items) {
-  if (!Array.isArray(items) || !items.length) {
-    return [];
-  }
-  return items.map((item, index) => ({
-    key: `${item.productId ?? "item"}-${index}`,
-    label: `${stabilizeProductLabel(item.productName || "Товар")} × ${item.quantity || 0}`,
-    total: `${formatMoney(item.lineTotal)} BYN`,
-  }));
-}
-
-const KanbanCard = memo(function KanbanCard({
-  order,
-  isMobile,
-  draggingOrderId,
-  actionLoading,
-  onDragStart,
-  onDragEnd,
-  onApprove,
-  onLoadTimeline,
-}) {
-  const theme = useTheme();
-  const hasQuickApprove = order.status === "CREATED";
-  const columnMeta = KANBAN_COLUMN_BY_ID[order.status];
-  const dragEnabled = !isMobile && order.status === "CREATED";
-  const createdAtLabel = formatDateTime(order.createdAt);
-  const amountBreakdown = orderAmountBreakdown(order.items);
-  return (
-    <Card
-      draggable={dragEnabled}
-      onDragStart={
-        dragEnabled ? (event) => onDragStart(event, order.id) : undefined
-      }
-      onDragEnd={dragEnabled ? onDragEnd : undefined}
-      sx={{
-        display: "flex",
-        flexDirection: "column",
-        border: "1px solid",
-        borderColor:
-          draggingOrderId === order.id
-            ? "primary.main"
-            : alpha(theme.palette.divider, 0.9),
-        borderRadius: 2.5,
-        boxShadow: draggingOrderId === order.id
-          ? `0 0 0 1px ${alpha(theme.palette.primary.main, 0.16)}`
-          : "none",
-        backgroundColor: theme.palette.background.paper,
-        cursor: dragEnabled ? "grab" : "default",
-        "&:active": { cursor: dragEnabled ? "grabbing" : "default" },
-        "& .kanban-actions": {
-          opacity: 1,
-          transform: "none",
-        },
-      }}
-    >
-      <CardContent sx={{ pb: 1.5, display: "flex", flexDirection: "column", gap: 1.5 }}>
-        <Stack
-          direction="row"
-          alignItems="flex-start"
-          justifyContent="space-between"
-          spacing={1}
-        >
-          <Box>
-            <Typography variant="overline" color="text.secondary" sx={{ lineHeight: 1.2 }}>
-              Заказ #{order.id}
-            </Typography>
-            {!!createdAtLabel && (
-              <Typography variant="caption" color="text.secondary" display="block">
-                {createdAtLabel}
-              </Typography>
-            )}
-          </Box>
-          <Chip
-            label={statusLabel(order.status)}
-            size="small"
-            color={columnMeta?.color || "default"}
-          />
-        </Stack>
-        <Stack direction="row" spacing={1.25} alignItems="flex-start">
-          <Avatar
-            sx={{
-              width: 44,
-              height: 44,
-              bgcolor: alpha(theme.palette.primary.main, 0.14),
-              color: "primary.dark",
-              fontWeight: 700,
-              fontSize: "0.95rem",
-            }}
-          >
-            {orderInitials(order)}
-          </Avatar>
-          <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography variant="subtitle2" fontWeight={700}>
-              {orderStoreName(order)}
-            </Typography>
-            <Typography variant="body2" color="text.secondary">
-              Директор: {orderDirectorName(order)}
-            </Typography>
-          </Box>
-        </Stack>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1.25,
-            borderRadius: 2.5,
-            bgcolor: theme.palette.background.default,
-            borderColor: alpha(theme.palette.divider, 0.8),
-          }}
-        >
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.4 }}>
-            Адрес доставки
-          </Typography>
-          <Typography
-            variant="body2"
-            sx={{
-              minHeight: 24,
-            }}
-          >
-            {order.deliveryAddressText || "Адрес не указан"}
-          </Typography>
-        </Paper>
-        <Paper
-          variant="outlined"
-          sx={{
-            p: 1.25,
-            borderRadius: 2.5,
-            bgcolor: theme.palette.background.paper,
-            borderColor: alpha(theme.palette.divider, 0.78),
-          }}
-        >
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 0.5 }}>
-            Расчёт суммы заказа
-          </Typography>
-          <Stack spacing={0.5}>
-            {amountBreakdown.length ? (
-              amountBreakdown.map((row) => (
-                <Box
-                  key={row.key}
-                  sx={{
-                    display: "grid",
-                    gridTemplateColumns: "minmax(0, 1fr) auto",
-                    columnGap: 1.25,
-                    alignItems: "start",
-                    minHeight: 44,
-                  }}
-                >
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      minWidth: 0,
-                      lineHeight: 1.4,
-                      overflowWrap: "normal",
-                      wordBreak: "keep-all",
-                      hyphens: "none",
-                      whiteSpace: "normal",
-                    }}
-                  >
-                    {row.label}
-                  </Typography>
-                  <Typography
-                    variant="body2"
-                    fontWeight={600}
-                    sx={{
-                      whiteSpace: "nowrap",
-                      textAlign: "right",
-                      minWidth: 88,
-                    }}
-                  >
-                    {row.total}
-                  </Typography>
-                </Box>
-              ))
-            ) : (
-              <Typography variant="body2" color="text.secondary">
-                Нет позиций для расчёта
-              </Typography>
-            )}
-            <Box
-              sx={{
-                mt: 0.75,
-                pt: 0.75,
-                borderTop: "1px dashed",
-                borderColor: "divider",
-                display: "flex",
-                justifyContent: "space-between",
-                gap: 1,
-              }}
-            >
-              <Typography variant="subtitle2" fontWeight={700}>
-                Итого
-              </Typography>
-              <Typography variant="subtitle2" fontWeight={700}>
-                {formatMoney(order.totalAmount)} BYN
-              </Typography>
-            </Box>
-          </Stack>
-        </Paper>
-      </CardContent>
-      <Box
-        className="kanban-actions"
-        sx={{
-          px: 2,
-          pb: 2,
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(152px, 1fr))",
-          gap: 1,
-        }}
-      >
-        {hasQuickApprove && (
-          <Button
-            size="small"
-            variant="contained"
-            startIcon={<CheckIcon />}
-            onClick={() => onApprove(order.id)}
-            disabled={actionLoading}
-            fullWidth
-          >
-            Одобрить
-          </Button>
-        )}
-        <Button
-          size="small"
-          variant="outlined"
-          startIcon={<HistoryIcon />}
-          onClick={() => onLoadTimeline(order.id)}
-          disabled={actionLoading}
-          fullWidth
-        >
-          История
-        </Button>
-      </Box>
-    </Card>
-  );
-});
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const MAX_DASHBOARD_DAYS = 31;
-const CATEGORY_COLORS = [
-  "#5a7fa8",
-  "#4f8a6d",
-  "#b18a52",
-  "#8a78a5",
-  "#b07a7a",
-  "#5c8f8a",
-];
-const PRODUCT_PHOTO_URL_PATTERN = /^\/images\/products\/[a-z0-9-]+\.webp$/;
-const PRODUCT_PHOTO_AUTOGEN_PREFIX = "/images/products/product-";
-const PRODUCT_PHOTO_RANDOM_LENGTH = 6;
-
-function generateProductPhotoUrl() {
-  const stamp = Date.now().toString(36);
-  const randomSegment = Math.random()
-    .toString(36)
-    .slice(2, 2 + PRODUCT_PHOTO_RANDOM_LENGTH);
-  return `${PRODUCT_PHOTO_AUTOGEN_PREFIX}${stamp}-${randomSegment}.webp`;
-}
-
-function parseDateInput(value) {
-  if (!value) return null;
-  const parsed = new Date(`${value}T00:00:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function startOfDay(value) {
-  const date = new Date(value);
-  date.setHours(0, 0, 0, 0);
-  return date;
-}
-
-function dayKey(value) {
-  return formatLocalDateValue(startOfDay(value));
-}
-
-function formatDayLabel(value) {
-  return value.toLocaleDateString("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-  });
-}
-
-function orderTimestamp(order) {
-  const candidates = [
-    order.createdAt,
-    order.updatedAt,
-    order.approvedAt,
-    order.assignedAt,
-    order.deliveredAt,
-  ];
-  for (const candidate of candidates) {
-    if (!candidate) continue;
-    const parsed = new Date(candidate);
-    if (!Number.isNaN(parsed.getTime())) {
-      return parsed.getTime();
-    }
-  }
-  return null;
-}
 
 export default function ManagerView({ token, activeSection }) {
   const theme = useTheme();
@@ -1389,6 +1047,7 @@ export default function ManagerView({ token, activeSection }) {
                 <Box>
                   <Typography
                     variant="h5"
+                    component="h2"
                     fontWeight={600}
                     gutterBottom
                     sx={{ letterSpacing: "-0.02em" }}
@@ -1484,7 +1143,7 @@ export default function ManagerView({ token, activeSection }) {
                         <Typography variant="subtitle2" color="text.secondary">
                           {card.title}
                         </Typography>
-                        <Typography variant="h4" fontWeight={600}>
+                        <Typography variant="h4" component="p" fontWeight={600}>
                           {card.value}
                         </Typography>
                       </Box>
@@ -1509,7 +1168,7 @@ export default function ManagerView({ token, activeSection }) {
                 justifyContent="space-between"
                 alignItems={{ sm: "center" }}
               >
-                <Typography variant="subtitle1" fontWeight={600}>
+                <Typography variant="subtitle1" component="h3" fontWeight={600}>
                   Что требует внимания сейчас
                 </Typography>
                 <Chip
@@ -1570,7 +1229,7 @@ export default function ManagerView({ token, activeSection }) {
                     alignItems={{ sm: "center" }}
                   >
                     <Box>
-                      <Typography variant="subtitle1" fontWeight={600}>
+                      <Typography variant="subtitle1" component="h3" fontWeight={600}>
                         Тренд заказов
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
@@ -1910,6 +1569,7 @@ export default function ManagerView({ token, activeSection }) {
               >
                 <Typography
                   variant="h6"
+                  component="h3"
                   gutterBottom
                   display="flex"
                   alignItems="center"
@@ -1958,6 +1618,7 @@ export default function ManagerView({ token, activeSection }) {
             <Box>
               <Typography
                 variant="h5"
+                component="h2"
                 fontWeight={600}
                 gutterBottom
                 sx={{ letterSpacing: "-0.02em" }}
@@ -2024,26 +1685,29 @@ export default function ManagerView({ token, activeSection }) {
                       color={column.color}
                     />
                   </Stack>
-                  <Stack spacing={1.5}>
-                    {columnOrders.map((order) => (
-                      <KanbanCard
-                        key={order.id}
-                        order={order}
-                        isMobile={isMobile}
-                        draggingOrderId={draggingOrderId}
-                        actionLoading={actionLoading}
-                        onDragStart={handleDragStart}
-                        onDragEnd={handleDragEnd}
-                        onApprove={handleApprove}
-                        onLoadTimeline={handleLoadTimeline}
-                      />
-                    ))}
-                    {!columnOrders.length && (
-                      <Typography variant="caption" color="text.secondary">
-                        Нет заказов
-                      </Typography>
-                    )}
-                  </Stack>
+                  <Suspense fallback={null}>
+                    <Stack spacing={1.5}>
+                      {columnOrders.map((order) => (
+                        <ManagerKanbanCard
+                          key={order.id}
+                          order={order}
+                          isMobile={isMobile}
+                          draggingOrderId={draggingOrderId}
+                          actionLoading={actionLoading}
+                          onDragStart={handleDragStart}
+                          onDragEnd={handleDragEnd}
+                          onApprove={handleApprove}
+                          onLoadTimeline={handleLoadTimeline}
+                          columnMeta={KANBAN_COLUMN_BY_ID[order.status]}
+                        />
+                      ))}
+                      {!columnOrders.length && (
+                        <Typography variant="caption" color="text.secondary">
+                          Нет заказов
+                        </Typography>
+                      )}
+                    </Stack>
+                  </Suspense>
                 </Paper>
               </Grid>
             )})}
@@ -2079,6 +1743,7 @@ export default function ManagerView({ token, activeSection }) {
             <Box>
               <Typography
                 variant="h5"
+                component="h2"
                 fontWeight={600}
                 gutterBottom
                 sx={{ letterSpacing: "-0.02em" }}
@@ -2238,7 +1903,7 @@ export default function ManagerView({ token, activeSection }) {
           <Grid container spacing={3}>
             <Grid size={{ xs: 12, md: 4 }}>
               <Paper variant="outlined" sx={{ p: 3, borderRadius: 2.5 }}>
-                <Typography variant="h6" gutterBottom>
+                <Typography variant="h6" component="h3" gutterBottom>
                   Новый директор
                 </Typography>
                 <Stack spacing={2}>
@@ -2367,12 +2032,13 @@ export default function ManagerView({ token, activeSection }) {
       {showSection("manager-reports") && (
         <Box>
           <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="h5"
-              fontWeight={600}
-              gutterBottom
-              sx={{ letterSpacing: "-0.02em" }}
-            >
+              <Typography
+                variant="h5"
+                component="h2"
+                fontWeight={600}
+                gutterBottom
+                sx={{ letterSpacing: "-0.02em" }}
+              >
               Отчёты
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -2444,7 +2110,7 @@ export default function ManagerView({ token, activeSection }) {
         PaperProps={{ sx: { width: { xs: "100%", sm: 420 }, p: 3 } }}
       >
         <Stack spacing={2}>
-          <Typography variant="h6" fontWeight={600}>
+          <Typography variant="h6" component="h3" fontWeight={600}>
             {editingProductId ? "Редактирование товара" : "Новый товар"}
           </Typography>
           <TextField

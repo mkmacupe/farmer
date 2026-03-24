@@ -34,10 +34,10 @@ public class Product {
   private Integer stockQuantity;
 
   @Column(name = "weight_kg", nullable = false)
-  private Double weightKg = 1.0;
+  private Double weightKg;
 
   @Column(name = "volume_m3", nullable = false)
-  private Double volumeM3 = 0.001;
+  private Double volumeM3;
 
   public Product() {
   }

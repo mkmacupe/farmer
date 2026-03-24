@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class DemoTransportScenarioInitializerTest {
   private UserRepository userRepository;
@@ -111,6 +112,27 @@ class DemoTransportScenarioInitializerTest {
     assertThat(totalWeightKg).isEqualTo(4498.0);
   }
 
+  @Test
+  void seedDemoScenarioFailsWhenProductsHaveNoTransportMetrics() {
+    List<String> directorUsernames = DataInitializer.demoDirectorUsernames();
+    for (int index = 0; index < directorUsernames.size(); index++) {
+      String username = directorUsernames.get(index);
+      when(userRepository.findByUsername(username)).thenReturn(Optional.of(user((long) index + 1, username, "Директор " + (index + 1))));
+    }
+    User manager = user(100L, "manager", "Менеджер");
+    manager.setRole(Role.MANAGER);
+    when(userRepository.findByUsername("manager")).thenReturn(Optional.of(manager));
+    Product invalidProduct = product(101L, "Товар 1", "10.50", 1.0);
+    invalidProduct.setVolumeM3(null);
+    when(productRepository.findAll()).thenReturn(List.of(invalidProduct));
+    when(orderRepository.count()).thenReturn(0L);
+
+    assertThatThrownBy(() -> initializer.seedDemoScenario())
+        .isInstanceOf(IllegalStateException.class)
+        .hasMessageContaining("weightKg")
+        .hasMessageContaining("volumeM3");
+  }
+
   private User user(Long id, String username, String fullName) {
     User user = new User();
     user.setId(id);
@@ -129,6 +151,7 @@ class DemoTransportScenarioInitializerTest {
     product.setPrice(new BigDecimal(price));
     product.setStockQuantity(100);
     product.setWeightKg(weightKg);
+    product.setVolumeM3(0.002);
     return product;
   }
 
@@ -139,8 +162,7 @@ class DemoTransportScenarioInitializerTest {
     return order.getItems().stream()
         .mapToDouble(item -> {
           Product product = item.getProduct();
-          double weightKg = product == null || product.getWeightKg() == null ? 1.0 : product.getWeightKg();
-          return weightKg * item.getQuantity();
+          return product.getWeightKg() * item.getQuantity();
         })
         .sum();
   }

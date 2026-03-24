@@ -57,9 +57,12 @@ import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useStableEvent } from '../utils/useStableEvent.js';
 import { routeColor } from '../utils/routeColors.js';
 import {
+  buildRoutePlanPreview,
   buildTripLegendEntries,
   collectTripNumbers,
-  normalizeTripNumber
+  extractRoutePlanAssignments,
+  normalizeTripNumber,
+  selectVisiblePlan
 } from '../utils/routePlanPreview.js';
 
 const RoutePlanMap = lazy(() => import('../components/RoutePlanMap.jsx'));
@@ -147,7 +150,7 @@ const MetricCard = memo(function MetricCard({ title, value, icon, color }) {
           <Typography variant="subtitle2" color="text.secondary" gutterBottom>
             {title}
           </Typography>
-          <Typography variant="h4" fontWeight="bold">
+          <Typography variant="h4" component="p" fontWeight="bold">
             {value}
           </Typography>
         </Box>
@@ -209,157 +212,6 @@ function stopCountLabel(count) {
   return countLabel(count, 'остановка', 'остановки', 'остановок');
 }
 
-function routePointKey(point) {
-  return [
-    point?.orderId ?? 'order',
-    Number(point?.tripNumber) || 1,
-    Number(point?.stopSequence) || 0
-  ].join(':');
-}
-
-function sameRouteStop(left, right) {
-  return Boolean(left && right)
-    && (Number(left?.tripNumber) || 1) === (Number(right?.tripNumber) || 1)
-    && Number(left?.latitude) === Number(right?.latitude)
-    && Number(left?.longitude) === Number(right?.longitude);
-}
-
-function formatStopOrderSummary(orderIds = []) {
-  if (!Array.isArray(orderIds) || !orderIds.length) {
-    return '';
-  }
-  return orderIds.map((orderId) => `#${orderId}`).join(', ');
-}
-
-function enhanceRoutePreview(route) {
-  if (!route || !Array.isArray(route.points)) {
-    return route;
-  }
-
-  const sortedTrips = Array.isArray(route.trips)
-    ? [...route.trips].sort((left, right) => (Number(left?.tripNumber) || 1) - (Number(right?.tripNumber) || 1))
-    : [];
-  const tripMetaByNumber = new Map(
-    sortedTrips.map((trip) => [Number(trip?.tripNumber) || 1, trip])
-  );
-  const orderedPoints = [...route.points].sort((left, right) => {
-    const tripDiff = (Number(left?.tripNumber) || 1) - (Number(right?.tripNumber) || 1);
-    if (tripDiff !== 0) {
-      return tripDiff;
-    }
-    return (Number(left?.stopSequence) || 0) - (Number(right?.stopSequence) || 0);
-  });
-
-  const tripPointCounters = new Map();
-  const displayPointNumbers = new Map();
-  const displayStops = [];
-  let currentDisplayStop = null;
-
-  orderedPoints.forEach((point) => {
-    const tripNumber = Number(point?.tripNumber) || 1;
-    if (!sameRouteStop(currentDisplayStop, point)) {
-      const nextDisplayNumber = (tripPointCounters.get(tripNumber) || 0) + 1;
-      tripPointCounters.set(tripNumber, nextDisplayNumber);
-      currentDisplayStop = {
-        stopKey: `${tripNumber}:${nextDisplayNumber}:${point.latitude}:${point.longitude}`,
-        tripNumber,
-        stopSequence: point.stopSequence,
-        displayStopSequence: nextDisplayNumber,
-        deliveryAddress: point.deliveryAddress,
-        latitude: point.latitude,
-        longitude: point.longitude,
-        distanceFromPreviousKm: point.distanceFromPreviousKm,
-        selectionReason: point.selectionReason,
-        orderIds: [],
-        orderCount: 0,
-        cumulativeDistanceKm: 0,
-        returnToDepotDistanceKm: 0,
-        isLastStopInTrip: false,
-        tripStopCount: 0,
-        tripEstimatedRouteDistanceKm: 0,
-        tripAssignedOrders: 0,
-        tripTotalWeightKg: 0,
-        tripTotalVolumeM3: 0,
-        tripWeightUtilizationPercent: 0,
-        tripVolumeUtilizationPercent: 0,
-        returnsToDepot: false
-      };
-      displayStops.push(currentDisplayStop);
-    }
-
-    displayPointNumbers.set(routePointKey(point), currentDisplayStop.displayStopSequence);
-    currentDisplayStop.orderIds.push(point.orderId);
-    currentDisplayStop.orderCount += 1;
-  });
-
-  const stopsByTrip = new Map();
-  displayStops.forEach((stop) => {
-    const tripNumber = Number(stop?.tripNumber) || 1;
-    const tripStops = stopsByTrip.get(tripNumber) || [];
-    tripStops.push(stop);
-    stopsByTrip.set(tripNumber, tripStops);
-  });
-
-  stopsByTrip.forEach((tripStops, tripNumber) => {
-    const tripMeta = tripMetaByNumber.get(tripNumber);
-    const tripDistanceKm = Number(tripMeta?.estimatedRouteDistanceKm) || 0;
-    const tripAssignedOrders = Number(tripMeta?.assignedOrders) || 0;
-    const tripTotalWeightKg = Number(tripMeta?.totalWeightKg) || 0;
-    const tripTotalVolumeM3 = Number(tripMeta?.totalVolumeM3) || 0;
-    const tripWeightUtilizationPercent = Number(tripMeta?.weightUtilizationPercent) || 0;
-    const tripVolumeUtilizationPercent = Number(tripMeta?.volumeUtilizationPercent) || 0;
-    const returnsToDepot = Boolean(tripMeta?.returnsToDepot);
-
-    let cumulativeDistanceKm = 0;
-    const totalLegDistanceKm = tripStops.reduce(
-      (sum, stop) => sum + (Number(stop?.distanceFromPreviousKm) || 0),
-      0
-    );
-    const returnToDepotDistanceKm = returnsToDepot
-      ? Math.max(0, tripDistanceKm - totalLegDistanceKm)
-      : 0;
-
-    tripStops.forEach((stop, stopIndex) => {
-      cumulativeDistanceKm += Number(stop?.distanceFromPreviousKm) || 0;
-      Object.assign(stop, {
-        cumulativeDistanceKm,
-        returnToDepotDistanceKm: stopIndex === tripStops.length - 1 ? returnToDepotDistanceKm : 0,
-        isLastStopInTrip: stopIndex === tripStops.length - 1,
-        tripStopCount: tripStops.length,
-        tripEstimatedRouteDistanceKm: tripDistanceKm,
-        tripAssignedOrders: tripAssignedOrders || route.assignedOrders || stop.orderCount,
-        tripTotalWeightKg,
-        tripTotalVolumeM3,
-        tripWeightUtilizationPercent,
-        tripVolumeUtilizationPercent,
-        returnsToDepot
-      });
-    });
-  });
-
-  const normalizedDisplayStops = displayStops.map((stop) => {
-    const orderSummary = formatStopOrderSummary(stop.orderIds);
-    const orderHint = stop.orderCount > 1
-      ? ` На этом адресе объединены ${orderCountLabel(stop.orderCount)}.`
-      : '';
-    return {
-      ...stop,
-      orderSummary,
-      selectionReason: `${stop.selectionReason || 'Точка включена в маршрут.'}${orderHint}`.trim()
-    };
-  });
-
-  return {
-    ...route,
-    trips: sortedTrips.length ? sortedTrips : route.trips,
-    displayStops: normalizedDisplayStops,
-    points: orderedPoints.map((point) => ({
-      ...point,
-      displayStopSequence: displayPointNumbers.get(routePointKey(point)) ?? point.stopSequence
-    }))
-  };
-}
-
 const TRANSPORT_DRIVER_LIMIT = 3;
 
 export default function LogisticianView({ token, activeSection }) {
@@ -399,56 +251,24 @@ export default function LogisticianView({ token, activeSection }) {
     return ordersTotalItems > loadedApproved ? ordersTotalItems : loadedApproved;
   }, [orders, ordersTotalItems]);
   const latestNotifications = useMemo(() => notifications.slice(0, 4), [notifications]);
+  const routePlanPreview = useMemo(() => buildRoutePlanPreview(routePlan), [routePlan]);
   const routePlanAssignments = useMemo(() => {
-    if (!routePlan || !Array.isArray(routePlan.routes)) {
-      return [];
-    }
-    return routePlan.routes.flatMap((route) => {
-      if (!route || !Array.isArray(route.points)) return [];
-      return route.points.map((point) => ({
-        orderId: point.orderId,
-        driverId: route.driverId,
-        tripNumber: point.tripNumber || 1,
-        stopSequence: point.stopSequence,
-        estimatedDistanceKm: point.distanceFromPreviousKm
-      }));
-    });
-  }, [routePlan]);
+    return extractRoutePlanAssignments(routePlanPreview);
+  }, [routePlanPreview]);
   const selectedTransportDrivers = useMemo(() => {
     const selectedIds = new Set(transportDriverIds);
     return drivers.filter((driver) => selectedIds.has(driver.id));
   }, [drivers, transportDriverIds]);
   const routePlanDriverNames = useMemo(
-    () => (Array.isArray(routePlan?.routes) ? routePlan.routes.map((route) => route.driverName).join(', ') : ''),
-    [routePlan]
+    () => (Array.isArray(routePlanPreview?.routes) ? routePlanPreview.routes.map((route) => route.driverName).join(', ') : ''),
+    [routePlanPreview]
   );
-  const indexedRoutePlanRoutes = useMemo(() => {
-    if (!Array.isArray(routePlan?.routes)) {
-      return [];
-    }
-    return routePlan.routes.map((route, index) => ({
-      ...enhanceRoutePreview(route),
-      colorIndex: index
-    }));
-  }, [routePlan]);
-  const routePlanPreview = useMemo(() => {
-    if (!routePlan) {
-      return null;
-    }
-    return {
-      ...routePlan,
-      routes: indexedRoutePlanRoutes
-    };
-  }, [routePlan, indexedRoutePlanRoutes]);
-  const routePreviewRoutes = useMemo(() => {
-    if (!indexedRoutePlanRoutes.length) {
-      return [];
-    }
-    if (routePreviewDriverId === 'all') {
-      return indexedRoutePlanRoutes;
-    }
-    return indexedRoutePlanRoutes.filter((route) => String(route.driverId) === String(routePreviewDriverId));
-  }, [indexedRoutePlanRoutes, routePreviewDriverId]);
+  const indexedRoutePlanRoutes = Array.isArray(routePlanPreview?.routes) ? routePlanPreview.routes : [];
+  const visibleRoutePlan = useMemo(
+    () => selectVisiblePlan(routePlanPreview, routePreviewDriverId, routePreviewTripNumber),
+    [routePlanPreview, routePreviewDriverId, routePreviewTripNumber]
+  );
+  const routePreviewRoutes = Array.isArray(visibleRoutePlan?.routes) ? visibleRoutePlan.routes : [];
   const activePreviewRoute = useMemo(() => {
     if (routePreviewDriverId === 'all') {
       return null;
@@ -481,8 +301,8 @@ export default function LogisticianView({ token, activeSection }) {
     );
   }, [activePreviewRoute, routePreviewTripNumber]);
   const planningHighlights = useMemo(
-    () => (Array.isArray(routePlan?.planningHighlights) ? routePlan.planningHighlights : []),
-    [routePlan]
+    () => (Array.isArray(routePlanPreview?.planningHighlights) ? routePlanPreview.planningHighlights : []),
+    [routePlanPreview]
   );
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
 
@@ -837,7 +657,7 @@ export default function LogisticianView({ token, activeSection }) {
             }}
           >
             <div>
-               <Typography variant="h5" fontWeight="bold" gutterBottom>Логистика и назначения</Typography>
+               <Typography variant="h5" component="h2" fontWeight="bold" gutterBottom>Логистика и назначения</Typography>
                <Typography variant="body2" color="text.secondary">
                  Отображаются только одобренные менеджером заявки.
                </Typography>
@@ -892,7 +712,7 @@ export default function LogisticianView({ token, activeSection }) {
 
           {!!latestNotifications.length && (
             <Paper variant="outlined" sx={{ p: 3, borderRadius: 2, mt: 4 }}>
-              <Typography variant="h6" gutterBottom display="flex" alignItems="center" gap={1}>
+              <Typography variant="h6" component="h3" gutterBottom display="flex" alignItems="center" gap={1}>
                 <NotificationsIcon color="action" /> Последние уведомления
               </Typography>
               <Stack spacing={1}>
