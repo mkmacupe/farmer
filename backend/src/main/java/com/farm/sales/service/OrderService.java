@@ -13,6 +13,7 @@ import com.farm.sales.dto.AutoAssignRoutePointResponse;
 import com.farm.sales.dto.AutoAssignRouteTripResponse;
 import com.farm.sales.dto.OrderCreateRequest;
 import com.farm.sales.dto.OrderItemRequest;
+import com.farm.sales.dto.OrderItemResponse;
 import com.farm.sales.dto.OrderPageResponse;
 import com.farm.sales.dto.OrderResponse;
 import com.farm.sales.dto.RealtimeNotificationResponse;
@@ -746,7 +747,8 @@ public class OrderService {
           stop.tripNumber(),
           stop.sequence(),
           roundDistance(stop.distanceFromPreviousKm()),
-          buildStopSelectionReason(stop, coordinate, previousPoint)
+          buildStopSelectionReason(stop, coordinate, previousPoint),
+          buildPreviewOrderItems(order)
       );
       points.add(point);
       previousPoint = point;
@@ -769,6 +771,24 @@ public class OrderService {
       return "Тот же адрес, объединён с предыдущей точкой без дополнительного пробега.";
     }
     return "Следующая точка рейса: выбрана как ближайшая подходящая доставка от предыдущей остановки.";
+  }
+
+  private List<OrderItemResponse> buildPreviewOrderItems(Order order) {
+    if (order == null || order.getItems() == null || order.getItems().isEmpty()) {
+      return List.of();
+    }
+
+    return order.getItems().stream()
+        .map(item -> new OrderItemResponse(
+            item.getProduct() == null ? null : item.getProduct().getId(),
+            item.getProduct() == null || item.getProduct().getName() == null || item.getProduct().getName().isBlank()
+                ? "Без названия"
+                : item.getProduct().getName(),
+            item.getQuantity(),
+            item.getPrice(),
+            item.getLineTotal()
+        ))
+        .toList();
   }
 
   private List<AutoAssignRouteTripResponse> buildPreviewRouteTrips(

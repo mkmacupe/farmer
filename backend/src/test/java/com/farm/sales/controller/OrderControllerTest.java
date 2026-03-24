@@ -168,7 +168,7 @@ class OrderControllerTest {
             12.1,
             10.5,
             0.05,
-            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 1, 4.5, "Первая точка от склада")),
+            List.of(new AutoAssignRoutePointResponse(1L, "Address", 53.91, 30.34, 1, 1, 4.5, "Первая точка от склада", List.of())),
             List.of(),
             List.of(),
             List.of("Маршрут построен по минимальному добавочному пробегу")

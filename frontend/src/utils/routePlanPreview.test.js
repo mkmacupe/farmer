@@ -1,4 +1,5 @@
 import {
+  buildRoutePlanPreview,
   buildTripLegendEntries,
   collectTripNumbers,
   filterRouteByTrip,
@@ -67,5 +68,53 @@ describe('route plan preview helpers', () => {
       'Рейс 2'
     ]);
     expect(buildTripLegendEntries(plan, 1, 2).map((entry) => entry.tripNumber)).toEqual([2]);
+  });
+
+  it('preserves order contents inside aggregated display stops', () => {
+    const preview = buildRoutePlanPreview({
+      routes: [
+        {
+          driverId: 1,
+          driverName: 'Водитель 1',
+          points: [
+            {
+              orderId: 201,
+              tripNumber: 1,
+              stopSequence: 1,
+              deliveryAddress: 'Могилёв, адрес 1',
+              latitude: 53.9,
+              longitude: 30.33,
+              distanceFromPreviousKm: 1.2,
+              selectionReason: 'Ближайшая точка',
+              items: [{ productId: 1, productName: 'Молоко', quantity: 3 }]
+            },
+            {
+              orderId: 202,
+              tripNumber: 1,
+              stopSequence: 2,
+              deliveryAddress: 'Могилёв, адрес 1',
+              latitude: 53.9,
+              longitude: 30.33,
+              distanceFromPreviousKm: 0,
+              selectionReason: 'Тот же адрес',
+              items: [{ productId: 2, productName: 'Сыр', quantity: 1 }]
+            }
+          ],
+          trips: [{ tripNumber: 1, assignedOrders: 2 }]
+        }
+      ]
+    });
+
+    expect(preview.routes[0].displayStops).toHaveLength(1);
+    expect(preview.routes[0].displayStops[0].orders).toEqual([
+      {
+        orderId: 201,
+        items: [{ productId: 1, productName: 'Молоко', quantity: 3, price: null, lineTotal: null }]
+      },
+      {
+        orderId: 202,
+        items: [{ productId: 2, productName: 'Сыр', quantity: 1, price: null, lineTotal: null }]
+      }
+    ]);
   });
 });

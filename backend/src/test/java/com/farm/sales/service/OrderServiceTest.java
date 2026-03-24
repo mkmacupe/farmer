@@ -492,9 +492,13 @@ class OrderServiceTest {
     driverNearFirst.setUsername("driver1");
     driverNearSecond.setUsername("driver2");
     User director = user(7L, "Director", Role.DIRECTOR);
+    Product milk = product(101L, "Молоко", "3.50", 50);
+    Product cheese = product(102L, "Сыр", "7.20", 50);
 
     Order firstApproved = orderWithCoordinates(201L, director, OrderStatus.APPROVED, "53.9395000", "30.3410000");
     Order secondApproved = orderWithCoordinates(202L, director, OrderStatus.APPROVED, "53.8710000", "30.4095000");
+    firstApproved.getItems().add(item(firstApproved, milk, 3));
+    secondApproved.getItems().add(item(secondApproved, cheese, 2));
 
     when(userRepository.findById(2L)).thenReturn(Optional.of(logistician));
     when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)))
@@ -515,6 +519,14 @@ class OrderServiceTest {
     assertThat(preview.routes())
         .filteredOn(route -> !route.points().isEmpty())
         .allSatisfy(route -> assertThat(route.path()).hasSizeGreaterThanOrEqualTo(2));
+    assertThat(preview.routes())
+        .flatExtracting(route -> route.points())
+        .allSatisfy(point -> assertThat(point.items()).isNotEmpty());
+    assertThat(preview.routes())
+        .flatExtracting(route -> route.points())
+        .flatExtracting(point -> point.items())
+        .extracting(item -> item.productName(), item -> item.quantity())
+        .contains(org.assertj.core.groups.Tuple.tuple("Молоко", 3), org.assertj.core.groups.Tuple.tuple("Сыр", 2));
     AutoAssignRoutePathPointResponse depot = new AutoAssignRoutePathPointResponse(53.8971270, 30.3320410);
     assertThat(preview.routes())
         .filteredOn(route -> !route.trips().isEmpty())

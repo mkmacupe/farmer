@@ -52,7 +52,6 @@ import { useTheme } from '@mui/material/styles';
 
 import AssignmentIcon from '@mui/icons-material/Assignment';
 import HistoryIcon from '@mui/icons-material/History';
-import RouteOutlinedIcon from '@mui/icons-material/RouteOutlined';
 import NotificationsIcon from '@mui/icons-material/Notifications';
 import { useStableEvent } from '../utils/useStableEvent.js';
 import { routeColor } from '../utils/routeColors.js';
@@ -259,10 +258,6 @@ export default function LogisticianView({ token, activeSection }) {
     const selectedIds = new Set(transportDriverIds);
     return drivers.filter((driver) => selectedIds.has(driver.id));
   }, [drivers, transportDriverIds]);
-  const routePlanDriverNames = useMemo(
-    () => (Array.isArray(routePlanPreview?.routes) ? routePlanPreview.routes.map((route) => route.driverName).join(', ') : ''),
-    [routePlanPreview]
-  );
   const indexedRoutePlanRoutes = Array.isArray(routePlanPreview?.routes) ? routePlanPreview.routes : [];
   const visibleRoutePlan = useMemo(
     () => selectVisiblePlan(routePlanPreview, routePreviewDriverId, routePreviewTripNumber),
@@ -288,22 +283,6 @@ export default function LogisticianView({ token, activeSection }) {
     [routePlanPreview, routePreviewDriverId, routePreviewTripNumber]
   );
   const tripFilterAvailable = routePreviewDriverId !== 'all' && activePreviewTripNumbers.length > 1;
-  const activePreviewStops = useMemo(() => {
-    if (!activePreviewRoute) {
-      return [];
-    }
-    if (routePreviewTripNumber === 'all') {
-      return activePreviewRoute.displayStops || [];
-    }
-    const selectedTrip = normalizeTripNumber(routePreviewTripNumber);
-    return (activePreviewRoute.displayStops || []).filter(
-      (point) => normalizeTripNumber(point?.tripNumber) === selectedTrip
-    );
-  }, [activePreviewRoute, routePreviewTripNumber]);
-  const planningHighlights = useMemo(
-    () => (Array.isArray(routePlanPreview?.planningHighlights) ? routePlanPreview.planningHighlights : []),
-    [routePlanPreview]
-  );
   const showSection = (sectionId) => !activeSection || activeSection === sectionId;
 
   const showMessage = (message, severity = 'success') => {
@@ -831,26 +810,6 @@ export default function LogisticianView({ token, activeSection }) {
             </Stack>
           ) : routePlan ? (
             <Stack spacing={1.5}>
-              <Alert severity="info" icon={<RouteOutlinedIcon fontSize="inherit" />}>
-                <strong>Старт каждого рейса:</strong> {routePlan.depotLabel}.{' '}
-                {routePlanDriverNames ? `В расчёте участвуют: ${routePlanDriverNames}. ` : ''}
-                Если суммарной вместимости машин на один рейс не хватает, система возвращает их на склад,
-                загружает остаток и строит следующий рейс. План можно одобрить или отклонить без сохранения.
-              </Alert>
-              {!!planningHighlights.length && (
-                <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                  <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1 }}>
-                    Почему план строится именно так
-                  </Typography>
-                  <Stack spacing={0.75}>
-                    {planningHighlights.map((item, index) => (
-                      <Typography key={`planning-highlight-${index}`} variant="body2" color="text.secondary">
-                        {index + 1}. {item}
-                      </Typography>
-                    ))}
-                  </Stack>
-                </Paper>
-              )}
               <Grid container spacing={1.25}>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Paper variant="outlined" sx={{ p: 1.25, borderRadius: 1.5 }}>
@@ -869,12 +828,6 @@ export default function LogisticianView({ token, activeSection }) {
               </Grid>
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 0.5 }}>
-                  Какие маршруты показывать на карте
-                </Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.25 }}>
-                  Можно смотреть весь общий план или переключиться на одного водителя, чтобы отдельно увидеть его точки и рейсы.
-                </Typography>
                 <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
                   <Chip
                     label="Все водители"
@@ -908,9 +861,6 @@ export default function LogisticianView({ token, activeSection }) {
                 </Stack>
                 {tripFilterAvailable ? (
                   <Stack spacing={1} sx={{ mt: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Рейсы выбранного водителя различаются оттенком линии на карте.
-                    </Typography>
                     <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
                       <Chip
                         label="Все рейсы"
@@ -939,9 +889,6 @@ export default function LogisticianView({ token, activeSection }) {
                   </Stack>
                 ) : visibleRouteLegendEntries.length ? (
                   <Stack spacing={1} sx={{ mt: 1.5 }}>
-                    <Typography variant="caption" color="text.secondary">
-                      Цвета рейсов на карте
-                    </Typography>
                     <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
                       {visibleRouteLegendEntries.map((entry) => (
                         <TripLegendChip
@@ -978,6 +925,9 @@ export default function LogisticianView({ token, activeSection }) {
                   visibleTripNumber={routePreviewTripNumber}
                 />
               </Suspense>
+              <Typography variant="caption" color="text.secondary" sx={{ mt: -0.5 }}>
+                Нажмите на точку на карте, чтобы увидеть адрес, рейс и состав заказа.
+              </Typography>
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
@@ -1028,44 +978,6 @@ export default function LogisticianView({ token, activeSection }) {
                     );
                   })}
                 </Grid>
-                {activePreviewRoute ? (
-                  <Stack spacing={1.5} sx={{ mt: 1.5 }}>
-                    <Typography variant="subtitle2" fontWeight={700}>
-                      Детали остановок выбранного маршрута
-                    </Typography>
-                    <TableContainer component={Paper} variant="outlined">
-                      <Table size="small">
-                        <TableHead>
-                          <TableRow>
-                            <TableCell>Рейс</TableCell>
-                            <TableCell>Точка</TableCell>
-                            <TableCell>Адрес</TableCell>
-                            <TableCell align="right">Плечо, км</TableCell>
-                            <TableCell>Почему выбрана</TableCell>
-                          </TableRow>
-                        </TableHead>
-                        <TableBody>
-                          {activePreviewStops.map((point) => (
-                            <TableRow key={`${activePreviewRoute.driverId}-${point.stopKey}`}>
-                              <TableCell>{point.tripNumber}</TableCell>
-                              <TableCell>{point.displayStopSequence ?? point.stopSequence}</TableCell>
-                              <TableCell>
-                                <Stack spacing={0.35}>
-                                  <Typography variant="body2">{point.deliveryAddress}</Typography>
-                                  <Typography variant="caption" color="text.secondary">
-                                    {point.orderCount > 1 ? `Заказы: ${point.orderSummary}` : `Заказ: ${point.orderSummary}`}
-                                  </Typography>
-                                </Stack>
-                              </TableCell>
-                              <TableCell align="right">{formatTransportNumber(point.distanceFromPreviousKm)}</TableCell>
-                              <TableCell>{point.selectionReason || 'Ближайшая подходящая точка в текущем рейсе.'}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </TableContainer>
-                  </Stack>
-                ) : null}
               </Paper>
             </Stack>
           ) : (

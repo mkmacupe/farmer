@@ -49,6 +49,21 @@ function formatStopOrderSummary(orderIds = []) {
   return orderIds.map((orderId) => `#${orderId}`).join(', ');
 }
 
+function normalizeStopOrder(point) {
+  return {
+    orderId: point?.orderId ?? null,
+    items: Array.isArray(point?.items)
+      ? point.items.map((item) => ({
+          productId: item?.productId ?? null,
+          productName: item?.productName || 'Без названия',
+          quantity: item?.quantity ?? 0,
+          price: item?.price ?? null,
+          lineTotal: item?.lineTotal ?? null
+        }))
+      : []
+  };
+}
+
 export function enhanceRoutePreview(route) {
   if (!route || !Array.isArray(route.points)) {
     return route;
@@ -102,7 +117,8 @@ export function enhanceRoutePreview(route) {
         tripTotalVolumeM3: 0,
         tripWeightUtilizationPercent: 0,
         tripVolumeUtilizationPercent: 0,
-        returnsToDepot: false
+        returnsToDepot: false,
+        orders: []
       };
       displayStops.push(currentDisplayStop);
     }
@@ -110,6 +126,7 @@ export function enhanceRoutePreview(route) {
     displayPointNumbers.set(routePointKey(point), currentDisplayStop.displayStopSequence);
     currentDisplayStop.orderIds.push(point.orderId);
     currentDisplayStop.orderCount += 1;
+    currentDisplayStop.orders.push(normalizeStopOrder(point));
   });
 
   const stopsByTrip = new Map();

@@ -1,5 +1,7 @@
 package com.farm.sales.dto;
 
+import java.util.List;
+
 public record AutoAssignRoutePointResponse(
     Long orderId,
     String deliveryAddress,
@@ -8,6 +10,7 @@ public record AutoAssignRoutePointResponse(
     int tripNumber,
     int stopSequence,
     double distanceFromPreviousKm,
-    String selectionReason
+    String selectionReason,
+    List<OrderItemResponse> items
 ) {
 }

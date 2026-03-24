@@ -343,6 +343,9 @@ function StopDetailsPanel({ selectedStop, onClose }) {
   const returnsToDepot = Boolean(point?.returnsToDepot);
   const isLastStopInTrip = Boolean(point?.isLastStopInTrip);
   const selectionReason = point?.selectionReason || 'Точка включена в маршрут.';
+  const stopOrders = Array.isArray(point?.orders) && point.orders.length
+    ? point.orders
+    : (point?.orderId != null ? [{ orderId: point.orderId, items: Array.isArray(point?.items) ? point.items : [] }] : []);
 
   return (
     <Box
@@ -416,6 +419,55 @@ function StopDetailsPanel({ selectedStop, onClose }) {
           <Box>Возврат на склад после этой точки: {formatTransportNumber(returnToDepotDistanceKm)} км</Box>
         ) : null}
       </Box>
+
+      {stopOrders.length ? (
+        <Box
+          sx={{
+            mt: 1.5,
+            pt: 1.5,
+            borderTop: '1px solid',
+            borderColor: 'divider',
+            display: 'grid',
+            gap: 1
+          }}
+        >
+          <Box sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.35 }}>
+            {stopOrders.length > 1 ? 'Состав заказов' : 'Состав заказа'}
+          </Box>
+          {stopOrders.map((order) => (
+            <Box
+              key={order.orderId ?? 'order'}
+              sx={{
+                p: 1,
+                borderRadius: 1.5,
+                bgcolor: 'background.default',
+                border: '1px solid',
+                borderColor: 'divider'
+              }}
+            >
+              <Box sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35, mb: order.items?.length ? 0.75 : 0 }}>
+                Заказ #{order.orderId ?? '—'}
+              </Box>
+              {Array.isArray(order.items) && order.items.length ? (
+                <Box sx={{ display: 'grid', gap: 0.45 }}>
+                  {order.items.map((item, itemIndex) => (
+                    <Box
+                      key={`${order.orderId ?? 'order'}:${item.productId ?? itemIndex}`}
+                      sx={{ color: 'text.secondary', lineHeight: 1.35 }}
+                    >
+                      {item.productName || 'Без названия'} × {Number(item.quantity) || 0}
+                    </Box>
+                  ))}
+                </Box>
+              ) : (
+                <Box sx={{ color: 'text.secondary', lineHeight: 1.35 }}>
+                  Состав заказа недоступен.
+                </Box>
+              )}
+            </Box>
+          ))}
+        </Box>
+      ) : null}
 
       <Box
         sx={{
