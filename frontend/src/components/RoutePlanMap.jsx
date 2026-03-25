@@ -558,12 +558,13 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
             }
           );
           const normalizedGeometry = normalizeRoutePath(geometry);
-          if (!cancelled && normalizedGeometry.length >= 2) {
-            nextGeometry[request.key] = normalizedGeometry;
+          if (!cancelled) {
+            nextGeometry[request.key] = normalizedGeometry.length >= 2 ? normalizedGeometry : [];
           }
         } catch (error) {
           if (!cancelled && !controller.signal.aborted) {
             console.warn('Unable to load road geometry for auto-assign trip', request.key, error);
+            nextGeometry[request.key] = [];
           }
         } finally {
           controllers.delete(controller);
@@ -575,7 +576,9 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       Array.from({ length: concurrency }, () => loadGeometry())
     ).finally(() => {
       if (!cancelled) {
-        setTripGeometry((prev) => ({ ...prev, ...nextGeometry }));
+        if (Object.keys(nextGeometry).length > 0) {
+          setTripGeometry((prev) => ({ ...prev, ...nextGeometry }));
+        }
         setGeometryLoading(false);
       }
     });
@@ -865,8 +868,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
             border: '1px solid',
             borderColor: 'divider',
             overflow: 'hidden',
-            bgcolor: 'background.default',
-            visibility: geometryLoading ? 'hidden' : 'visible'
+            bgcolor: 'background.default'
           }}
         />
         {geometryLoading ? (
