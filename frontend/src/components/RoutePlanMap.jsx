@@ -598,11 +598,11 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       zoomAnimation: true,
       fadeAnimation: true,
       markerZoomAnimation: true,
-      zoomSnap: 0.1,
-      zoomDelta: 0.5,
-      wheelDebounceTime: 10,
-      wheelPxPerZoomLevel: 60,
-      preferCanvas: true
+      zoomSnap: 0.5,
+      zoomDelta: 1,
+      wheelDebounceTime: 20,
+      wheelPxPerZoomLevel: 30,
+      preferCanvas: false
     }).setView([53.9, 30.33], 12);
 
     let disposed = false;
