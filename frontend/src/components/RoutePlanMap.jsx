@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'rea
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
 import L from 'leaflet';
+import 'leaflet-edgebuffer';
 import 'leaflet/dist/leaflet.css';
 import { previewAutoAssignRouteGeometry } from '../api.js';
 import { tripStyle } from '../utils/routeColors.js';
@@ -597,18 +598,20 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
       zoomAnimation: true,
       fadeAnimation: true,
       markerZoomAnimation: true,
-      zoomSnap: 0.25,
+      zoomSnap: 0.1,
       zoomDelta: 0.5,
-      wheelDebounceTime: 24,
-      wheelPxPerZoomLevel: 82
+      wheelDebounceTime: 10,
+      wheelPxPerZoomLevel: 60,
+      preferCanvas: true
     }).setView([53.9, 30.33], 12);
 
     let disposed = false;
     const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
-      keepBuffer: 4,
-      updateWhenIdle: false,
-      updateWhenZooming: true
+      keepBuffer: 8,
+      updateWhenIdle: true,
+      updateWhenZooming: false,
+      edgeBufferTiles: 2
     }).addTo(map);
     const markTilesLoaded = () => {
       if (!disposed) {
