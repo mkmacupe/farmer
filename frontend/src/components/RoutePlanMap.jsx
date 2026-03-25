@@ -445,9 +445,6 @@ function StopDetailsPanel({ selectedStop, onClose }) {
                 borderColor: 'divider'
               }}
             >
-              <Box sx={{ fontSize: 13, fontWeight: 700, lineHeight: 1.35, mb: order.items?.length ? 0.75 : 0 }}>
-                Заказ #{order.orderId ?? '—'}
-              </Box>
               {Array.isArray(order.items) && order.items.length ? (
                 <Box sx={{ display: 'grid', gap: 0.45 }}>
                   {order.items.map((item, itemIndex) => (
@@ -597,10 +594,9 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
     const map = L.map(containerRef.current, {
       zoomControl: true,
       attributionControl: false,
-      preferCanvas: true,
-      zoomAnimation: false,
+      zoomAnimation: true,
       fadeAnimation: true,
-      markerZoomAnimation: false,
+      markerZoomAnimation: true,
       zoomSnap: 0.25,
       zoomDelta: 0.5,
       wheelDebounceTime: 24,

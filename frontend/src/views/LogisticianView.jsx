@@ -925,9 +925,6 @@ export default function LogisticianView({ token, activeSection }) {
                   visibleTripNumber={routePreviewTripNumber}
                 />
               </Suspense>
-              <Typography variant="caption" color="text.secondary" sx={{ mt: -0.5 }}>
-                Нажмите на точку на карте, чтобы увидеть адрес, рейс и состав заказа.
-              </Typography>
 
               <Paper variant="outlined" sx={{ p: 1.5, borderRadius: 2 }}>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
