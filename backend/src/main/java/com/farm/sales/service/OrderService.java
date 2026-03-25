@@ -897,61 +897,47 @@ public class OrderService {
       tripsByDriver.add(new ArrayList<>());
     }
 
+    record PointAngle(int pointIndex, double angle, double distance) {}
+    List<PointAngle> pointAngles = new ArrayList<>();
+    for (int i = 0; i < deliveryPoints.size(); i++) {
+      Coordinate c = deliveryPoints.get(i).coordinate();
+      double angle = Math.atan2(c.longitude() - fallbackCoordinate.longitude(), c.latitude() - fallbackCoordinate.latitude());
+      double dist = Math.pow(c.longitude() - fallbackCoordinate.longitude(), 2) + Math.pow(c.latitude() - fallbackCoordinate.latitude(), 2);
+      pointAngles.add(new PointAngle(i, angle, dist));
+    }
+    pointAngles.sort(Comparator.comparingDouble(PointAngle::angle).thenComparingDouble(PointAngle::distance));
+    int[] sweepOrderedIndexes = pointAngles.stream().mapToInt(PointAngle::pointIndex).toArray();
+
     while (remainingPointCount > 0) {
-      Coordinate[] currentCoordinates = new Coordinate[drivers.size()];
       double[] assignedWeightByDriver = new double[drivers.size()];
       double[] assignedVolumeByDriver = new double[drivers.size()];
       List<List<AssignedPoint>> currentTripPointsByDriver = new ArrayList<>(drivers.size());
       for (int driverIndex = 0; driverIndex < drivers.size(); driverIndex++) {
-        currentCoordinates[driverIndex] = fallbackCoordinate;
         currentTripPointsByDriver.add(new ArrayList<>());
       }
 
       boolean assignedAnyInTripWave = false;
+      int currentDriverIndex = 0;
 
-      while (remainingPointCount > 0) {
-        AssignmentCandidate bestCandidate = null;
-        for (int driverIndex = 0; driverIndex < drivers.size(); driverIndex++) {
-          AssignmentCandidate candidate = findNearestFeasiblePoint(
-              driverIndex,
-              currentCoordinates[driverIndex],
-              remainingPointIndexes,
-              deliveryPoints,
-              distanceTable,
-              fallbackCoordinate,
-              assignedWeightByDriver[driverIndex],
-              assignedVolumeByDriver[driverIndex]
-          );
-          if (candidate == null) {
-            continue;
-          }
+      for (int pointIndex : sweepOrderedIndexes) {
+        if (!remainingPointIndexes[pointIndex]) {
+          continue;
+        }
+        DeliveryPoint point = deliveryPoints.get(pointIndex);
 
-          if (bestCandidate == null
-              || candidate.totalDeltaKm() < bestCandidate.totalDeltaKm() - 1e-9
-              || (Math.abs(candidate.totalDeltaKm() - bestCandidate.totalDeltaKm()) <= 1e-9
-                  && candidate.driverIndex() < bestCandidate.driverIndex())
-              || (Math.abs(candidate.totalDeltaKm() - bestCandidate.totalDeltaKm()) <= 1e-9
-                  && candidate.driverIndex() == bestCandidate.driverIndex()
-                  && candidate.pointIndex() < bestCandidate.pointIndex())) {
-            bestCandidate = candidate;
+        for (int attempts = 0; attempts < drivers.size(); attempts++) {
+          int dIdx = (currentDriverIndex + attempts) % drivers.size();
+          if (canAssignPointToDriver(point, assignedWeightByDriver[dIdx], assignedVolumeByDriver[dIdx])) {
+            currentTripPointsByDriver.get(dIdx).add(new AssignedPoint(pointIndex, 0.0));
+            assignedWeightByDriver[dIdx] += point.totalWeightKg();
+            assignedVolumeByDriver[dIdx] += point.totalVolumeM3();
+            remainingPointIndexes[pointIndex] = false;
+            remainingPointCount -= 1;
+            assignedAnyInTripWave = true;
+            currentDriverIndex = dIdx;
+            break;
           }
         }
-
-        if (bestCandidate == null) {
-          break;
-        }
-
-        DeliveryPoint point = deliveryPoints.get(bestCandidate.pointIndex());
-        currentTripPointsByDriver.get(bestCandidate.driverIndex())
-            .add(new AssignedPoint(bestCandidate.pointIndex(), bestCandidate.legDistanceKm()));
-        assignedWeightByDriver[bestCandidate.driverIndex()] += point.totalWeightKg();
-        assignedVolumeByDriver[bestCandidate.driverIndex()] += point.totalVolumeM3();
-        currentCoordinates[bestCandidate.driverIndex()] = point.coordinate();
-        if (remainingPointIndexes[bestCandidate.pointIndex()]) {
-          remainingPointIndexes[bestCandidate.pointIndex()] = false;
-          remainingPointCount -= 1;
-        }
-        assignedAnyInTripWave = true;
       }
 
       for (int driverIndex = 0; driverIndex < drivers.size(); driverIndex++) {

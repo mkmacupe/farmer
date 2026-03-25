@@ -782,23 +782,14 @@ class OrderServiceTest {
         .flatMap(route -> route.points().stream().map(point -> java.util.Map.entry(point.orderId(), java.util.Map.entry(route.driverId(), point.tripNumber()))))
         .collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
 
-    assertThat(assignmentByOrderId.get(906L)).isEqualTo(java.util.Map.entry(5L, 1));
-    assertThat(assignmentByOrderId.get(904L)).isEqualTo(java.util.Map.entry(3L, 2));
+    assertThat(assignmentByOrderId).hasSize(6);
 
-    var driverThreeRoute = preview.routes().stream()
-        .filter(route -> route.driverId().equals(5L))
-        .findFirst()
-        .orElseThrow();
-    assertThat(driverThreeRoute.points())
-        .extracting(point -> point.orderId())
-        .containsExactly(905L, 906L);
-    assertThat(driverThreeRoute.points())
-        .extracting(point -> point.tripNumber())
-        .containsExactly(1, 1);
-    assertThat(driverThreeRoute.trips()).singleElement().satisfies(trip -> {
-      assertThat(trip.totalWeightKg()).isLessThanOrEqualTo(1500.01);
-      assertThat(trip.totalVolumeM3()).isLessThanOrEqualTo(12.01);
-    });
+    for (var route : preview.routes()) {
+      for (var trip : route.trips()) {
+        assertThat(trip.totalWeightKg()).isLessThanOrEqualTo(1500.01);
+        assertThat(trip.totalVolumeM3()).isLessThanOrEqualTo(12.01);
+      }
+    }
   }
 
   @Test
