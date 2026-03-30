@@ -27,14 +27,11 @@ vi.mock('./AuthenticatedApp.jsx', () => ({
 }));
 
 describe('App', () => {
-  const waitForWorkspaceReady = async () => {
-    await waitFor(() => {
-      expect(screen.queryByText(/загружаем рабочее пространство/i)).not.toBeInTheDocument();
-    });
-  };
+  const findWorkspaceHeading = (name) => screen.findByRole('heading', { name, level: 1 }, { timeout: 10_000 });
 
   beforeEach(() => {
     vi.resetAllMocks();
+    window.history.replaceState({}, '', '/');
     loadAuth.mockReturnValue(null);
     login.mockResolvedValue({
       token: 'jwt-token',
@@ -58,9 +55,9 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
 
     await waitFor(() => expect(login).toHaveBeenCalledWith('driver', 'secret123'));
-    await waitForWorkspaceReady();
-    expect(await screen.findByRole('heading', { name: /мои доставки/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await findWorkspaceHeading(/мои доставки/i)).toBeInTheDocument();
     expect(screen.getByTestId('active-section')).toHaveTextContent('driver-orders');
+    expect(window.location.hash).toBe('#section=driver-orders');
     expect(saveAuth).toHaveBeenCalledWith(expect.objectContaining({
       token: 'jwt-token',
       username: 'driver',
@@ -105,8 +102,7 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
 
     await waitFor(() => expect(login).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
-    await waitForWorkspaceReady();
-    expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await findWorkspaceHeading(/рабочий кабинет/i)).toBeInTheDocument();
     expect(screen.getByTestId('active-section')).toHaveTextContent('manager-dashboard');
   });
 
@@ -120,13 +116,28 @@ describe('App', () => {
 
     render(<App />);
 
-    await waitForWorkspaceReady();
-    expect(await screen.findByRole('heading', { name: /мои доставки/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await findWorkspaceHeading(/мои доставки/i)).toBeInTheDocument();
     expect(screen.getByTestId('active-section')).toHaveTextContent('driver-orders');
     expect(login).not.toHaveBeenCalled();
   });
 
+  it('restores a valid section from location hash for persisted auth', async () => {
+    window.history.replaceState({}, '', '/#section=manager-reports');
+    loadAuth.mockReturnValue({
+      token: 'persisted-token',
+      username: 'manager',
+      fullName: 'Manager',
+      role: 'MANAGER'
+    });
+
+    render(<App />);
+
+    expect(await findWorkspaceHeading(/рабочий кабинет/i)).toBeInTheDocument();
+    expect(screen.getByTestId('active-section')).toHaveTextContent('manager-reports');
+  });
+
   it('logs out back to login screen', async () => {
+    window.history.replaceState({}, '', '/#section=driver-orders');
     loadAuth.mockReturnValue({
       token: 'persisted-token',
       username: 'driver',
@@ -135,14 +146,14 @@ describe('App', () => {
     });
 
     render(<App />);
-    await waitForWorkspaceReady();
-    await screen.findByRole('heading', { name: /мои доставки/i, level: 1 }, { timeout: 10_000 });
+    await findWorkspaceHeading(/мои доставки/i);
 
     fireEvent.click(screen.getByRole('button', { name: /выйти/i }));
 
     await waitFor(() => {
       expect(clearAuth).toHaveBeenCalledTimes(1);
     });
+    expect(window.location.hash).toBe('');
     expect(await screen.findByRole('heading', { name: /вход/i })).toBeInTheDocument();
   });
 
@@ -155,10 +166,10 @@ describe('App', () => {
     });
 
     render(<App />);
-    await waitForWorkspaceReady();
-    await screen.findByRole('heading', { name: /мои доставки/i, level: 1 }, { timeout: 10_000 });
+    await findWorkspaceHeading(/мои доставки/i);
     fireEvent.click(screen.getByRole('button', { name: /перейти/i }));
     expect(screen.getByTestId('active-section')).toHaveTextContent('custom-section');
+    expect(window.location.hash).toBe('#section=custom-section');
   });
 
   it('shows default login error when backend rejection has no message', async () => {
@@ -181,8 +192,7 @@ describe('App', () => {
     });
 
     render(<App />);
-    await waitForWorkspaceReady();
-    expect(await screen.findByRole('heading', { name: /рабочий кабинет/i, level: 1 }, { timeout: 10_000 })).toBeInTheDocument();
+    expect(await findWorkspaceHeading(/рабочий кабинет/i)).toBeInTheDocument();
     expect(screen.getByTestId('active-section')).toHaveTextContent('');
     expect(saveAuth).toHaveBeenCalledWith(expect.objectContaining({ role: 'UNKNOWN' }));
   });

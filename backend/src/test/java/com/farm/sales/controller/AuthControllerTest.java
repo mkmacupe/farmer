@@ -7,13 +7,10 @@ import static org.mockito.Mockito.when;
 
 import com.farm.sales.dto.AuthRequest;
 import com.farm.sales.dto.AuthResponse;
-import com.farm.sales.dto.DemoLoginRequest;
 import com.farm.sales.service.AuthService;
-import java.util.Arrays;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.springframework.web.bind.annotation.PostMapping;
 
 class AuthControllerTest {
   private AuthService authService;
@@ -22,7 +19,7 @@ class AuthControllerTest {
   @BeforeEach
   void setUp() {
     authService = mock(AuthService.class);
-    controller = new AuthController(authService, true);
+    controller = new AuthController(authService);
   }
 
   @Test
@@ -36,29 +33,6 @@ class AuthControllerTest {
     assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(httpResponse.getBody()).isEqualTo(response);
     verify(authService).login(request);
-  }
-
-  @Test
-  void demoLoginDelegatesToServiceAndReturnsOk() {
-    DemoLoginRequest request = new DemoLoginRequest("manager", "secret123");
-    AuthResponse response = new AuthResponse("token", "manager", "Manager", "MANAGER");
-    when(authService.demoLogin("manager", "secret123", true)).thenReturn(response);
-
-    var httpResponse = controller.demoLogin(request);
-
-    assertThat(httpResponse.getStatusCode()).isEqualTo(HttpStatus.OK);
-    assertThat(httpResponse.getBody()).isEqualTo(response);
-    verify(authService).demoLogin("manager", "secret123", true);
-  }
-
-  @Test
-  void seedLoginRouteUsesSeedLoginPath() throws NoSuchMethodException {
-    PostMapping mapping = AuthController.class
-        .getDeclaredMethod("demoLogin", DemoLoginRequest.class)
-        .getAnnotation(PostMapping.class);
-
-    assertThat(mapping).isNotNull();
-    assertThat(Arrays.asList(mapping.value())).containsExactly("/seed-login");
   }
 
 }

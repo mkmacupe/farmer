@@ -2,8 +2,6 @@ spring:
   config:
     activate:
       on-profile: prod
-  main:
-    lazy-initialization: true
   datasource:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
@@ -25,7 +23,6 @@ spring:
   flyway:
     enabled: true
     locations: classpath:db/migration
-    validate-on-migrate: false
 
 springdoc:
   api-docs:
@@ -35,6 +32,6 @@ springdoc:
 
 app:
   demo:
-    enabled: ${APP_DEMO_ENABLED:true}
-    seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
-    transport-seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
+    enabled: ${APP_DEMO_ENABLED:false}
+    seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:false}
+    transport-seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:false}

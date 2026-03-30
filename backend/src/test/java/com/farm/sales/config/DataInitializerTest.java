@@ -21,6 +21,8 @@ import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -36,6 +38,7 @@ import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 class DataInitializerTest {
   private UserRepository userRepository;
@@ -150,6 +153,37 @@ class DataInitializerTest {
     dataInitializer.seedDemoDataWithoutAddresses();
 
     verify(storeAddressRepository, times(0)).save(any(StoreAddress.class));
+  }
+
+  @Test
+  void runUsesConfiguredProductImagesDirectoryOverride() throws Exception {
+    when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
+    when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.count()).thenReturn(199L);
+    when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
+
+    Path tempDir = Files.createTempDirectory("farm-sales-demo-images");
+    Files.writeString(tempDir.resolve("custom-fast.webp"), "placeholder");
+    ReflectionTestUtils.setField(dataInitializer, "productImagesDir", tempDir.toString());
+
+    AtomicLong userIds = new AtomicLong(100);
+    when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+      User user = invocation.getArgument(0);
+      if (user.getId() == null) {
+        user.setId(userIds.incrementAndGet());
+      }
+      return user;
+    });
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(storeAddressRepository.save(any(StoreAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    dataInitializer.run();
+
+    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+    verify(productRepository, atLeast(21)).save(productCaptor.capture());
+    assertThat(productCaptor.getAllValues())
+        .extracting(Product::getPhotoUrl)
+        .contains("/images/products/custom-fast.webp");
   }
 
   @Test

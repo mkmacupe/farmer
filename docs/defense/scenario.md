@@ -20,6 +20,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\scenario-reset.ps1 -Base http
 powershell -ExecutionPolicy Bypass -File .\scripts\scenario-reset.ps1 -Base https://farm-sales-backend.onrender.com/api
 ```
 
+Публичный reset работает только если на задеплоенном backend вручную включены `APP_DEMO_ENABLED=true` и `APP_DEMO_SEED_ON_STARTUP=true`. В безопасном production-default эти endpoint'ы выключены.
+
 ## 3. Что делает reset
 
 - очищает накопленные заказы, позиции заказов, timeline, аудит, складские движения и realtime-уведомления;
@@ -77,4 +79,5 @@ powershell -ExecutionPolicy Bypass -File .\scripts\scenario-reset.ps1 -Base http
 - backend ведёт аудит и timeline;
 - frontend получает realtime-обновления;
 - проект развёрнут публично и содержит механизм reset учебного сценария;
+- reset учебного сценария включается отдельно и не должен считаться обязательной частью обычного production-runtime;
 - после reset преподавателю можно сразу показать транспортную задачу без ручной подготовки заказов.

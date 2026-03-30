@@ -1,6 +1,7 @@
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { NAV_ITEMS, itemIcon, roleLabel, sectionLabel } from './navigation.jsx';
+import { NAV_ITEMS, roleLabel, sectionLabel } from './navigationData.js';
+import { itemIcon } from './navigationIcons.jsx';
 
 describe('navigation helpers', () => {
   it('contains nav items for all app roles', () => {

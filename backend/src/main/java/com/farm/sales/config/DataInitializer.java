@@ -12,6 +12,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.nio.file.Files;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -430,6 +431,8 @@ public class DataInitializer implements CommandLineRunner {
   private final Object seedLock = new Object();
   @Value("${app.demo.seed-on-startup:true}")
   private boolean seedOnStartup = true;
+  @Value("${app.demo.product-images-dir:}")
+  private String productImagesDir = "";
   private volatile boolean demoSeeded;
 
   public DataInitializer(UserRepository userRepository,
@@ -700,12 +703,36 @@ public class DataInitializer implements CommandLineRunner {
   }
 
   private Path resolveProductImagesDirectory() {
+    Path configuredDirectory = resolveConfiguredProductImagesDirectory();
+    if (configuredDirectory != null) {
+      return configuredDirectory;
+    }
+
     for (Path candidate : PRODUCT_IMAGE_DIR_CANDIDATES) {
       Path normalizedCandidate = candidate.toAbsolutePath().normalize();
       if (Files.isDirectory(normalizedCandidate)) {
         return normalizedCandidate;
       }
     }
+    return null;
+  }
+
+  private Path resolveConfiguredProductImagesDirectory() {
+    if (productImagesDir == null || productImagesDir.isBlank()) {
+      return null;
+    }
+
+    try {
+      Path configuredDirectory = Path.of(productImagesDir.trim()).toAbsolutePath().normalize();
+      if (Files.isDirectory(configuredDirectory)) {
+        return configuredDirectory;
+      }
+
+      log.warn("Configured demo product image directory {} does not exist or is not a directory.", configuredDirectory);
+    } catch (InvalidPathException ex) {
+      log.warn("Configured demo product image directory is invalid: {}", productImagesDir, ex);
+    }
+
     return null;
   }
 

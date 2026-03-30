@@ -41,11 +41,11 @@ class SecurityAuthorizationIntegrationTest {
   }
 
   @Test
-  void seedLoginIsPublic() throws Exception {
+  void seedLoginIsUnavailableWhenDemoModeDisabled() throws Exception {
     mockMvc.perform(post("/api/auth/seed-login")
             .contentType(MediaType.APPLICATION_JSON)
             .content("{}"))
-        .andExpect(status().isBadRequest());
+        .andExpect(status().isNotFound());
   }
 
   @Test

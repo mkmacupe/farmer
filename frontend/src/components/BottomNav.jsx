@@ -3,7 +3,8 @@ import Box from '@mui/material/Box';
 import BottomNavigation from '@mui/material/BottomNavigation';
 import BottomNavigationAction from '@mui/material/BottomNavigationAction';
 import Paper from '@mui/material/Paper';
-import { NAV_ITEMS, itemIcon } from './navigation.jsx';
+import { NAV_ITEMS } from './navigationData.js';
+import { itemIcon } from './navigationIcons.jsx';
 
 export default memo(function BottomNav({ role, activeSection, onNavigate }) {
   const items = NAV_ITEMS[role] || [];

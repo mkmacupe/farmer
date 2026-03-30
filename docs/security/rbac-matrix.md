@@ -1,11 +1,11 @@
 # RBAC Matrix
 
-Матрица ниже отражает фактические правила из `SecurityConfig`.
+Матрица ниже отражает фактические правила из `SecurityConfig` и conditional demo-controller'ов.
 
 | Endpoint | DIRECTOR | MANAGER | LOGISTICIAN | DRIVER | ANONYMOUS |
 |---|---:|---:|---:|---:|---:|
 | `POST /api/auth/login` | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `POST /api/auth/seed-login` | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `POST /api/auth/seed-login` | ✅† | ✅† | ✅† | ✅† | ✅† |
 | `GET /api/products` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /api/products/categories` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `POST /api/products` | ❌ | ✅ | ❌ | ❌ | ❌ |
@@ -45,7 +45,8 @@
 | `GET /api/stock-movements` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/reports/orders` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/audit/logs` | ❌ | ✅ | ❌ | ❌ | ❌ |
-| `POST /api/scenario/reset` | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `POST /api/scenario/reset` | ❌ | ✅† | ❌ | ❌ | ❌ |
+| `POST /api/scenario/clear-orders` | ❌ | ✅† | ❌ | ❌ | ❌ |
 | `GET /api/notifications/stream` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /actuator/health` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `GET /actuator/health/readiness` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -59,4 +60,4 @@
 - `DIRECTOR` может видеть timeline только своих заказов.
 - `DRIVER` может видеть timeline только заказов, назначенных на него.
 - Права RBAC дополняются бизнес-валидацией статусов, ownership и ограничениями переходов состояний.
-- `POST /api/scenario/reset` доступен только при `app.demo.enabled=true` и нужен для подготовки проекта к защите.
+- `POST /api/auth/seed-login`, `POST /api/scenario/reset` и `POST /api/scenario/clear-orders` доступны только при `app.demo.enabled=true`; когда demo-режим выключен, эти controller'ы не регистрируются и endpoint'ы возвращают `404`.

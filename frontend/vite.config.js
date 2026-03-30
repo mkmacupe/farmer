@@ -1,6 +1,5 @@
 import { defineConfig, loadEnv } from "vite";
 import react from "@vitejs/plugin-react";
-import { visualizer } from "rollup-plugin-visualizer";
 
 const loopbackHosts = ["127.0.0.1", "localhost", "::1"];
 
@@ -24,12 +23,20 @@ const ensureNoProxyForLocalhost = () => {
 
 ensureNoProxyForLocalhost();
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(async ({ mode }) => {
   if (mode === "test") {
     process.env.NODE_ENV = "test";
   }
 
   const analyze = mode === "analyze";
+  const analyzePlugin = analyze
+    ? (await import("rollup-plugin-visualizer")).visualizer({
+        filename: "dist/bundle-stats.html",
+        open: false,
+        gzipSize: true,
+        brotliSize: true,
+      })
+    : null;
   const env = loadEnv(mode, process.cwd(), "");
   const apiHost =
     env.VITE_PROXY_API_HOST || process.env.VITE_PROXY_API_HOST || "127.0.0.1";
@@ -45,13 +52,7 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       react(),
-      analyze &&
-        visualizer({
-          filename: "dist/bundle-stats.html",
-          open: false,
-          gzipSize: true,
-          brotliSize: true,
-        }),
+      analyzePlugin,
     ].filter(Boolean),
     server: {
       port: 5173,

@@ -1,6 +1,7 @@
 import {
   Suspense,
   lazy,
+  startTransition,
   useCallback,
   useEffect,
   useState,
@@ -8,6 +9,7 @@ import {
 import { LOGIN_LOADING_MESSAGE, login, primeBackendWarmup } from "./api.js";
 import { clearAuth, loadAuth, saveAuth } from "./authStorage.js";
 import LoginForm from "./components/LoginForm.jsx";
+import { NAV_ITEMS } from "./components/navigationData.js";
 
 const AuthenticatedApp = lazy(() => import("./AuthenticatedApp.jsx"));
 
@@ -17,9 +19,64 @@ const DEFAULT_SECTION_BY_ROLE = {
   LOGISTICIAN: "logistic-orders",
   DRIVER: "driver-orders",
 };
+const SECTION_HASH_PREFIX = "#section=";
 
 function defaultSectionForRole(role) {
   return DEFAULT_SECTION_BY_ROLE[role] || "";
+}
+
+function parseSectionFromHash(hash) {
+  if (!hash.startsWith(SECTION_HASH_PREFIX)) {
+    return "";
+  }
+
+  const rawSection = hash.slice(SECTION_HASH_PREFIX.length).trim();
+  if (!rawSection) {
+    return "";
+  }
+
+  try {
+    return decodeURIComponent(rawSection);
+  } catch {
+    return rawSection;
+  }
+}
+
+function replaceLocationHash(nextHash) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const { pathname, search } = window.location;
+  window.history.replaceState(window.history.state, "", `${pathname}${search}${nextHash}`);
+}
+
+function clearSectionHash() {
+  replaceLocationHash("");
+}
+
+function syncSectionHash(section) {
+  if (typeof window === "undefined" || !section) {
+    return;
+  }
+
+  const nextHash = `${SECTION_HASH_PREFIX}${encodeURIComponent(section)}`;
+  if (window.location.hash === nextHash) {
+    return;
+  }
+
+  replaceLocationHash(nextHash);
+}
+
+function isKnownSectionForRole(role, section) {
+  return Boolean(section) && (NAV_ITEMS[role] || []).some((item) => item.id === section);
+}
+
+function resolveSectionForRole(role, sectionFromHash) {
+  if (isKnownSectionForRole(role, sectionFromHash)) {
+    return sectionFromHash;
+  }
+  return defaultSectionForRole(role);
 }
 
 export default function App() {
@@ -36,14 +93,42 @@ export default function App() {
 
   useEffect(() => {
     if (!auth) {
+      clearSectionHash();
       void primeBackendWarmup();
     }
   }, [auth]);
 
   useEffect(() => {
-    if (auth && !activeSection) {
-      setActiveSection(defaultSectionForRole(auth.role));
+    if (!auth || typeof window === "undefined") {
+      return undefined;
     }
+
+    const syncSectionFromLocation = () => {
+      const nextSection = resolveSectionForRole(auth.role, parseSectionFromHash(window.location.hash));
+      setActiveSection((currentSection) => (
+        currentSection === nextSection ? currentSection : nextSection
+      ));
+    };
+
+    syncSectionFromLocation();
+    window.addEventListener("hashchange", syncSectionFromLocation);
+
+    return () => {
+      window.removeEventListener("hashchange", syncSectionFromLocation);
+    };
+  }, [auth]);
+
+  useEffect(() => {
+    if (!auth) {
+      return;
+    }
+
+    if (activeSection) {
+      syncSectionHash(activeSection);
+      return;
+    }
+
+    clearSectionHash();
   }, [auth, activeSection]);
 
   const applyAuthResponse = useCallback((response) => {
@@ -53,8 +138,11 @@ export default function App() {
       fullName: response.fullName,
       role: response.role,
     };
-    setAuth(newAuth);
-    setActiveSection(defaultSectionForRole(newAuth.role));
+
+    startTransition(() => {
+      setAuth(newAuth);
+      setActiveSection(resolveSectionForRole(newAuth.role, parseSectionFromHash(window.location.hash)));
+    });
   }, []);
 
   const handleNavigate = useCallback((section) => {
@@ -77,6 +165,7 @@ export default function App() {
   const handleLogout = useCallback(() => {
     setAuth(null);
     setActiveSection("");
+    clearSectionHash();
     clearAuth();
   }, []);
 

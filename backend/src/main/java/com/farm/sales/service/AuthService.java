@@ -15,8 +15,9 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.springframework.http.HttpStatus;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -34,7 +35,7 @@ public class AuthService {
       "driver1",
       "driver2",
       "driver3"
-  ).stream().collect(Collectors.toUnmodifiableSet());
+  );
   private static final Set<String> DEMO_LOGIN_USERNAMES = Stream.concat(
       DataInitializer.demoDirectorUsernames().stream(),
       DEMO_USERNAMES.stream()
@@ -46,6 +47,7 @@ public class AuthService {
   private final JwtProperties jwtProperties;
   private final AuditTrailPublisher auditTrailPublisher;
   private final String dummyPasswordHash;
+  private final boolean demoEnabled;
   @Autowired(required = false)
   private DataInitializer dataInitializer;
 
@@ -53,13 +55,15 @@ public class AuthService {
                      PasswordEncoder passwordEncoder,
                      JwtEncoder jwtEncoder,
                      JwtProperties jwtProperties,
-                     AuditTrailPublisher auditTrailPublisher) {
+                     AuditTrailPublisher auditTrailPublisher,
+                     @Value("${app.demo.enabled:false}") boolean demoEnabled) {
     this.userRepository = userRepository;
     this.passwordEncoder = passwordEncoder;
     this.jwtEncoder = jwtEncoder;
     this.jwtProperties = jwtProperties;
     this.auditTrailPublisher = auditTrailPublisher;
     this.dummyPasswordHash = passwordEncoder.encode("invalid-password-placeholder");
+    this.demoEnabled = demoEnabled;
   }
 
   public AuthResponse login(AuthRequest request) {
@@ -91,7 +95,7 @@ public class AuthService {
     return new AuthResponse(token, user.getUsername(), user.getFullName(), user.getRole().name());
   }
 
-  public AuthResponse demoLogin(String username, String password, boolean demoEnabled) {
+  public AuthResponse demoLogin(String username, String password) {
     if (!demoEnabled) {
       throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Вход по предзаполненным учетным записям отключён");
     }

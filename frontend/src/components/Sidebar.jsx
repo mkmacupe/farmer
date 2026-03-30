@@ -8,7 +8,8 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import Avatar from '@mui/material/Avatar';
-import { NAV_ITEMS, itemIcon, roleLabel } from './navigation.jsx';
+import { NAV_ITEMS, roleLabel } from './navigationData.js';
+import { itemIcon } from './navigationIcons.jsx';
 
 const DRAWER_WIDTH = 248;
 

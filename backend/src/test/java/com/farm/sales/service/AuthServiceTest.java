@@ -47,7 +47,14 @@ class AuthServiceTest {
     jwtProperties.setSecret("0123456789abcdef0123456789abcdef");
 
     when(passwordEncoder.encode(anyString())).thenReturn("dummy-hash");
-    authService = new AuthService(userRepository, passwordEncoder, jwtEncoder, jwtProperties, auditTrailPublisher);
+    authService = new AuthService(
+        userRepository,
+        passwordEncoder,
+        jwtEncoder,
+        jwtProperties,
+        auditTrailPublisher,
+        true
+    );
     ReflectionTestUtils.setField(authService, "dataInitializer", dataInitializer);
   }
 
@@ -122,7 +129,7 @@ class AuthServiceTest {
     when(jwt.getTokenValue()).thenReturn("demo-token");
     when(jwtEncoder.encode(any())).thenReturn(jwt);
 
-    AuthResponse response = authService.demoLogin("manager", "MgrD5v8cN4", true);
+    AuthResponse response = authService.demoLogin("manager", "MgrD5v8cN4");
 
     assertThat(response.token()).isEqualTo("demo-token");
     assertThat(response.role()).isEqualTo("MANAGER");
@@ -130,7 +137,16 @@ class AuthServiceTest {
 
   @Test
   void demoLoginFailsWhenDemoModeDisabled() {
-    assertThatThrownBy(() -> authService.demoLogin("manager", "secret", false))
+    AuthService disabledAuthService = new AuthService(
+        userRepository,
+        passwordEncoder,
+        jwtEncoder,
+        jwtProperties,
+        auditTrailPublisher,
+        false
+    );
+
+    assertThatThrownBy(() -> disabledAuthService.demoLogin("manager", "secret"))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(error -> {
           ResponseStatusException ex = (ResponseStatusException) error;
@@ -143,7 +159,7 @@ class AuthServiceTest {
     when(userRepository.findByUsername("intruder")).thenReturn(Optional.empty());
     when(passwordEncoder.matches("secret", "dummy-hash")).thenReturn(false);
 
-    assertThatThrownBy(() -> authService.demoLogin("intruder", "secret", true))
+    assertThatThrownBy(() -> authService.demoLogin("intruder", "secret"))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(error -> {
           ResponseStatusException ex = (ResponseStatusException) error;
