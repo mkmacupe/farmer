@@ -9,15 +9,15 @@ import {
   useRef,
   useState
 } from 'react';
+import { subscribeNotifications } from '../api/notifications.js';
 import {
   approveAutoAssignOrders,
   assignOrderDriver,
   getAllOrdersPage,
-  getDrivers,
   getOrderTimeline,
-  previewAutoAssignOrders,
-  subscribeNotifications
-} from '../api.js';
+  previewAutoAssignOrders
+} from '../api/orders.js';
+import { getDrivers } from '../api/users.js';
 import OrdersTable from '../components/OrdersTable.jsx';
 
 import Box from '@mui/material/Box';

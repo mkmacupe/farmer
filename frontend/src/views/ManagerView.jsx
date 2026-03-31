@@ -9,24 +9,30 @@ import {
   useState,
 } from "react";
 import {
-  approveAllOrders,
-  approveOrder,
-  createDirectorUser,
   createProduct,
   deleteProduct,
-  downloadOrdersReport,
-  getAllOrdersPage,
+  getProductCategories,
+  getProductsPage,
+  updateProduct,
+} from "../api/catalog.js";
+import {
   getDashboardCategories,
   getDashboardSummary,
   getDashboardTrends,
+} from "../api/dashboard.js";
+import {
+  approveAllOrders,
+  approveOrder,
+  getAllOrdersPage,
+  getOrderTimeline,
+} from "../api/orders.js";
+import { subscribeNotifications } from "../api/notifications.js";
+import { downloadOrdersReport } from "../api/reports.js";
+import {
+  createDirectorUser,
   getDirectors,
   getDrivers,
-  getOrderTimeline,
-  getProductCategories,
-  getProductsPage,
-  subscribeNotifications,
-  updateProduct,
-} from "../api.js";
+} from "../api/users.js";
 
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";

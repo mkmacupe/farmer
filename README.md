@@ -57,6 +57,13 @@ powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
 - запускает PostgreSQL и backend через Docker Desktop + `docker compose`;
 - автоматически перенастраивает frontend proxy на фактический backend-порт.
 
+Если `start-dev.ps1` ругается на Flyway validation или stale Docker volume, выполните:
+
+```powershell
+docker compose down -v
+powershell -ExecutionPolicy Bypass -File .\start-dev.ps1
+```
+
 ## Альтернативный ручной запуск
 
 Если нужен ручной сценарий без `start-dev.ps1`:

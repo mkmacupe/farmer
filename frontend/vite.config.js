@@ -88,8 +88,11 @@ export default defineConfig(async ({ mode }) => {
         output: {
           manualChunks(id) {
             if (id.includes("node_modules")) {
+              if (id.includes("@mui/icons-material")) {
+                return "mui-icons";
+              }
               if (id.includes("@mui") || id.includes("@emotion")) {
-                return "mui";
+                return "mui-core";
               }
               if (id.includes("leaflet")) {
                 return "leaflet";

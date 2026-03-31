@@ -25,3 +25,6 @@ nul
 
 # Local env
 .env
+
+# Local course materials
+/курсач отчет пример.docx

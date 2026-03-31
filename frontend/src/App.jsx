@@ -6,7 +6,7 @@ import {
   useEffect,
   useState,
 } from "react";
-import { LOGIN_LOADING_MESSAGE, login, primeBackendWarmup } from "./api.js";
+import { LOGIN_LOADING_MESSAGE, login, primeBackendWarmup } from "./api/auth.js";
 import { clearAuth, loadAuth, saveAuth } from "./authStorage.js";
 import LoginForm from "./components/LoginForm.jsx";
 import { NAV_ITEMS } from "./components/navigationData.js";

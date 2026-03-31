@@ -1,18 +1,19 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import {
+  getProductCategories,
+  getProductsPage,
+} from "../api/catalog.js";
+import {
   createDirectorAddress,
-  createOrder,
   deleteDirectorAddress,
   getDirectorAddresses,
   getDirectorProfile,
-  getMyOrdersPage,
-  getProductCategories,
-  getProductsPage,
-  reverseGeo,
-  subscribeNotifications,
   updateDirectorAddress,
   updateDirectorProfile,
-} from "../api.js";
+} from "../api/director.js";
+import { reverseGeo } from "../api/geo.js";
+import { subscribeNotifications } from "../api/notifications.js";
+import { createOrder, getMyOrdersPage } from "../api/orders.js";
 
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";

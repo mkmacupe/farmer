@@ -400,6 +400,32 @@ function Wait-ForBackendReady {
   return $false
 }
 
+function Get-BackendStartupDiagnosticMessage {
+  param([string]$EnvFilePath)
+
+  try {
+    $backendLogs = docker compose --env-file "$EnvFilePath" logs backend --tail=200 2>&1 | Out-String
+  } catch {
+    return $null
+  }
+
+  if ([string]::IsNullOrWhiteSpace($backendLogs)) {
+    return $null
+  }
+
+  if ($backendLogs -match "Migrations have failed validation" -or $backendLogs -match "Migration checksum mismatch") {
+    return @(
+      "Backend failed to start because Flyway validation detected a stale local Docker Postgres volume."
+      "This usually happens after edited migrations or switching branches with an existing postgres_data volume."
+      ""
+      "Run: docker compose down -v"
+      "Then start again: powershell -ExecutionPolicy Bypass -File .\\start-dev.ps1"
+    ) -join [Environment]::NewLine
+  }
+
+  return $null
+}
+
 function Resolve-ComposeBackendPort {
   param(
     [string]$EnvFilePath,
@@ -776,6 +802,10 @@ try {
 
 $backendReady = Wait-ForBackendReady -Port $effectiveApiPort -TimeoutSeconds 90
 if (-not $backendReady) {
+  $backendStartupDiagnostic = Get-BackendStartupDiagnosticMessage -EnvFilePath $envFilePath
+  if (-not [string]::IsNullOrWhiteSpace($backendStartupDiagnostic)) {
+    throw $backendStartupDiagnostic
+  }
   Write-Warning "Backend health check did not report UP within 90 seconds. Frontend may show temporary API errors."
 }
 

@@ -4,7 +4,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import L from 'leaflet';
 import 'leaflet-edgebuffer';
 import 'leaflet/dist/leaflet.css';
-import { previewAutoAssignRouteGeometry } from '../api.js';
+import { previewAutoAssignRouteGeometry } from '../api/orders.js';
 import { tripStyle } from '../utils/routeColors.js';
 import {
   createTripKey,

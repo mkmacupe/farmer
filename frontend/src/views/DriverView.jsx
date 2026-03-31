@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { getAssignedOrdersPage, markOrderDelivered, subscribeNotifications } from '../api.js';
+import { subscribeNotifications } from '../api/notifications.js';
+import { getAssignedOrdersPage, markOrderDelivered } from '../api/orders.js';
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';

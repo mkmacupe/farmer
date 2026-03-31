@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App.jsx';
 import { clearAuth, loadAuth, saveAuth } from './authStorage.js';
-import { login, primeBackendWarmup } from './api.js';
+import { login, primeBackendWarmup } from './api/auth.js';
 
 vi.mock('./authStorage.js', () => ({
   loadAuth: vi.fn(),
@@ -9,7 +9,7 @@ vi.mock('./authStorage.js', () => ({
   clearAuth: vi.fn()
 }));
 
-vi.mock('./api.js', () => ({
+vi.mock('./api/auth.js', () => ({
   LOGIN_LOADING_MESSAGE: 'Подключаем сервер...',
   login: vi.fn(),
   primeBackendWarmup: vi.fn(() => Promise.resolve(true))
