@@ -31,6 +31,8 @@ springdoc:
     enabled: false
 
 app:
+  flyway:
+    repair-before-migrate: ${APP_FLYWAY_REPAIR_BEFORE_MIGRATE:false}
   demo:
     enabled: ${APP_DEMO_ENABLED:false}
     seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:false}

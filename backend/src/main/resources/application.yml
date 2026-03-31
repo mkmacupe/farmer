@@ -41,6 +41,8 @@ app:
     seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
     transport-seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
     product-images-dir: ${APP_DEMO_PRODUCT_IMAGES_DIR:}
+  flyway:
+    repair-before-migrate: false
   geo:
     nominatim-base-url: ${APP_GEO_NOMINATIM_BASE_URL:https://nominatim.openstreetmap.org}
     user-agent: ${APP_GEO_USER_AGENT:FarmSalesCourseProject/1.0}

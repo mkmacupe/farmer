@@ -18,6 +18,11 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
+      # Legacy Render databases may still store historical Flyway checksums
+      # from older migration revisions. Repair once before migrate so deploys
+      # can recover without disabling validation globally.
+      - key: APP_FLYWAY_REPAIR_BEFORE_MIGRATE
+        value: "true"
       # Keep demo/reset off by default. Full demo catalog on Render requires
       # supplying frontend/public/images/products to the backend container.
       - key: APP_DEMO_ENABLED
