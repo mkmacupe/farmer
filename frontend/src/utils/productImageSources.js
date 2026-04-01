@@ -1,13 +1,17 @@
-export function buildGeneratedProductImageUrl(productId) {
-  const normalizedId = Number(productId);
-  if (!Number.isInteger(normalizedId) || normalizedId <= 0) {
+export function buildGeneratedProductImageAlias(src) {
+  const resolvedSrc = typeof src === "string" ? src.trim() : "";
+  if (!resolvedSrc) {
     return "";
   }
-  return `/images/products/product_${String(normalizedId).padStart(4, "0")}.jpg`;
+  const match = resolvedSrc.match(/^\/images\/products\/([a-z0-9-]+)\.webp$/i);
+  if (!match) {
+    return "";
+  }
+  return `/images/products/${match[1]}.jpg`;
 }
 
-export function buildProductImageCandidates({ productId, src }) {
-  const generatedUrl = buildGeneratedProductImageUrl(productId);
+export function buildProductImageCandidates({ src }) {
+  const generatedUrl = buildGeneratedProductImageAlias(src);
   const resolvedSrc = typeof src === "string" ? src.trim() : "";
 
   if (generatedUrl && resolvedSrc && generatedUrl !== resolvedSrc) {
