@@ -7,6 +7,11 @@ import {
   useState,
 } from "react";
 import { LOGIN_LOADING_MESSAGE, login, primeBackendWarmup } from "./api/auth.js";
+import {
+  AUTH_EXPIRED_EVENT,
+  AUTH_EXPIRED_MESSAGE,
+  resetAuthExpiredSignal,
+} from "./api/core.js";
 import { clearAuth, loadAuth, saveAuth } from "./authStorage.js";
 import LoginForm from "./components/LoginForm.jsx";
 import { NAV_ITEMS } from "./components/navigationData.js";
@@ -88,6 +93,7 @@ export default function App() {
   useEffect(() => {
     if (auth) {
       saveAuth(auth);
+      resetAuthExpiredSignal();
     }
   }, [auth]);
 
@@ -97,6 +103,26 @@ export default function App() {
       void primeBackendWarmup();
     }
   }, [auth]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return undefined;
+    }
+
+    const handleAuthExpired = (event) => {
+      const nextMessage = event?.detail?.message || AUTH_EXPIRED_MESSAGE;
+      clearAuth();
+      clearSectionHash();
+      setError(nextMessage);
+      setAuth(null);
+      setActiveSection("");
+    };
+
+    window.addEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    return () => {
+      window.removeEventListener(AUTH_EXPIRED_EVENT, handleAuthExpired);
+    };
+  }, []);
 
   useEffect(() => {
     if (!auth || typeof window === "undefined") {
@@ -165,8 +191,10 @@ export default function App() {
   const handleLogout = useCallback(() => {
     setAuth(null);
     setActiveSection("");
+    setError("");
     clearSectionHash();
     clearAuth();
+    resetAuthExpiredSignal();
   }, []);
 
   if (!auth) {

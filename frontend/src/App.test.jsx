@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import App from './App.jsx';
 import { clearAuth, loadAuth, saveAuth } from './authStorage.js';
 import { login, primeBackendWarmup } from './api/auth.js';
@@ -156,6 +156,30 @@ describe('App', () => {
     });
     expect(window.location.hash).toBe('');
     expect(await screen.findByRole('heading', { name: /вход/i })).toBeInTheDocument();
+  });
+
+  it('clears persisted auth after global 401 event', async () => {
+    loadAuth.mockReturnValue({
+      token: 'persisted-token',
+      username: 'driver',
+      fullName: 'Driver One',
+      role: 'DRIVER'
+    });
+
+    render(<App />);
+    await findWorkspaceHeading(/мои доставки/i);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent('farm-sales-auth-expired', {
+        detail: { message: 'Сессия истекла. Войдите снова.' }
+      }));
+    });
+
+    await waitFor(() => {
+      expect(clearAuth).toHaveBeenCalledTimes(1);
+    });
+    expect(await screen.findByRole('heading', { name: /вход/i })).toBeInTheDocument();
+    expect(await screen.findByText('Сессия истекла. Войдите снова.')).toBeInTheDocument();
   });
 
   it('updates active section when authenticated app triggers navigation', async () => {

@@ -32,8 +32,11 @@ export const AUTO_ASSIGN_TIMEOUT_MS = 90_000;
 export const ROUTE_GEOMETRY_TIMEOUT_MS = 45_000;
 export const NETWORK_TIMEOUT_MESSAGE = 'Истекло время ожидания ответа от сервера.';
 export const NETWORK_UNAVAILABLE_MESSAGE = 'Сервер недоступен. Убедитесь, что backend запущен.';
+export const AUTH_EXPIRED_EVENT = 'farm-sales-auth-expired';
+export const AUTH_EXPIRED_MESSAGE = 'Сессия истекла. Войдите снова.';
 
 const RETRYABLE_RESPONSE_STATUSES = new Set([408, 425, 429, 502, 503, 504]);
+let authExpiredDispatched = false;
 
 export const DEFAULT_RETRY_POLICY = Object.freeze({
   attempts: 2,
@@ -64,6 +67,37 @@ export function normalizeFetchError(error) {
     return createApiError(NETWORK_UNAVAILABLE_MESSAGE, { code: 'NETWORK_UNAVAILABLE' });
   }
   return error;
+}
+
+function hasAuthorizationHeader(headers) {
+  if (!headers) {
+    return false;
+  }
+
+  if (headers instanceof Headers) {
+    return headers.has('Authorization');
+  }
+
+  if (Array.isArray(headers)) {
+    return headers.some(([key]) => String(key).toLowerCase() === 'authorization');
+  }
+
+  return Object.keys(headers).some((key) => key.toLowerCase() === 'authorization');
+}
+
+function notifyAuthExpired(message = AUTH_EXPIRED_MESSAGE) {
+  if (authExpiredDispatched || typeof window === 'undefined') {
+    return;
+  }
+
+  authExpiredDispatched = true;
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT, {
+    detail: { message },
+  }));
+}
+
+export function resetAuthExpiredSignal() {
+  authExpiredDispatched = false;
 }
 
 function resolveRetryPolicy(method, retryPolicy) {
@@ -162,7 +196,11 @@ export async function apiFetchOnce(url, options = {}) {
   }
 
   try {
-    return await globalThis.fetch(url, { ...rest, signal: controller.signal });
+    const response = await globalThis.fetch(url, { ...rest, signal: controller.signal });
+    if (response.status === 401 && hasAuthorizationHeader(rest.headers)) {
+      notifyAuthExpired();
+    }
+    return response;
   } catch (error) {
     throw normalizeFetchError(error);
   } finally {
