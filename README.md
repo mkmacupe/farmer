@@ -79,7 +79,7 @@ npm run dev
 
 ## Scenario Reset
 
-Локально scenario reset доступен сразу в `dev`-контуре. В публичном `prod`-deploy demo-endpoint'ы по умолчанию отключены: и `render.yaml`, и `docker-compose.yml` теперь стартуют с `APP_DEMO_ENABLED=false` и `APP_DEMO_SEED_ON_STARTUP=false`.
+Если идти по quick start из этого репозитория (`.env.example` -> `.env` -> `start-dev.ps1`), локальный scenario reset доступен сразу в `dev`-контуре. При этом безопасные fallback-defaults в `render.yaml` и `docker-compose.yml` по-прежнему оставляют demo/reset выключенными, если переменные окружения явно не заданы.
 
 Если нужен reset на публичном backend для защиты, включите его осознанно:
 
@@ -94,7 +94,7 @@ APP_DEMO_SEED_ON_STARTUP=true
 .\scenario-reset.bat
 ```
 
-Скрипт по умолчанию пытается обновить локальный backend, если он доступен, и публичный backend `https://farm-sales-backend.onrender.com/api`. Для публичного адреса reset сработает только если demo-режим включён явно. При необходимости можно передать конкретный `-Base` или URL первым аргументом в `.bat`.
+Скрипт по умолчанию пытается обновить локальный backend, если он доступен, и публичный backend `https://farm-sales-backend.onrender.com/api`. Для публичного адреса reset сработает только если demo-эндпоинты включены явно. При необходимости можно передать конкретный `-Base` или URL первым аргументом в `.bat`.
 
 Сбросить только заказы до нуля, оставив точки магазинов:
 
@@ -106,14 +106,14 @@ Reset очищает накопленное runtime-состояние, пере
 
 ## Аккаунты
 
-| Роль | Логин | Пароль |
+Логины и пароли фиксированы. Полный список учёток и паролей хранится в `accounts.txt`.
+
+| Роль | Логин | Источник пароля |
 |---|---|---|
-| Director | полный список в `accounts.txt` | полный список в `accounts.txt` |
+| Director | полный список в `accounts.txt` | индивидуальный пароль из `accounts.txt` |
 | Manager | `manager` | `MgrD5v8cN4` |
 | Logistician | `logistician` | `LogS7q1wE5` |
-| Driver | `driver1` | `Drv1A9k2Z6` |
-| Driver | `driver2` | `Drv2B8m3Y7` |
-| Driver | `driver3` | `Drv3C7n4X8` |
+| Driver | `driver1`, `driver2`, `driver3` | индивидуальный пароль из `accounts.txt` |
 
 ## Проверка
 

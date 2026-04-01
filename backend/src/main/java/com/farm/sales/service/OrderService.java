@@ -60,7 +60,6 @@ public class OrderService {
   private static final int DEFAULT_ORDERS_PAGE_SIZE = 50;
   private static final int MAX_ORDERS_PAGE_SIZE = 200;
   private static final int ROUTING_FETCH_PAGE_SIZE = 200;
-  private static final int ROUTING_FETCH_MAX_PAGES = 50;
   private static final int ROAD_MATRIX_DELIVERY_POINT_THRESHOLD = 60;
   private static final int TRANSPORT_DRIVER_LIMIT = 3;
   private static final double EARTH_RADIUS_KM = 6371.0088;
@@ -568,31 +567,19 @@ public class OrderService {
 
   private List<Order> loadApprovedOrdersForRouting(boolean forUpdate) {
     List<Order> approvedOrders = new ArrayList<>();
-    boolean reachedPageLimit = true;
 
-    for (int page = 0; page < ROUTING_FETCH_MAX_PAGES; page++) {
+    for (int page = 0; ; page++) {
       PageRequest pageRequest = PageRequest.of(page, ROUTING_FETCH_PAGE_SIZE);
       List<Order> chunk = forUpdate
           ? orderRepository.findByStatusOrderByCreatedAtDescForUpdate(OrderStatus.APPROVED, pageRequest)
           : orderRepository.findByStatusOrderByCreatedAtDesc(OrderStatus.APPROVED, pageRequest);
       if (chunk.isEmpty()) {
-        reachedPageLimit = false;
         break;
       }
       approvedOrders.addAll(chunk);
       if (chunk.size() < ROUTING_FETCH_PAGE_SIZE) {
-        reachedPageLimit = false;
         break;
       }
-    }
-
-    if (reachedPageLimit) {
-      log.warn(
-          "Auto-assign approved orders list was truncated at {} records ({} pages x {}).",
-          approvedOrders.size(),
-          ROUTING_FETCH_MAX_PAGES,
-          ROUTING_FETCH_PAGE_SIZE
-      );
     }
     return approvedOrders;
   }

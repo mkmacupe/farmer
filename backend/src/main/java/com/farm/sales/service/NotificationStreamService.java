@@ -6,6 +6,8 @@ import com.farm.sales.repository.RealtimeNotificationRepository;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import java.io.IOException;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
@@ -16,9 +18,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -34,15 +39,33 @@ public class NotificationStreamService {
   private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor();
   private final ScheduledExecutorService dispatchExecutor = Executors.newSingleThreadScheduledExecutor();
   private final RealtimeNotificationRepository notificationRepository;
-  private volatile long lastDispatchedId;
+  private final Clock clock;
+  private final Duration notificationRetention;
+  private final Duration cleanupInterval;
+  private volatile Instant nextCleanupAt;
 
-  public NotificationStreamService(RealtimeNotificationRepository notificationRepository) {
+  @Autowired
+  public NotificationStreamService(
+      RealtimeNotificationRepository notificationRepository,
+      @Value("${app.notifications.sse.retention:PT24H}") Duration notificationRetention,
+      @Value("${app.notifications.sse.cleanup-interval:PT5M}") Duration cleanupInterval
+  ) {
+    this(notificationRepository, Clock.systemUTC(), notificationRetention, cleanupInterval);
+  }
+
+  NotificationStreamService(RealtimeNotificationRepository notificationRepository,
+                            Clock clock,
+                            Duration notificationRetention,
+                            Duration cleanupInterval) {
     this.notificationRepository = notificationRepository;
+    this.clock = clock;
+    this.notificationRetention = sanitizeDuration(notificationRetention, Duration.ofHours(24));
+    this.cleanupInterval = sanitizeDuration(cleanupInterval, Duration.ofMinutes(5));
   }
 
   @PostConstruct
   void initSchedulers() {
-    lastDispatchedId = notificationRepository.findMaxId().orElse(0L);
+    nextCleanupAt = clock.instant();
     heartbeatExecutor.scheduleAtFixedRate(this::sendHeartbeat, HEARTBEAT_SECONDS, HEARTBEAT_SECONDS, TimeUnit.SECONDS);
     dispatchExecutor.scheduleWithFixedDelay(
         this::dispatchPendingNotificationsSafely,
@@ -54,7 +77,7 @@ public class NotificationStreamService {
 
   public SseEmitter subscribe(Long userId, Set<String> roles) {
     SseEmitter emitter = new SseEmitter(STREAM_TIMEOUT_MS);
-    Subscriber subscriber = new Subscriber(userId, normalizeRoles(roles), emitter);
+    Subscriber subscriber = new Subscriber(userId, normalizeRoles(roles), emitter, new AtomicLong(initialCursor()));
     subscribers.add(subscriber);
     enforceSubscriberLimit();
 
@@ -132,6 +155,12 @@ public class NotificationStreamService {
       logger.warn("Failed to dispatch realtime notifications: {}", ex.getMessage());
       logger.debug("Realtime notification dispatcher failure", ex);
     }
+    try {
+      cleanupExpiredNotificationsIfDue();
+    } catch (Exception ex) {
+      logger.warn("Failed to cleanup realtime notifications: {}", ex.getMessage());
+      logger.debug("Realtime notification cleanup failure", ex);
+    }
   }
 
   private void dispatchPendingNotifications() {
@@ -140,14 +169,13 @@ public class NotificationStreamService {
     }
 
     while (true) {
-      var batch = notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(lastDispatchedId);
+      var batch = notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(oldestSubscriberCursor());
       if (batch.isEmpty()) {
         return;
       }
 
       for (RealtimeNotification event : batch) {
         dispatchEvent(event);
-        lastDispatchedId = event.getId();
       }
 
       if (batch.size() < DISPATCH_BATCH_SIZE) {
@@ -157,26 +185,77 @@ public class NotificationStreamService {
   }
 
   private void dispatchEvent(RealtimeNotification event) {
+    Long eventId = event.getId();
+    if (eventId == null) {
+      return;
+    }
+
     Set<String> targetRoles = decodeRoles(event.getTargetRoles());
     if (targetRoles.isEmpty()) {
+      markEventSeen(eventId);
       return;
     }
     Set<Long> targetUserIds = decodeUserIds(event.getTargetUserIds());
     RealtimeNotificationResponse notification = toResponse(event);
 
     for (Subscriber subscriber : subscribers) {
+      if (subscriber.lastSeenNotificationId().get() >= eventId) {
+        continue;
+      }
       if (!isRoleMatched(subscriber.roles(), targetRoles)) {
+        subscriber.lastSeenNotificationId().set(eventId);
         continue;
       }
       if (!isUserMatched(subscriber.userId(), targetUserIds)) {
+        subscriber.lastSeenNotificationId().set(eventId);
         continue;
       }
       try {
         subscriber.emitter().send(SseEmitter.event().name("notification").data(notification));
+        subscriber.lastSeenNotificationId().set(eventId);
       } catch (IOException ex) {
         subscriber.emitter().completeWithError(ex);
         subscribers.remove(subscriber);
       }
+    }
+  }
+
+  private void cleanupExpiredNotificationsIfDue() {
+    Instant now = clock.instant();
+    if (nextCleanupAt != null && now.isBefore(nextCleanupAt)) {
+      return;
+    }
+    cleanupExpiredNotifications();
+    nextCleanupAt = now.plus(cleanupInterval);
+  }
+
+  private void cleanupExpiredNotifications() {
+    long cleanupUpperBound = subscribers.isEmpty()
+        ? notificationRepository.findMaxId().orElse(0L)
+        : oldestSubscriberCursor();
+    if (cleanupUpperBound <= 0L) {
+      return;
+    }
+    notificationRepository.deleteByCreatedAtBeforeAndIdLessThanEqual(retentionCutoff(), cleanupUpperBound);
+  }
+
+  private long initialCursor() {
+    return notificationRepository.findEarliestRetainedId(retentionCutoff())
+        .map(id -> Math.max(0L, id - 1L))
+        .orElseGet(() -> notificationRepository.findMaxId().orElse(0L));
+  }
+
+  private long oldestSubscriberCursor() {
+    long cursor = Long.MAX_VALUE;
+    for (Subscriber subscriber : subscribers) {
+      cursor = Math.min(cursor, subscriber.lastSeenNotificationId().get());
+    }
+    return cursor == Long.MAX_VALUE ? 0L : cursor;
+  }
+
+  private void markEventSeen(Long eventId) {
+    for (Subscriber subscriber : subscribers) {
+      subscriber.lastSeenNotificationId().updateAndGet(current -> Math.max(current, eventId));
     }
   }
 
@@ -291,12 +370,26 @@ public class NotificationStreamService {
     return normalized == null ? fallback : normalized;
   }
 
+  private Instant retentionCutoff() {
+    return clock.instant().minus(notificationRetention);
+  }
+
+  private Duration sanitizeDuration(Duration candidate, Duration fallback) {
+    if (candidate == null || candidate.isNegative() || candidate.isZero()) {
+      return fallback;
+    }
+    return candidate;
+  }
+
   @PreDestroy
   void shutdown() {
     heartbeatExecutor.shutdownNow();
     dispatchExecutor.shutdownNow();
   }
 
-  private record Subscriber(Long userId, Set<String> roles, SseEmitter emitter) {
+  private record Subscriber(Long userId,
+                            Set<String> roles,
+                            SseEmitter emitter,
+                            AtomicLong lastSeenNotificationId) {
   }
 }

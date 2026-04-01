@@ -1790,6 +1790,7 @@ export default function ManagerView({ token, activeSection }) {
                 }}
               >
                 <ProductImage
+                  productId={product.id}
                   src={product.photoUrl}
                   alt={product.name}
                   width={isMobile ? 72 : 56}

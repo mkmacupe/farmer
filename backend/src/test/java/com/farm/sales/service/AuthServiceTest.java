@@ -26,6 +26,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.web.server.ResponseStatusException;
 
 class AuthServiceTest {
+  private static final String MANAGER_DEMO_PASSWORD = "MgrD5v8cN4";
+
   private UserRepository userRepository;
   private PasswordEncoder passwordEncoder;
   private JwtEncoder jwtEncoder;
@@ -124,12 +126,12 @@ class AuthServiceTest {
     user.setPasswordHash("stored-hash");
 
     when(userRepository.findByUsername("manager")).thenReturn(Optional.of(user));
-    when(passwordEncoder.matches("MgrD5v8cN4", "stored-hash")).thenReturn(true);
+    when(passwordEncoder.matches(MANAGER_DEMO_PASSWORD, "stored-hash")).thenReturn(true);
     Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
     when(jwt.getTokenValue()).thenReturn("demo-token");
     when(jwtEncoder.encode(any())).thenReturn(jwt);
 
-    AuthResponse response = authService.demoLogin("manager", "MgrD5v8cN4");
+    AuthResponse response = authService.demoLogin("manager", MANAGER_DEMO_PASSWORD);
 
     assertThat(response.token()).isEqualTo("demo-token");
     assertThat(response.role()).isEqualTo("MANAGER");
@@ -179,12 +181,12 @@ class AuthServiceTest {
     when(userRepository.findByUsername("manager"))
         .thenReturn(Optional.empty())
         .thenReturn(Optional.of(user));
-    when(passwordEncoder.matches("MgrD5v8cN4", "stored-hash")).thenReturn(true);
+    when(passwordEncoder.matches(MANAGER_DEMO_PASSWORD, "stored-hash")).thenReturn(true);
     Jwt jwt = org.mockito.Mockito.mock(Jwt.class);
     when(jwt.getTokenValue()).thenReturn("lazy-seed-token");
     when(jwtEncoder.encode(any())).thenReturn(jwt);
 
-    AuthResponse response = authService.login(new AuthRequest("manager", "MgrD5v8cN4"));
+    AuthResponse response = authService.login(new AuthRequest("manager", MANAGER_DEMO_PASSWORD));
 
     assertThat(response.token()).isEqualTo("lazy-seed-token");
     verify(dataInitializer).seedDemoData();

@@ -62,7 +62,6 @@ class DataInitializerTest {
         storeAddressRepository,
         passwordEncoder
     );
-
     when(passwordEncoder.encode(anyString())).thenAnswer(invocation -> {
       String rawPassword = invocation.getArgument(0, String.class);
       return "encoded::" + rawPassword;
@@ -132,6 +131,87 @@ class DataInitializerTest {
     dataInitializer.seedDemoData();
 
     verify(userRepository, atLeast(1)).findByUsername(anyString());
+  }
+
+  @Test
+  void runUsesIndividualDemoPasswordsPerAccount() {
+    when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
+    when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.count()).thenReturn(20L);
+    when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
+
+    AtomicLong userIds = new AtomicLong(100);
+    when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+      User user = invocation.getArgument(0);
+      if (user.getId() == null) {
+        user.setId(userIds.incrementAndGet());
+      }
+      return user;
+    });
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(storeAddressRepository.save(any(StoreAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    dataInitializer.run();
+
+    ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+    verify(userRepository, times(expectedSeededUsernames().size())).save(userCaptor.capture());
+
+    User manager = userCaptor.getAllValues().stream()
+        .filter(user -> "manager".equals(user.getUsername()))
+        .findFirst()
+        .orElseThrow();
+    User driver = userCaptor.getAllValues().stream()
+        .filter(user -> "driver1".equals(user.getUsername()))
+        .findFirst()
+        .orElseThrow();
+    User director = userCaptor.getAllValues().stream()
+        .filter(user -> "diralekseev".equals(user.getUsername()))
+        .findFirst()
+        .orElseThrow();
+
+    assertThat(manager.getPasswordHash()).isEqualTo("encoded::MgrD5v8cN4");
+    assertThat(driver.getPasswordHash()).isEqualTo("encoded::Drv1A9k2Z6");
+    assertThat(director.getPasswordHash()).isEqualTo("encoded::AlekseevFarm26");
+  }
+
+  @Test
+  void runDoesNotOverwriteExistingIndividualPasswordHashWithSharedSecret() {
+    Map<String, User> usersByUsername = new HashMap<>();
+    User existingDirector = new User(
+        "diralekseev",
+        "encoded::AlekseevFarm26",
+        "Андрей Алексеев",
+        "+375291000001",
+        "ООО \"Лавка Полесья\"",
+        Role.DIRECTOR
+    );
+    existingDirector.setId(101L);
+    usersByUsername.put("diralekseev", existingDirector);
+
+    when(userRepository.findByUsername(any())).thenAnswer(invocation -> Optional.ofNullable(
+        usersByUsername.get(invocation.getArgument(0, String.class).toLowerCase(Locale.ROOT))
+    ));
+    when(passwordEncoder.matches("AlekseevFarm26", "encoded::AlekseevFarm26")).thenReturn(true);
+    when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.count()).thenReturn(20L);
+    when(storeAddressRepository.existsByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(false);
+    when(storeAddressRepository.findByUserIdAndLabelIgnoreCase(any(), any())).thenReturn(Optional.empty());
+
+    AtomicLong userIds = new AtomicLong(1000);
+    when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+      User user = invocation.getArgument(0);
+      if (user.getId() == null) {
+        user.setId(userIds.incrementAndGet());
+      }
+      usersByUsername.put(user.getUsername().toLowerCase(Locale.ROOT), user);
+      return user;
+    });
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+    when(storeAddressRepository.save(any(StoreAddress.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    dataInitializer.run();
+
+    assertThat(existingDirector.getPasswordHash()).isEqualTo("encoded::AlekseevFarm26");
   }
 
   @Test

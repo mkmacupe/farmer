@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 @RestController
 @RequestMapping("/api/orders")
@@ -176,14 +177,20 @@ public class OrderController {
     }
 
     String username = jwt == null ? null : jwt.getSubject();
-    if (username == null || username.isBlank()) {
-      return claimedUserId;
-    }
-
-    return safeFindByUsername(username.trim())
+    if (username != null && !username.isBlank()) {
+      return safeFindByUsername(username.trim())
         .filter(user -> user.getRole() == expectedRole)
         .map(User::getId)
-        .orElse(claimedUserId);
+        .orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.UNAUTHORIZED,
+            "Пользователь из токена не подтверждён для требуемой роли"
+        ));
+    }
+
+    throw new ResponseStatusException(
+        HttpStatus.UNAUTHORIZED,
+        "Пользователь из токена не подтверждён для требуемой роли"
+    );
   }
 
   private Optional<User> safeFindById(Long userId) {

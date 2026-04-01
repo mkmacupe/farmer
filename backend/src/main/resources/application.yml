@@ -56,6 +56,10 @@ app:
     cache-ttl-ms: ${APP_ROUTING_CACHE_TTL_MS:900000}
     cache-max-entries: ${APP_ROUTING_CACHE_MAX_ENTRIES:10000}
     max-table-coordinates: ${APP_ROUTING_MAX_TABLE_COORDINATES:50}
+  notifications:
+    sse:
+      retention: ${APP_NOTIFICATIONS_SSE_RETENTION:PT24H}
+      cleanup-interval: ${APP_NOTIFICATIONS_SSE_CLEANUP_INTERVAL:PT5M}
 
 management:
   endpoints:

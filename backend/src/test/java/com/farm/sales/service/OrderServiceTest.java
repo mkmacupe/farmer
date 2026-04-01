@@ -39,6 +39,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
+import java.lang.reflect.Method;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -1098,6 +1099,33 @@ class OrderServiceTest {
           assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
           assertThat(ex.getReason()).contains("водители не найдены");
         });
+  }
+
+  @Test
+  void loadApprovedOrdersForRoutingDoesNotStopAfterFiftyPages() throws Exception {
+    User director = user(7L, "Director", Role.DIRECTOR);
+    List<Order> fullPage = new ArrayList<>();
+    for (long id = 1; id <= 200; id++) {
+      fullPage.add(order(id, director, OrderStatus.APPROVED));
+    }
+    List<Order> finalPage = List.of(order(10_201L, director, OrderStatus.APPROVED));
+
+    org.mockito.stubbing.OngoingStubbing<List<Order>> stubbing =
+        when(orderRepository.findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class)));
+    for (int page = 0; page < 51; page++) {
+      stubbing = stubbing.thenReturn(fullPage);
+    }
+    stubbing.thenReturn(finalPage).thenReturn(List.of());
+
+    Method method = OrderService.class.getDeclaredMethod("loadApprovedOrdersForRouting", boolean.class);
+    method.setAccessible(true);
+
+    @SuppressWarnings("unchecked")
+    List<Order> loadedOrders = (List<Order>) method.invoke(orderService, false);
+
+    assertThat(loadedOrders).hasSize(10_201);
+    verify(orderRepository, times(52))
+        .findByStatusOrderByCreatedAtDesc(eq(OrderStatus.APPROVED), any(Pageable.class));
   }
 
   @Test

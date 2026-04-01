@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 import com.farm.sales.dto.AutoAssignApproveItemRequest;
@@ -59,6 +60,7 @@ class OrderControllerTest {
   void createUsesUserIdFromStringClaim() {
     Jwt jwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(42L);
+    when(userRepository.findById(42L)).thenReturn(Optional.of(user(42L, "director", Role.DIRECTOR)));
 
     OrderCreateRequest request = new OrderCreateRequest(7L, List.of(new OrderItemRequest(1L, 2)));
     when(orderService.createOrder(eq(42L), any(OrderCreateRequest.class))).thenReturn(sampleOrder());
@@ -119,6 +121,7 @@ class OrderControllerTest {
   void assignDriverDelegatesToService() {
     Jwt jwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(18L);
+    when(userRepository.findById(18L)).thenReturn(Optional.of(user(18L, "logistician", Role.LOGISTICIAN)));
     when(orderService.assignDriver(101L, 18L, 31L)).thenReturn(sampleOrder());
 
     var response = controller.assignDriver(101L, jwt, new DriverAssignRequest(31L));
@@ -131,6 +134,7 @@ class OrderControllerTest {
   void autoAssignDelegatesToService() {
     Jwt jwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(18L);
+    when(userRepository.findById(18L)).thenReturn(Optional.of(user(18L, "logistician", Role.LOGISTICIAN)));
     AutoAssignResultResponse result = new AutoAssignResultResponse(
         2,
         2,
@@ -245,10 +249,30 @@ class OrderControllerTest {
   }
 
   @Test
+  void autoAssignPreviewRejectsUsernameFallbackWhenResolvedUserHasWrongRole() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(18L);
+    when(jwt.getSubject()).thenReturn("director");
+    when(userRepository.findById(18L)).thenReturn(Optional.empty());
+    when(userRepository.findByUsername("director"))
+        .thenReturn(Optional.of(user(118L, "director", Role.DIRECTOR)));
+
+    assertThatThrownBy(() -> controller.autoAssignPreview(jwt, null))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        });
+
+    verifyNoInteractions(orderService);
+  }
+
+  @Test
   void timelineDelegatesToService() {
     Jwt jwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(42L);
     when(jwtClaimsReader.requireSingleRole(jwt)).thenReturn(Role.MANAGER);
+    when(userRepository.findById(42L)).thenReturn(Optional.of(user(42L, "manager", Role.MANAGER)));
 
     List<OrderTimelineEventResponse> events = List.of(
         new OrderTimelineEventResponse(1L, 101L, "CREATED", "APPROVED", "manager", 8L, "MANAGER", "", Instant.now())
@@ -266,6 +290,7 @@ class OrderControllerTest {
   void repeatDelegatesToService() {
     Jwt jwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(42L);
+    when(userRepository.findById(42L)).thenReturn(Optional.of(user(42L, "director", Role.DIRECTOR)));
     when(orderService.repeatOrder(42L, 77L)).thenReturn(sampleOrder());
 
     var response = controller.repeat(77L, jwt);
@@ -278,6 +303,7 @@ class OrderControllerTest {
   void myOrdersAndAssignedOrdersDelegateToService() {
     Jwt directorJwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(directorJwt)).thenReturn(42L);
+    when(userRepository.findById(42L)).thenReturn(Optional.of(user(42L, "director", Role.DIRECTOR)));
     when(orderService.getOrdersForRole(Role.DIRECTOR, 42L)).thenReturn(List.of(sampleOrder()));
 
     var myOrders = controller.myOrders(directorJwt);
@@ -288,6 +314,7 @@ class OrderControllerTest {
 
     Jwt driverJwt = mock(Jwt.class);
     when(jwtClaimsReader.requireUserId(driverJwt)).thenReturn(55L);
+    when(userRepository.findById(55L)).thenReturn(Optional.of(user(55L, "driver", Role.DRIVER)));
     when(orderService.getOrdersForRole(Role.DRIVER, 55L)).thenReturn(List.of(sampleOrder()));
 
     var assigned = controller.assignedOrders(driverJwt);
@@ -298,30 +325,56 @@ class OrderControllerTest {
   }
 
   @Test
-  void allOrdersApproveAndDeliverDelegateToService() {
+  void allOrdersApproveAndApproveAllDelegateToService() {
     Jwt jwt = mock(Jwt.class);
     when(jwtClaimsReader.requireSingleRole(jwt)).thenReturn(Role.MANAGER);
     when(jwtClaimsReader.requireUserId(jwt)).thenReturn(10L);
+    when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "manager", Role.MANAGER)));
     when(orderService.getOrdersForRole(Role.MANAGER, 10L)).thenReturn(List.of(sampleOrder()));
     when(orderService.approveOrder(101L, 10L)).thenReturn(sampleOrder());
     when(orderService.approveAllOrders(10L)).thenReturn(List.of(sampleOrder()));
-    when(orderService.markDelivered(101L, 10L)).thenReturn(sampleOrder());
 
     var allOrders = controller.allOrders(jwt);
     var approved = controller.approve(101L, jwt);
     var approvedAll = controller.approveAll(jwt);
-    var delivered = controller.deliver(101L, jwt);
 
     assertThat(allOrders.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(allOrders.getBody()).hasSize(1);
     assertThat(approved.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(approvedAll.getStatusCode()).isEqualTo(HttpStatus.OK);
     assertThat(approvedAll.getBody()).hasSize(1);
-    assertThat(delivered.getStatusCode()).isEqualTo(HttpStatus.OK);
     verify(orderService).getOrdersForRole(Role.MANAGER, 10L);
     verify(orderService).approveOrder(101L, 10L);
     verify(orderService).approveAllOrders(10L);
+  }
+
+  @Test
+  void deliverDelegatesToServiceForDriver() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(10L);
+    when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "driver", Role.DRIVER)));
+    when(orderService.markDelivered(101L, 10L)).thenReturn(sampleOrder());
+
+    var delivered = controller.deliver(101L, jwt);
+
+    assertThat(delivered.getStatusCode()).isEqualTo(HttpStatus.OK);
     verify(orderService).markDelivered(101L, 10L);
+  }
+
+  @Test
+  void deliverRejectsClaimedUserWhenDatabaseRoleDoesNotMatchExpectedRole() {
+    Jwt jwt = mock(Jwt.class);
+    when(jwtClaimsReader.requireUserId(jwt)).thenReturn(10L);
+    when(userRepository.findById(10L)).thenReturn(Optional.of(user(10L, "manager", Role.MANAGER)));
+
+    assertThatThrownBy(() -> controller.deliver(101L, jwt))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(error -> {
+          ResponseStatusException ex = (ResponseStatusException) error;
+          assertThat(ex.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        });
+
+    verifyNoInteractions(orderService);
   }
 
   private OrderResponse sampleOrder() {

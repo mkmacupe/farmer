@@ -27,6 +27,7 @@ vi.mock('./AuthenticatedApp.jsx', () => ({
 }));
 
 describe('App', () => {
+  const managerDemoPassword = 'ManagerLocalSecret!';
   const findWorkspaceHeading = (name) => screen.findByRole('heading', { name, level: 1 }, { timeout: 10_000 });
 
   beforeEach(() => {
@@ -98,10 +99,10 @@ describe('App', () => {
     render(<App />);
 
     fireEvent.change(screen.getByLabelText(/логин/i), { target: { value: 'manager' } });
-    fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: 'MgrD5v8cN4' } });
+    fireEvent.change(screen.getByLabelText(/пароль/i), { target: { value: managerDemoPassword } });
     fireEvent.click(screen.getByRole('button', { name: /войти/i }));
 
-    await waitFor(() => expect(login).toHaveBeenCalledWith('manager', 'MgrD5v8cN4'));
+    await waitFor(() => expect(login).toHaveBeenCalledWith('manager', managerDemoPassword));
     expect(await findWorkspaceHeading(/рабочий кабинет/i)).toBeInTheDocument();
     expect(screen.getByTestId('active-section')).toHaveTextContent('manager-dashboard');
   });

@@ -161,8 +161,8 @@ class SecurityAuthorizationIntegrationTest {
   void managerCanApproveAllOrders() throws Exception {
     mockMvc.perform(post("/api/orders/approve-all")
             .with(jwtFor("manager", 1L, "MANAGER")))
-        // Security should allow manager to reach controller; service can still return 404 for missing data.
-        .andExpect(status().isNotFound());
+        // In test profile demo users are disabled, so an unbacked manager JWT must be rejected by the controller.
+        .andExpect(status().isUnauthorized());
   }
 
   @Test

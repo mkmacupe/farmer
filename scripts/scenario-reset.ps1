@@ -7,9 +7,9 @@ $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 
+$ProjectRoot = Split-Path -Parent $PSScriptRoot
 $ManagerUsername = "manager"
 $ManagerPassword = "MgrD5v8cN4"
-$ProjectRoot = Split-Path -Parent $PSScriptRoot
 $DeployedBase = "https://farm-sales-backend.onrender.com/api"
 
 function Invoke-LocalRest {

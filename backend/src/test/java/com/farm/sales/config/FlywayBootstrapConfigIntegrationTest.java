@@ -1,19 +1,20 @@
 package com.farm.sales.config;
 
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.util.List;
 import org.flywaydb.core.Flyway;
+import org.flywaydb.core.api.exception.FlywayValidateException;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationStrategy;
 
 class FlywayBootstrapConfigIntegrationTest {
 
   @Test
-  void repairBeforeMigrateRecoversFromLegacyChecksumDrift() throws Exception {
+  void validationFailureStillStopsMigrateWhenRepairFlagIsDisabled() throws Exception {
     String dbName = "farm_sales_repair_" + System.nanoTime();
     String url = "jdbc:h2:mem:" + dbName + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1;DATABASE_TO_LOWER=TRUE";
 
@@ -38,9 +39,9 @@ class FlywayBootstrapConfigIntegrationTest {
         .locations("classpath:db/migration")
         .load();
     FlywayMigrationStrategy strategy = new FlywayBootstrapConfig()
-        .flywayMigrationStrategy(false, "srv-render");
+        .flywayMigrationStrategy(false);
 
-    assertThatCode(() -> strategy.migrate(repairedFlyway))
-        .doesNotThrowAnyException();
+    assertThatThrownBy(() -> strategy.migrate(repairedFlyway))
+        .isInstanceOf(FlywayValidateException.class);
   }
 }

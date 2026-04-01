@@ -1,6 +1,9 @@
-import { memo, useEffect, useState } from "react";
+import { memo, useEffect, useMemo, useState } from "react";
+
+import { buildProductImageCandidates } from "../utils/productImageSources.js";
 
 function ProductImage({
+  productId,
   src,
   alt,
   height = 160,
@@ -8,17 +11,32 @@ function ProductImage({
   borderRadius = 0,
 }) {
   const productName = String(alt || "").trim() || "Без названия";
+  const candidateSources = useMemo(
+    () => buildProductImageCandidates({ productId, src }),
+    [productId, src],
+  );
+  const [activeSourceIndex, setActiveSourceIndex] = useState(0);
   const [failed, setFailed] = useState(false);
-  const hasImage = Boolean(src) && !failed;
+  const activeSource = failed ? "" : candidateSources[activeSourceIndex] || "";
+  const hasImage = Boolean(activeSource);
 
   useEffect(() => {
+    setActiveSourceIndex(0);
     setFailed(false);
-  }, [src]);
+  }, [candidateSources]);
 
   const resolvedWidth = typeof width === "number" ? `${width}px` : width;
   const resolvedHeight = typeof height === "number" ? `${height}px` : height;
   const resolvedBorderRadius =
     typeof borderRadius === "number" ? `${borderRadius * 8}px` : borderRadius;
+
+  const handleError = () => {
+    if (activeSourceIndex < candidateSources.length - 1) {
+      setActiveSourceIndex((current) => current + 1);
+      return;
+    }
+    setFailed(true);
+  };
 
   return (
     <div
@@ -39,13 +57,13 @@ function ProductImage({
     >
       {hasImage ? (
         <img
-          src={src}
+          src={activeSource}
           alt={productName}
           loading="lazy"
           decoding="async"
           width={typeof width === "number" ? width : undefined}
           height={typeof height === "number" ? height : undefined}
-          onError={() => setFailed(true)}
+          onError={handleError}
           style={{
             width: "100%",
             height: "100%",

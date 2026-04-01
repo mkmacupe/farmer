@@ -22,9 +22,12 @@
 # OS
 .DS_Store
 nul
+__pycache__/
+*.py[cod]
 
 # Local env
 .env
 
 # Local course materials
 /курсач отчет пример.docx
+/product_images/

@@ -16,13 +16,18 @@ import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,13 +36,23 @@ import org.mockito.MockedConstruction;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 class NotificationStreamServiceTest {
+  private static final Instant TEST_NOW = Instant.parse("2026-04-01T09:00:00Z");
+  private static final Duration DEFAULT_RETENTION = Duration.ofHours(24);
+  private static final Duration DEFAULT_CLEANUP_INTERVAL = Duration.ofMinutes(5);
   private RealtimeNotificationRepository notificationRepository;
   private NotificationStreamService service;
 
   @BeforeEach
   void setUp() {
     notificationRepository = mock(RealtimeNotificationRepository.class);
-    service = new NotificationStreamService(notificationRepository);
+    when(notificationRepository.findEarliestRetainedId(any(Instant.class))).thenReturn(Optional.empty());
+    when(notificationRepository.findMaxId()).thenReturn(Optional.of(0L));
+    service = new NotificationStreamService(
+        notificationRepository,
+        Clock.fixed(TEST_NOW, ZoneOffset.UTC),
+        DEFAULT_RETENTION,
+        DEFAULT_CLEANUP_INTERVAL
+    );
   }
 
   @Test
@@ -127,6 +142,47 @@ class NotificationStreamServiceTest {
   }
 
   @Test
+  void dispatchPendingNotificationsReplaysRetainedEventsForLateSubscriber() throws Exception {
+    RealtimeNotification event = new RealtimeNotification();
+    event.setId(10L);
+    event.setEventType("ORDER_CREATED");
+    event.setTitle("Новый заказ");
+    event.setMessage("msg");
+    event.setTargetRoles("MANAGER");
+    event.setCreatedAt(Instant.now());
+
+    SseEmitter firstEmitter = mock(SseEmitter.class);
+    SseEmitter lateEmitter = mock(SseEmitter.class);
+    subscribers().add(newSubscriber(1L, Set.of("MANAGER"), firstEmitter));
+
+    when(notificationRepository.findTop200ByIdGreaterThanOrderByIdAsc(anyLong()))
+        .thenAnswer(invocation -> ((Long) invocation.getArgument(0)) >= 10L ? List.of() : List.of(event));
+
+    invoke(service, "dispatchPendingNotifications", new Class<?>[] {});
+    subscribers().add(newSubscriber(2L, Set.of("MANAGER"), lateEmitter));
+    invoke(service, "dispatchPendingNotifications", new Class<?>[] {});
+
+    verify(firstEmitter).send(any(SseEmitter.SseEventBuilder.class));
+    verify(lateEmitter).send(any(SseEmitter.SseEventBuilder.class));
+  }
+
+  @Test
+  void cleanupExpiredNotificationsUsesRetentionWindowAndOldestActiveCursor() throws Exception {
+    when(notificationRepository.findMaxId()).thenReturn(Optional.of(80L));
+
+    invoke(service, "cleanupExpiredNotifications", new Class<?>[] {});
+    verify(notificationRepository)
+        .deleteByCreatedAtBeforeAndIdLessThanEqual(TEST_NOW.minus(DEFAULT_RETENTION), 80L);
+
+    org.mockito.Mockito.clearInvocations(notificationRepository);
+    subscribers().add(newSubscriber(1L, Set.of("MANAGER"), mock(SseEmitter.class), 40L));
+
+    invoke(service, "cleanupExpiredNotifications", new Class<?>[] {});
+    verify(notificationRepository)
+        .deleteByCreatedAtBeforeAndIdLessThanEqual(TEST_NOW.minus(DEFAULT_RETENTION), 40L);
+  }
+
+  @Test
   void dispatchPendingNotificationsLoopsUntilBatchShorterThan200() throws Exception {
     List<RealtimeNotification> fullBatch = new ArrayList<>();
     for (long id = 1; id <= 200; id++) {
@@ -144,7 +200,7 @@ class NotificationStreamServiceTest {
 
     verify(notificationRepository, org.mockito.Mockito.times(2))
         .findTop200ByIdGreaterThanOrderByIdAsc(anyLong());
-    assertThat(lastDispatchedId()).isEqualTo(200L);
+    assertThat(lastSeenNotificationId(subscribers().get(0))).isEqualTo(200L);
   }
 
   @Test
@@ -168,7 +224,7 @@ class NotificationStreamServiceTest {
     invoke(service, "dispatchPendingNotifications", new Class<?>[] {});
 
     verify(notificationRepository).findTop200ByIdGreaterThanOrderByIdAsc(anyLong());
-    assertThat(lastDispatchedId()).isEqualTo(55L);
+    assertThat(lastSeenNotificationId(subscribers().get(0))).isEqualTo(55L);
   }
 
   @Test
@@ -280,10 +336,6 @@ class NotificationStreamServiceTest {
     return (CopyOnWriteArrayList<Object>) field("subscribers").get(service);
   }
 
-  private long lastDispatchedId() throws Exception {
-    return (long) field("lastDispatchedId").get(service);
-  }
-
   private Field field(String name) throws Exception {
     Field field = NotificationStreamService.class.getDeclaredField(name);
     field.setAccessible(true);
@@ -297,9 +349,23 @@ class NotificationStreamServiceTest {
   }
 
   private Object newSubscriber(Long userId, Set<String> roles, SseEmitter emitter) throws Exception {
+    return newSubscriber(userId, roles, emitter, 0L);
+  }
+
+  private Object newSubscriber(Long userId,
+                               Set<String> roles,
+                               SseEmitter emitter,
+                               long lastSeenNotificationId) throws Exception {
     Class<?> subscriberClass = Class.forName("com.farm.sales.service.NotificationStreamService$Subscriber");
-    Constructor<?> constructor = subscriberClass.getDeclaredConstructor(Long.class, Set.class, SseEmitter.class);
+    Constructor<?> constructor = subscriberClass.getDeclaredConstructor(Long.class, Set.class, SseEmitter.class, AtomicLong.class);
     constructor.setAccessible(true);
-    return constructor.newInstance(userId, roles, emitter);
+    return constructor.newInstance(userId, roles, emitter, new AtomicLong(lastSeenNotificationId));
+  }
+
+  private long lastSeenNotificationId(Object subscriber) throws Exception {
+    Class<?> subscriberClass = Class.forName("com.farm.sales.service.NotificationStreamService$Subscriber");
+    Method accessor = subscriberClass.getDeclaredMethod("lastSeenNotificationId");
+    accessor.setAccessible(true);
+    return ((AtomicLong) accessor.invoke(subscriber)).get();
   }
 }

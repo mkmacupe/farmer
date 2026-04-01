@@ -1342,6 +1342,7 @@ export default function DirectorView({ token, activeSection }) {
                         }}
                       >
                         <ProductImage
+                          productId={product.id}
                           src={product.photoUrl}
                           alt={product.name}
                           height={160}

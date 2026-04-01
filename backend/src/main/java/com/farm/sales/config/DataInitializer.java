@@ -1229,12 +1229,17 @@ public class DataInitializer implements CommandLineRunner {
   }
 
   private String seededPassword(String username) {
-    String staticPassword = SEEDED_USER_PASSWORDS.get(username);
+    if (username == null || username.isBlank()) {
+      return null;
+    }
+
+    String normalizedUsername = username.trim().toLowerCase(Locale.ROOT);
+    String staticPassword = SEEDED_USER_PASSWORDS.get(normalizedUsername);
     if (staticPassword != null) {
       return staticPassword;
     }
 
-    DirectorSeedProfile directorProfile = findDirectorSeedProfile(username);
+    DirectorSeedProfile directorProfile = findDirectorSeedProfile(normalizedUsername);
     if (directorProfile != null) {
       return directorProfile.password();
     }
@@ -1266,10 +1271,6 @@ public class DataInitializer implements CommandLineRunner {
 
   public static String formatDemoDirectorUsername(int index) {
     return directorProfile(index).username();
-  }
-
-  public static String formatDemoDirectorPassword(int index) {
-    return directorProfile(index).password();
   }
 
   public static int parseDemoDirectorIndex(String username) {

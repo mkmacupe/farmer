@@ -848,5 +848,5 @@ if (-not $NoFrontend) {
 if ($composeEnv["APP_DEMO_ENABLED"] -eq "true") {
   Write-Host "Accounts: diralekseev / dirbaranova / dirvasilevsky / manager / logistician / driver1 / driver2 / driver3"
   Write-Host "Full director list: accounts.txt"
-  Write-Host "Passwords are unique per user and stored as bcrypt hashes in DB."
+  Write-Host "Passwords are fixed per account and listed in accounts.txt."
 }

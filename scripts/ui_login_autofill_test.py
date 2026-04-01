@@ -1,10 +1,32 @@
 import os
 import re
+from pathlib import Path
 from playwright.sync_api import expect, sync_playwright
 
 BASE_URL = os.getenv("UI_LOGIN_BASE_URL", "http://127.0.0.1:5173")
 USERNAME = "manager"
-PASSWORD = "MgrD5v8cN4"
+
+
+def load_env_value(key: str) -> str | None:
+    value = os.getenv(key)
+    if value:
+        return value
+
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return None
+
+    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        current_key, current_value = line.split("=", 1)
+        if current_key.strip() == key:
+            return current_value.strip()
+    return None
+
+
+PASSWORD = load_env_value("UI_LOGIN_PASSWORD") or "MgrD5v8cN4"
 
 
 def main() -> None:
