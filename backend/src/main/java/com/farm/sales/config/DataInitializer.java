@@ -8,9 +8,13 @@ import com.farm.sales.repository.OrderRepository;
 import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -18,6 +22,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -28,7 +33,6 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.data.domain.Pageable;
@@ -38,10 +42,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @Order(100)
-@ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DataInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
   private static final String PRODUCT_IMAGE_BASE = "/images/products/";
+  private static final String CATALOG_PRODUCT_IMAGES_RESOURCE = "/catalog-product-images.txt";
   private static final int DEMO_PRODUCT_TARGET_COUNT = 200;
   private static final Set<String> CORE_PRODUCT_IMAGES = Set.of(
       "milk.webp",
@@ -429,11 +433,16 @@ public class DataInitializer implements CommandLineRunner {
   private final StoreAddressRepository storeAddressRepository;
   private final PasswordEncoder passwordEncoder;
   private final Object seedLock = new Object();
+  @Value("${app.demo.enabled:true}")
+  private boolean demoEnabled = true;
   @Value("${app.demo.seed-on-startup:true}")
   private boolean seedOnStartup = true;
+  @Value("${app.catalog.seed-on-startup:true}")
+  private boolean catalogSeedOnStartup = true;
   @Value("${app.demo.product-images-dir:}")
   private String productImagesDir = "";
   private volatile boolean demoSeeded;
+  private volatile boolean catalogSeeded;
 
   public DataInitializer(UserRepository userRepository,
                          OrderRepository orderRepository,
@@ -450,11 +459,20 @@ public class DataInitializer implements CommandLineRunner {
   @Override
   @Transactional
   public void run(String... args) {
-    if (!seedOnStartup) {
-      log.info("Startup demo seed skipped: app.demo.seed-on-startup=false");
+    if (demoEnabled) {
+      if (!seedOnStartup) {
+        log.info("Startup demo seed skipped: app.demo.seed-on-startup=false");
+        return;
+      }
+      ensureDemoDataSeeded(true);
       return;
     }
-    ensureDemoDataSeeded(true);
+
+    if (!catalogSeedOnStartup) {
+      log.info("Startup catalog seed skipped: app.catalog.seed-on-startup=false");
+      return;
+    }
+    ensureCatalogSeeded();
   }
 
   @Transactional
@@ -491,37 +509,51 @@ public class DataInitializer implements CommandLineRunner {
         createAddressIfMissing(thirdDirector, DEFAULT_DIRECTOR_ADDRESS_PROFILES.get(2));
       }
 
-      seedProduct("Молоко фермерское 1 л", "Молочная продукция", "3.20", 120, "milk.webp");
-      seedProduct("Кефир домашний 1 л", "Молочная продукция", "3.40", 95, "kefir.webp");
-      seedProduct("Ряженка 500 мл", "Молочная продукция", "2.90", 85, "kefir-05l.webp");
-      seedProduct("Йогурт натуральный 500 мл", "Молочная продукция", "5.30", 75, "yogurt.webp");
-      seedProduct("Творог рассыпчатый 500 г", "Молочная продукция", "4.90", 80, "cottage-cheese.webp");
-      seedProduct("Сметана 20% 400 г", "Молочная продукция", "4.30", 78, "sour-cream.webp");
-      seedProduct("Масло сливочное 82.5% 200 г", "Молочная продукция", "6.40", 65, "butter.webp");
-      seedProduct("Сыр полутвёрдый 500 г", "Молочная продукция", "13.90", 55, "cheese.webp");
-      seedProduct("Яйца куриные С1 10 шт", "Птица и яйца", "3.70", 180, "egg.webp");
-      seedProduct("Курица фермерская 1 кг", "Мясо и птица", "8.10", 50, "chicken.webp");
-      seedProduct("Картофель молодой 2 кг", "Овощи", "5.40", 140, "potato.webp");
-      seedProduct("Морковь сладкая 1 кг", "Овощи", "2.30", 120, "carrot.webp");
-      seedProduct("Лук репчатый 1 кг", "Овощи", "2.10", 115, "onion.webp");
-      seedProduct("Огурцы грунтовые 1 кг", "Овощи", "4.90", 90, "cucumber.webp");
-      seedProduct("Томаты розовые 1 кг", "Овощи", "5.60", 85, "tomato.webp");
-      seedProduct("Яблоки садовые 1 кг", "Фрукты", "3.20", 110, "apple.webp");
-      seedProduct("Мёд цветочный 500 г", "Пчеловодство", "11.90", 42, "honey.webp");
-      seedProduct("Хлеб ржаной 600 г", "Хлеб и выпечка", "2.70", 95, "rye-bread.webp");
-      seedProduct("Батон деревенский 400 г", "Хлеб и выпечка", "2.10", 100, "baguette.webp");
-      seedProduct("Гречка ядрица 1 кг", "Крупы", "3.00", 90, "buckwheat.webp");
-      seedCatalogProducts();
-      normalizeCatalogProducts();
+      ensureCatalogSeeded();
 
       demoSeeded = true;
+    }
+  }
+
+  private void ensureCatalogSeeded() {
+    if (catalogSeeded) return;
+    synchronized (seedLock) {
+      if (catalogSeeded) return;
+      seedCoreProducts();
+      seedCatalogProducts();
+      normalizeCatalogProducts();
+      catalogSeeded = true;
     }
   }
 
   public void resetDemoSeedState() {
     synchronized (seedLock) {
       demoSeeded = false;
+      catalogSeeded = false;
     }
+  }
+
+  private void seedCoreProducts() {
+    seedProduct("Молоко фермерское 1 л", "Молочная продукция", "3.20", 120, "milk.webp");
+    seedProduct("Кефир домашний 1 л", "Молочная продукция", "3.40", 95, "kefir.webp");
+    seedProduct("Ряженка 500 мл", "Молочная продукция", "2.90", 85, "kefir-05l.webp");
+    seedProduct("Йогурт натуральный 500 мл", "Молочная продукция", "5.30", 75, "yogurt.webp");
+    seedProduct("Творог рассыпчатый 500 г", "Молочная продукция", "4.90", 80, "cottage-cheese.webp");
+    seedProduct("Сметана 20% 400 г", "Молочная продукция", "4.30", 78, "sour-cream.webp");
+    seedProduct("Масло сливочное 82.5% 200 г", "Молочная продукция", "6.40", 65, "butter.webp");
+    seedProduct("Сыр полутвёрдый 500 г", "Молочная продукция", "13.90", 55, "cheese.webp");
+    seedProduct("Яйца куриные С1 10 шт", "Птица и яйца", "3.70", 180, "egg.webp");
+    seedProduct("Курица фермерская 1 кг", "Мясо и птица", "8.10", 50, "chicken.webp");
+    seedProduct("Картофель молодой 2 кг", "Овощи", "5.40", 140, "potato.webp");
+    seedProduct("Морковь сладкая 1 кг", "Овощи", "2.30", 120, "carrot.webp");
+    seedProduct("Лук репчатый 1 кг", "Овощи", "2.10", 115, "onion.webp");
+    seedProduct("Огурцы грунтовые 1 кг", "Овощи", "4.90", 90, "cucumber.webp");
+    seedProduct("Томаты розовые 1 кг", "Овощи", "5.60", 85, "tomato.webp");
+    seedProduct("Яблоки садовые 1 кг", "Фрукты", "3.20", 110, "apple.webp");
+    seedProduct("Мёд цветочный 500 г", "Пчеловодство", "11.90", 42, "honey.webp");
+    seedProduct("Хлеб ржаной 600 г", "Хлеб и выпечка", "2.70", 95, "rye-bread.webp");
+    seedProduct("Батон деревенский 400 г", "Хлеб и выпечка", "2.10", 100, "baguette.webp");
+    seedProduct("Гречка ядрица 1 кг", "Крупы", "3.00", 90, "buckwheat.webp");
   }
 
   private void seedProduct(String name, String cat, String price, int stock, String img) {
@@ -593,15 +625,7 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     Path productImagesDirectory = resolveProductImagesDirectory();
-    if (productImagesDirectory == null) {
-      log.warn(
-          "Demo product image directory was not found; keeping only {} core demo products.",
-          existingCount
-      );
-      return;
-    }
-
-    List<String> availableImages = loadSupplementalProductImages(productImagesDirectory);
+    List<String> availableImages = resolveSupplementalProductImages(productImagesDirectory);
     int remaining = (int) Math.max(0, DEMO_PRODUCT_TARGET_COUNT - existingCount);
     int seededSupplemental = 0;
 
@@ -632,6 +656,15 @@ public class DataInitializer implements CommandLineRunner {
     }
 
     log.info("Seeded {} supplemental demo products to restore the full demo catalog.", seededSupplemental);
+  }
+
+  private List<String> resolveSupplementalProductImages(Path productImagesDirectory) {
+    LinkedHashSet<String> imageNames = new LinkedHashSet<>();
+    if (productImagesDirectory != null) {
+      imageNames.addAll(loadSupplementalProductImages(productImagesDirectory));
+    }
+    imageNames.addAll(loadBundledSupplementalProductImages());
+    return List.copyOf(imageNames);
   }
 
   private void normalizeCatalogProducts() {
@@ -747,6 +780,28 @@ public class DataInitializer implements CommandLineRunner {
           .collect(Collectors.toList());
     } catch (IOException ex) {
       log.warn("Failed to load demo product images from {}", productImagesDirectory, ex);
+      return List.of();
+    }
+  }
+
+  private List<String> loadBundledSupplementalProductImages() {
+    try (InputStream inputStream = DataInitializer.class.getResourceAsStream(CATALOG_PRODUCT_IMAGES_RESOURCE)) {
+      if (inputStream == null) {
+        log.warn("Bundled catalog image list {} was not found on the classpath.", CATALOG_PRODUCT_IMAGES_RESOURCE);
+        return List.of();
+      }
+
+      try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+        return reader.lines()
+            .map(String::trim)
+            .filter(imageName -> !imageName.isBlank())
+            .filter(this::isWebpImage)
+            .filter(imageName -> !CORE_PRODUCT_IMAGES.contains(imageName))
+            .distinct()
+            .collect(Collectors.toList());
+      }
+    } catch (IOException ex) {
+      log.warn("Failed to load bundled catalog image list from {}", CATALOG_PRODUCT_IMAGES_RESOURCE, ex);
       return List.of();
     }
   }

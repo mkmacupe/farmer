@@ -41,6 +41,8 @@ app:
     seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
     transport-seed-on-startup: ${APP_DEMO_SEED_ON_STARTUP:true}
     product-images-dir: ${APP_DEMO_PRODUCT_IMAGES_DIR:}
+  catalog:
+    seed-on-startup: ${APP_CATALOG_SEED_ON_STARTUP:true}
   flyway:
     repair-before-migrate: false
   geo:

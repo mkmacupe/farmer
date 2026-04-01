@@ -18,12 +18,14 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      # Keep demo/reset off by default. Full demo catalog on Render requires
-      # supplying frontend/public/images/products to the backend container.
+      # Keep demo/reset users and scenario data off on production.
       - key: APP_DEMO_ENABLED
         value: "false"
       - key: APP_DEMO_SEED_ON_STARTUP
         value: "false"
+      # Catalog seeding stays on and uses the bundled backend resource list.
+      - key: APP_CATALOG_SEED_ON_STARTUP
+        value: "true"
       - key: APP_CORS_ALLOWED_ORIGINS
         value: "https://farmer.indevs.in,https://farm-sales-frontend.onrender.com,https://*.onrender.com"
 

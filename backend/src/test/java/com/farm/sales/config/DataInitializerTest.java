@@ -267,6 +267,34 @@ class DataInitializerTest {
   }
 
   @Test
+  void runSeedsBundledCatalogOnStartupWhenDemoIsDisabled() throws Exception {
+    when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.findByPhotoUrlIgnoreCase(any())).thenReturn(Optional.empty());
+    when(productRepository.count()).thenReturn(20L);
+
+    Path emptyDir = Files.createTempDirectory("farm-sales-empty-demo-images");
+    ReflectionTestUtils.setField(dataInitializer, "demoEnabled", false);
+    ReflectionTestUtils.setField(dataInitializer, "catalogSeedOnStartup", true);
+    ReflectionTestUtils.setField(dataInitializer, "productImagesDir", emptyDir.toString());
+
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+    dataInitializer.run();
+
+    verify(userRepository, times(0)).save(any(User.class));
+
+    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+    verify(productRepository, atLeast(200)).save(productCaptor.capture());
+    assertThat(productCaptor.getAllValues())
+        .extracting(Product::getPhotoUrl)
+        .contains(
+            "/images/products/milk.webp",
+            "/images/products/mogilev-product-101.webp",
+            "/images/products/sea-buckthorn.webp"
+        );
+  }
+
+  @Test
   void runNormalizesExistingCatalogProductFoundByPhoto() {
     when(userRepository.findByUsername(any())).thenReturn(Optional.empty());
     when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
