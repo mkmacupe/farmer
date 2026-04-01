@@ -1,28 +1,27 @@
 #!/usr/bin/env python3
 """
-Generate a full 200-image Farm Sales product catalog through the xAI Imagine API.
+Generate Farm Sales product images through the xAI Imagine API.
 
-What this script does:
-1. Reconstructs the canonical 200 seeded products directly from the repo sources.
-2. Builds one consistent prompt template for every product.
-3. Generates missing images in parallel via the xAI OpenAI-compatible API.
-4. Saves files as product_images/product_0001.jpg ... product_0200.jpg
-5. Writes a manifest CSV for traceability.
+This version is stricter than the original bulk generator:
+- It reconstructs the seeded 200-product catalog from the repo.
+- It infers the sold form of each SKU before building the prompt.
+- It can overwrite existing renders and sync the final JPGs into the frontend.
 
-The script is intentionally self-contained and repo-aware, so it stays aligned
-with the current Farm Sales catalog instead of relying on a stale hardcoded list.
+The key fix is semantic disambiguation. A product like "Кролик фермерский 1 кг"
+must render as a butcher-ready food product, not as a live rabbit.
 """
 
 from __future__ import annotations
 
 import argparse
 import base64
+import csv
 import getpass
 import os
 import re
+import shutil
 import threading
 import time
-import csv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
@@ -42,6 +41,7 @@ except ImportError:  # pragma: no cover - optional convenience dependency
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_INITIALIZER = PROJECT_ROOT / "backend" / "src" / "main" / "java" / "com" / "farm" / "sales" / "config" / "DataInitializer.java"
 PRODUCT_IMAGES_SOURCE = PROJECT_ROOT / "frontend" / "public" / "images" / "products"
+PUBLIC_PRODUCTS_DIR = PROJECT_ROOT / "frontend" / "public" / "images" / "products"
 OUTPUT_DIR = PROJECT_ROOT / "product_images"
 MANIFEST_CSV = OUTPUT_DIR / "products_manifest.csv"
 
@@ -50,28 +50,31 @@ DEFAULT_MODEL = "grok-imagine-image"
 DEFAULT_WORKERS = 14
 MAX_RETRIES = 2
 PRICE_PER_IMAGE_USD = 0.02
-
-# The frontend reuses the same product asset in two contexts:
-# - primary catalog cards: responsive width + fixed 160px height
-# - manager thumbnails: 56x56 / 72x72 square thumbs
-# There is no single hard fixed ratio in code, but the dominant catalog slot is
-# a landscape frame. 3:2 is the best compromise for the main card layout while
-# still working acceptably in the square thumbnail with object-fit: contain.
 ASPECT_RATIO = "3:2"
-
-# xAI docs currently expose 1k and 2k output resolutions for image generation.
-# This script is configured for 1k output to match the current requirement.
 RESOLUTION = "1k"
 
-PROMPT_TEMPLATE = (
-    "Professional studio product photography of {product_name}. "
-    "Pure white seamless background, centered perfect composition, single product only, "
-    "the product fills the frame cleanly and consistently, consistent camera angle, "
-    "soft natural studio lighting, commercial e-commerce quality, highly detailed, "
-    "realistic textures, appetizing look, ultra-clean catalog shot, high-end commercial quality, "
-    f"aspect ratio {ASPECT_RATIO}. "
-    "Strictly no text, captions, labels, stickers, logos, branding, packaging design text, "
-    "people, hands, cutlery, props, watermarks, borders, collage, or background clutter."
+COMMON_AVOID = (
+    "text",
+    "captions",
+    "labels",
+    "stickers",
+    "logos",
+    "branding",
+    "watermarks",
+    "people",
+    "hands",
+    "props",
+    "cutlery",
+    "plates",
+    "recipe styling",
+    "restaurant plating",
+    "kitchen scene",
+    "table scene",
+    "farm scene",
+    "outdoor background",
+    "collage",
+    "border",
+    "background clutter",
 )
 
 _THREAD_LOCAL = threading.local()
@@ -81,6 +84,7 @@ _THREAD_LOCAL = threading.local()
 class Product:
     id: int
     name: str
+    category: str
     source_image_name: str
 
     @property
@@ -91,14 +95,46 @@ class Product:
     def output_path(self) -> Path:
         return OUTPUT_DIR / self.output_filename
 
+    @property
+    def public_numbered_path(self) -> Path:
+        return PUBLIC_PRODUCTS_DIR / self.output_filename
+
+    @property
+    def public_alias_filename(self) -> str:
+        return Path(self.source_image_name).with_suffix(".jpg").name
+
+    @property
+    def public_alias_path(self) -> Path:
+        return PUBLIC_PRODUCTS_DIR / self.public_alias_filename
+
+
+@dataclass(frozen=True, slots=True)
+class PromptProfile:
+    subject: str
+    packaging: str
+    notes: str
+    avoid: tuple[str, ...] = ()
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate 200 Farm Sales product images with the xAI Imagine API."
+        description="Generate semantically correct Farm Sales product images with the xAI Imagine API."
     )
     parser.add_argument("--workers", type=int, default=DEFAULT_WORKERS, help="Parallel worker count (default: 14)")
     parser.add_argument("--model", default=DEFAULT_MODEL, help="xAI image model (default: grok-imagine-image)")
     parser.add_argument("--limit", type=int, default=None, help="Optional debug limit for the number of products")
+    parser.add_argument("--ids", default="", help="Comma-separated product ids to process, for example 62,192,200")
+    parser.add_argument("--overwrite", action="store_true", help="Regenerate images even if the JPG already exists")
+    parser.add_argument(
+        "--sync-public",
+        action="store_true",
+        help="Copy generated JPGs into frontend/public/images/products as both numbered and alias files",
+    )
+    parser.add_argument(
+        "--dry-run-prompts",
+        action="store_true",
+        help="Print prompts for the selected products instead of generating images",
+    )
     return parser.parse_args()
 
 
@@ -109,7 +145,7 @@ def load_api_key() -> str:
     if api_key:
         return api_key
 
-    entered = getpass.getpass("Enter xAI API key (XAI_API_KEY / sk-...): ").strip()
+    entered = getpass.getpass("Enter xAI API key (XAI_API_KEY / xai-...): ").strip()
     if not entered:
         raise SystemExit("xAI API key is required.")
     return entered
@@ -133,7 +169,7 @@ def get_client(api_key: str):
 
 def extract_products() -> list[Product]:
     """
-    Reproduce the same canonical catalog order used by DataInitializer:
+    Reproduce the same canonical catalog order used by the application:
     - first 20 products are explicit seedProduct(...) calls
     - remaining 180 products are the first supplemental image basenames,
       sorted alphabetically and resolved through CatalogDescriptor entries
@@ -169,7 +205,14 @@ def extract_products() -> list[Product]:
         descriptor = descriptor_map.get(basename)
         if descriptor is None:
             raise RuntimeError(f"Missing CatalogDescriptor for supplemental image '{image_name}'.")
-        supplemental_products.append(Product(id=offset, name=descriptor["name"], source_image_name=image_name))
+        supplemental_products.append(
+            Product(
+                id=offset,
+                name=descriptor["name"],
+                category=descriptor["category"],
+                source_image_name=image_name,
+            )
+        )
 
     products = core_products + supplemental_products
     if len(products) != 200:
@@ -186,11 +229,15 @@ def _extract_core_products(source: str) -> list[Product]:
     if len(seed_calls) < 20:
         raise RuntimeError(f"Expected at least 20 seedProduct calls, found {len(seed_calls)}.")
 
-    core = [
-        Product(id=index, name=name, source_image_name=image_name)
-        for index, (name, _category, _price, image_name) in enumerate(seed_calls[:20], start=1)
+    return [
+        Product(
+            id=index,
+            name=name,
+            category=category,
+            source_image_name=image_name,
+        )
+        for index, (name, category, _price, image_name) in enumerate(seed_calls[:20], start=1)
     ]
-    return core
 
 
 def _extract_catalog_descriptors(source: str) -> dict[str, dict[str, str]]:
@@ -204,12 +251,309 @@ def _extract_catalog_descriptors(source: str) -> dict[str, dict[str, str]]:
     return {basename: {"name": name, "category": category} for basename, name, category in entries}
 
 
-def build_prompt(product_name: str) -> str:
-    return PROMPT_TEMPLATE.format(product_name=product_name)
+def parse_selected_ids(raw_ids: str) -> set[int] | None:
+    raw_ids = raw_ids.strip()
+    if not raw_ids:
+        return None
+    selected: set[int] = set()
+    for chunk in raw_ids.split(","):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        selected.add(int(chunk))
+    if not selected:
+        return None
+    return selected
 
 
-def ensure_output_dir() -> None:
+def select_products(products: list[Product], selected_ids: set[int] | None, limit: int | None) -> list[Product]:
+    selected = products
+    if selected_ids is not None:
+        selected = [product for product in products if product.id in selected_ids]
+    if limit is not None:
+        selected = selected[:limit]
+    return selected
+
+
+def normalize_text(value: str) -> str:
+    return value.casefold().replace("ё", "е").strip()
+
+
+def has_any(text: str, needles: Iterable[str]) -> bool:
+    return any(needle in text for needle in needles)
+
+
+def detect_meat_animal(name: str) -> str:
+    mapping = (
+        ("говяж", "beef"),
+        ("телят", "veal"),
+        ("свин", "pork"),
+        ("кур", "chicken"),
+        ("индей", "turkey"),
+        ("утк", "duck"),
+        ("крол", "rabbit"),
+        ("баран", "lamb"),
+    )
+    for needle, label in mapping:
+        if needle in name:
+            return label
+    return "meat"
+
+
+def detect_meat_cut(name: str) -> str:
+    mapping = (
+        ("фарш", "ground meat"),
+        ("бедро", "thigh cut"),
+        ("голень", "drumstick cut"),
+        ("крыл", "wing portion"),
+        ("филе", "fillet cut"),
+        ("груд", "breast cut"),
+        ("печень", "liver portion"),
+        ("сердеч", "hearts portion"),
+        ("ребр", "rib cut"),
+        ("лопат", "shoulder cut"),
+        ("шея", "neck cut"),
+        ("грудин", "brisket cut"),
+        ("карбонад", "loin cut"),
+        ("окорок", "ham cut"),
+        ("вырез", "tenderloin cut"),
+        ("тазобедрен", "leg cut"),
+        ("грудинк", "belly cut"),
+        ("гуляш", "goulash cubes"),
+        ("стейк", "steak cut"),
+        ("шницел", "schnitzel cut"),
+    )
+    for needle, label in mapping:
+        if needle in name:
+            return label
+    return "butcher cut"
+
+
+def classify_product(product: Product) -> PromptProfile:
+    name = normalize_text(product.name)
+    category = normalize_text(product.category)
+
+    if "яиц" in name or "яйц" in name:
+        egg_subject = "open plain paper egg carton filled with fresh eggs"
+        if "перепел" in name:
+            egg_subject = "open plain quail egg tray filled with fresh quail eggs"
+        return PromptProfile(
+            subject=egg_subject,
+            packaging="retail-ready food product packshot",
+            notes="show the exact sold food product only; not birds; not a nest",
+            avoid=("live bird", "chicken", "quail bird", "nest", "farmyard"),
+        )
+
+    if "крол" in name:
+        return PromptProfile(
+            subject="raw dressed rabbit carcass, skinned, headless, butcher-ready meat product",
+            packaging="single carcass on a clean white surface",
+            notes="food retail product only; absolutely not a live rabbit",
+            avoid=("live rabbit", "pet rabbit", "fur", "grass", "farm animal portrait"),
+        )
+
+    if "утк" in name and "фарш" not in name:
+        return PromptProfile(
+            subject="raw dressed duck carcass, plucked, headless, butcher-ready meat product",
+            packaging="single carcass on a clean white surface",
+            notes="food retail product only; absolutely not a live duck",
+            avoid=("live duck", "feathers", "pond", "grass", "farm animal portrait"),
+        )
+
+    if "куриц" in name and "фарш" not in name and "филе" not in name and "бедр" not in name and "голен" not in name and "крыл" not in name and "печен" not in name and "сердеч" not in name:
+        return PromptProfile(
+            subject="raw dressed whole chicken carcass, plucked, headless, butcher-ready meat product",
+            packaging="single carcass on a clean white surface",
+            notes="food retail product only; absolutely not a live chicken",
+            avoid=("live chicken", "feathers", "farm animal portrait", "grass", "coop"),
+        )
+
+    if has_any(name, ("фарш", "филе", "бедр", "голен", "крыл", "печен", "сердеч", "ребр", "лопат", "шея", "грудин", "карбонад", "окорок", "вырез", "тазобедрен", "грудинк", "гуляш", "стейк", "шницел", "говяж", "свин", "телят", "индей", "курин", "баран")):
+        animal = detect_meat_animal(name)
+        cut = detect_meat_cut(name)
+        if "фарш" in name:
+            return PromptProfile(
+                subject=f"raw {animal} {cut}",
+                packaging="presented in a plain black meat tray with no label or sticker",
+                notes="uncooked butcher product; no seasoning; not a prepared dish",
+                avoid=("live animal", "farm animal portrait", "grass", "cooked food"),
+            )
+        if has_any(name, ("колбас", "купат")):
+            return PromptProfile(
+                subject=f"raw {animal} sausage links",
+                packaging="presented in a plain black meat tray with no label or sticker",
+                notes="uncooked retail meat product; not grilled; not plated",
+                avoid=("live animal", "grill", "pan", "restaurant plating"),
+            )
+        if "пельмен" in name:
+            return PromptProfile(
+                subject="raw frozen dumplings",
+                packaging="presented as a clean retail frozen-food product packshot",
+                notes="uncooked product only; not served in a bowl",
+                avoid=("soup", "plate", "fork", "restaurant plating"),
+            )
+        return PromptProfile(
+            subject=f"raw {animal} {cut}, butcher-ready food product",
+            packaging="single clean meat cut on a white surface",
+            notes="uncooked retail meat product; no seasoning; not a prepared dish",
+            avoid=("live animal", "farm animal portrait", "grass", "cooked food"),
+        )
+
+    if has_any(name, ("пельмен", "колбас", "купат")):
+        if "пельмен" in name:
+            return PromptProfile(
+                subject="raw frozen dumplings",
+                packaging="presented as a clean retail frozen-food product packshot",
+                notes="uncooked product only; not served in a bowl",
+                avoid=("soup", "plate", "fork", "restaurant plating"),
+            )
+        return PromptProfile(
+            subject="raw sausage links",
+            packaging="presented in a plain black meat tray with no label or sticker",
+            notes="uncooked retail meat product; not grilled; not plated",
+            avoid=("grill", "pan", "restaurant plating"),
+        )
+
+    if has_any(name, ("мед", "джем", "варень", "квашен")):
+        return PromptProfile(
+            subject=f"unbranded clear glass jar of {product.name}",
+            packaging="sealed plain grocery jar with no label and no sticker",
+            notes="show the sold grocery jar only",
+            avoid=("bees", "hive", "honeycomb", "breakfast table", "toast"),
+        )
+
+    if has_any(name, ("сок", "морс", "компот", "вода", "масло подсолнеч", "масло льня", "масло рапсов", "масло горч", "масло кукуруз", "масло")) and not has_any(name, ("сливоч", "топлен")):
+        return PromptProfile(
+            subject=f"unbranded retail bottle of {product.name}",
+            packaging="plain grocery bottle with no label and no text",
+            notes="show the sold beverage or oil bottle only",
+            avoid=("farm animal", "orchard scene", "glass pouring splash", "meal setup"),
+        )
+
+    if has_any(name, ("молоко", "кефир", "ряженк", "простокваш", "пахт", "сыворотк")):
+        return PromptProfile(
+            subject=f"plain unbranded dairy bottle of {product.name}",
+            packaging="clean retail dairy bottle with no label and no text",
+            notes="show the sold dairy product only",
+            avoid=("cow", "barn", "meadow", "milk splash", "breakfast table"),
+        )
+
+    if "йогурт питьев" in name:
+        return PromptProfile(
+            subject=f"plain unbranded drinkable yogurt bottle of {product.name}",
+            packaging="clean retail bottle with no label and no text",
+            notes="show the sold dairy bottle only",
+            avoid=("cow", "barn", "fruit explosion", "breakfast bowl"),
+        )
+
+    if has_any(name, ("йогурт", "сметан", "творог", "рикотт", "десерт творож", "сыр творож", "творожн", "сливк")):
+        return PromptProfile(
+            subject=f"plain unbranded dairy container of {product.name}",
+            packaging="simple white or clear retail tub with no label and no text",
+            notes="show the sold dairy container only",
+            avoid=("cow", "barn", "breakfast table", "spoon serving"),
+        )
+
+    if has_any(name, ("масло сливоч", "масло крестьян")):
+        return PromptProfile(
+            subject=f"retail butter block of {product.name}",
+            packaging="plain parchment-wrapped butter with no label and no text",
+            notes="show the sold butter product only",
+            avoid=("cow", "bread slice", "knife", "breakfast table"),
+        )
+
+    if has_any(name, ("масло топлен", "гхи")):
+        return PromptProfile(
+            subject=f"clear glass jar of {product.name}",
+            packaging="plain grocery jar with no label and no text",
+            notes="show the sold jar only",
+            avoid=("cow", "pan cooking scene", "meal setup"),
+        )
+
+    if has_any(name, ("сыр", "брынз", "адыгей", "рикотт")) and "сыр творож" not in name:
+        return PromptProfile(
+            subject=f"retail cheese block or wedge of {product.name}",
+            packaging="clean food product packshot with no label and no text",
+            notes="show the sold cheese product only",
+            avoid=("cow", "charcuterie board", "wine setup", "restaurant plating"),
+        )
+
+    if has_any(name, ("греч", "рис", "чечев", "пшен", "фасол", "нут", "горох", "круп", "мук", "хлоп", "манн", "семен", "семеч")) or has_any(category, ("круп", "бобов")):
+        package = "standing plain kraft paper grocery bag with no label or text"
+        if has_any(name, ("рис", "фасол", "чечев", "горох", "нут", "семеч", "семен")):
+            package = "standing clear unbranded grocery pouch with no label or text"
+        return PromptProfile(
+            subject=f"retail package of {product.name}",
+            packaging=package,
+            notes="show the sold grocery package only",
+            avoid=("field", "harvest scene", "wooden scoop", "meal bowl"),
+        )
+
+    if has_any(name, ("хлеб", "батон", "булк", "багет", "лаваш", "лепеш", "лепёш", "сухар")) or has_any(category, ("хлеб", "выпеч")):
+        return PromptProfile(
+            subject=f"fresh bakery product: {product.name}",
+            packaging="single bakery item only, clean catalog packshot",
+            notes="show the sold bread or pastry item only",
+            avoid=("cutlery", "plate", "table setting", "sandwich"),
+        )
+
+    if has_any(name, ("клубник", "малин", "голубик", "смородин", "клюкв", "ежевик", "брусник", "вишн", "черешн", "крыжовн", "облепих", "черник")) or has_any(category, ("ягод",)):
+        return PromptProfile(
+            subject=f"fresh retail berry pack of {product.name}",
+            packaging="clear unbranded punnet or small berry tray with no label and no text",
+            notes="show the sold berry product only",
+            avoid=("garden scene", "branch", "human hand", "dessert"),
+        )
+
+    if has_any(name, ("укроп", "петруш", "базилик", "шпинат", "салат", "ромэн", "смесь салат")) or has_any(category, ("зелень",)):
+        return PromptProfile(
+            subject=f"fresh herb or leafy green product: {product.name}",
+            packaging="single bunch or head only, clean catalog packshot",
+            notes="show the sold leafy product only",
+            avoid=("salad bowl", "fork", "kitchen scene", "plate"),
+        )
+
+    if has_any(category, ("овощ", "фрукт")) or has_any(name, ("картоф", "морков", "лук", "огур", "томат", "яблок", "груш", "слив", "перец", "капуст", "свекл", "кабач", "тыкв", "баклаж", "чеснок", "редис", "пастернак", "сельдер", "репа")):
+        return PromptProfile(
+            subject=f"fresh produce product: {product.name}",
+            packaging="single produce item or clean grouped portion only, retail grocery packshot",
+            notes="show the sold raw produce only",
+            avoid=("farm field", "tree branch", "basket scene", "prepared salad"),
+        )
+
+    return PromptProfile(
+        subject=f"retail grocery product: {product.name}",
+        packaging="correct sold form for a grocery wholesale catalog packshot",
+        notes="show the sold product only",
+    )
+
+
+def build_prompt(product: Product) -> str:
+    profile = classify_product(product)
+    avoid = list(dict.fromkeys((*profile.avoid, *COMMON_AVOID)))
+    return (
+        "Use case: product-mockup. "
+        "Asset type: grocery wholesale catalog product photo. "
+        f'Product name reference: "{product.name}". '
+        f"Category reference: {product.category}. "
+        f"Primary request: {profile.subject}. "
+        "Scene/backdrop: pure white seamless studio background. "
+        f"Subject: {profile.subject}. Packaging/presentation: {profile.packaging}. "
+        "Style/medium: professional photorealistic studio product photography. "
+        "Composition/framing: single centered product, clean isolated packshot, entire product fully visible, "
+        "consistent catalog angle, product fills the frame, no crop, no empty scene. "
+        "Lighting/mood: soft natural studio lighting, neutral color balance, premium commercial e-commerce quality, "
+        "highly detailed realistic textures. "
+        f"Constraints: depict the item exactly in the form sold to grocery stores; {profile.notes}; "
+        f"strict aspect ratio {ASPECT_RATIO}. "
+        f"Avoid: {', '.join(avoid)}."
+    )
+
+
+def ensure_output_dir(sync_public: bool) -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    if sync_public:
+        PUBLIC_PRODUCTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def write_manifest(products: Iterable[Product]) -> None:
@@ -219,9 +563,11 @@ def write_manifest(products: Iterable[Product]) -> None:
             {
                 "id": product.id,
                 "name": product.name,
+                "category": product.category,
                 "source_image_name": product.source_image_name,
                 "output_filename": product.output_filename,
-                "prompt": build_prompt(product.name),
+                "public_alias_filename": product.public_alias_filename,
+                "prompt": build_prompt(product),
             }
         )
     if pd is not None:
@@ -235,7 +581,9 @@ def write_manifest(products: Iterable[Product]) -> None:
         writer.writerows(rows)
 
 
-def already_exists(product: Product) -> bool:
+def already_exists(product: Product, overwrite: bool) -> bool:
+    if overwrite:
+        return False
     return product.output_path.exists() and product.output_path.stat().st_size > 0
 
 
@@ -243,17 +591,17 @@ def estimate_cost(count: int) -> float:
     return round(count * PRICE_PER_IMAGE_USD, 2)
 
 
-def generate_one(product: Product, api_key: str, model: str) -> tuple[str, str | None]:
+def generate_one(product: Product, api_key: str, model: str, overwrite: bool) -> tuple[str, str | None]:
     """
     Returns:
     - ("generated", None) on success
     - ("skipped", None) if the file already exists
     - ("failed", error_message) if generation fails after retries
     """
-    if already_exists(product):
+    if already_exists(product, overwrite):
         return ("skipped", None)
 
-    prompt = build_prompt(product.name)
+    prompt = build_prompt(product)
     last_error: Exception | None = None
 
     for attempt in range(MAX_RETRIES + 1):
@@ -272,7 +620,7 @@ def generate_one(product: Product, api_key: str, model: str) -> tuple[str, str |
             image_bytes = extract_image_bytes(response)
             product.output_path.write_bytes(image_bytes)
             return ("generated", None)
-        except Exception as exc:  # noqa: BLE001 - the API can fail in many ways
+        except Exception as exc:  # noqa: BLE001
             last_error = exc
             if attempt >= MAX_RETRIES:
                 break
@@ -307,6 +655,14 @@ def extract_image_bytes(response) -> bytes:
     raise RuntimeError("Image response had neither b64_json nor url.")
 
 
+def sync_public_images(products: Iterable[Product]) -> None:
+    for product in products:
+        if not product.output_path.exists():
+            continue
+        shutil.copy2(product.output_path, product.public_numbered_path)
+        shutil.copy2(product.output_path, product.public_alias_path)
+
+
 def main() -> None:
     try:
         from tqdm import tqdm
@@ -320,25 +676,32 @@ def main() -> None:
     if args.workers < 1:
         raise SystemExit("--workers must be >= 1")
 
-    ensure_output_dir()
-    api_key = load_api_key()
-    products = extract_products()
-
-    if args.limit is not None:
-        products = products[: args.limit]
+    selected_ids = parse_selected_ids(args.ids)
+    ensure_output_dir(args.sync_public)
+    products = select_products(extract_products(), selected_ids, args.limit)
+    if not products:
+        raise SystemExit("No products matched the requested ids/limit.")
 
     write_manifest(products)
 
-    skipped_products = [product for product in products if already_exists(product)]
-    pending_products = [product for product in products if not already_exists(product)]
+    if args.dry_run_prompts:
+        for product in products:
+            print(f"#{product.id:04d} {product.name} [{product.category}]")
+            print(build_prompt(product))
+            print()
+        return
 
-    print(f"Catalog products found: {len(products)}")
+    api_key = load_api_key()
+    skipped_products = [product for product in products if already_exists(product, args.overwrite)]
+    pending_products = [product for product in products if not already_exists(product, args.overwrite)]
+
+    print(f"Catalog products selected: {len(products)}")
     print(f"Already existing images: {len(skipped_products)}")
     print(f"Images to generate now: {len(pending_products)}")
     print(f"Aspect ratio: {ASPECT_RATIO}")
+    print(f"Resolution: {RESOLUTION}")
     print(f"Model: {args.model}")
     print(f"Estimated run cost: ~${estimate_cost(len(pending_products)):.2f}")
-    print(f"Estimated full 200-image catalog cost: ~${estimate_cost(len(products)):.2f}")
     print(f"Manifest written to: {MANIFEST_CSV}")
 
     started_at = time.perf_counter()
@@ -349,7 +712,7 @@ def main() -> None:
     if pending_products:
         with ThreadPoolExecutor(max_workers=args.workers) as executor:
             futures = {
-                executor.submit(generate_one, product, api_key, args.model): product
+                executor.submit(generate_one, product, api_key, args.model, args.overwrite): product
                 for product in pending_products
             }
             with tqdm(total=len(products), initial=skipped, desc="Generating product images", unit="img") as progress:
@@ -370,6 +733,10 @@ def main() -> None:
                     progress.update(1)
     else:
         print("Nothing to generate. All requested files already exist.")
+
+    if args.sync_public:
+        sync_public_images(products)
+        print(f"Synced {len(products)} selected images into {PUBLIC_PRODUCTS_DIR}")
 
     elapsed_seconds = time.perf_counter() - started_at
     print("\nGeneration summary")
