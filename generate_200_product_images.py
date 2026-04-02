@@ -3,7 +3,7 @@
 Generate Farm Sales product images through the xAI Imagine API.
 
 This version is stricter than the original bulk generator:
-- It reconstructs the seeded 200-product catalog from the repo.
+- It reconstructs the seeded catalog from the repo resources.
 - It infers the sold form of each SKU before building the prompt.
 - It can overwrite existing renders and sync the final JPGs into the frontend.
 
@@ -40,7 +40,7 @@ except ImportError:  # pragma: no cover - optional convenience dependency
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 DATA_INITIALIZER = PROJECT_ROOT / "backend" / "src" / "main" / "java" / "com" / "farm" / "sales" / "config" / "DataInitializer.java"
-PRODUCT_IMAGES_SOURCE = PROJECT_ROOT / "frontend" / "public" / "images" / "products"
+CATALOG_IMAGE_LIST = PROJECT_ROOT / "backend" / "src" / "main" / "resources" / "catalog-product-images.txt"
 PUBLIC_PRODUCTS_DIR = PROJECT_ROOT / "frontend" / "public" / "images" / "products"
 OUTPUT_DIR = PROJECT_ROOT / "product_images"
 MANIFEST_CSV = OUTPUT_DIR / "products_manifest.csv"
@@ -171,13 +171,12 @@ def extract_products() -> list[Product]:
     """
     Reproduce the same canonical catalog order used by the application:
     - first 20 products are explicit seedProduct(...) calls
-    - remaining 180 products are the first supplemental image basenames,
-      sorted alphabetically and resolved through CatalogDescriptor entries
+    - remaining products come from the bundled catalog image list resource
     """
     if not DATA_INITIALIZER.exists():
         raise FileNotFoundError(f"Missing DataInitializer.java: {DATA_INITIALIZER}")
-    if not PRODUCT_IMAGES_SOURCE.exists():
-        raise FileNotFoundError(f"Missing product image directory: {PRODUCT_IMAGES_SOURCE}")
+    if not CATALOG_IMAGE_LIST.exists():
+        raise FileNotFoundError(f"Missing catalog image list: {CATALOG_IMAGE_LIST}")
 
     source = DATA_INITIALIZER.read_text(encoding="utf-8")
 
@@ -185,23 +184,17 @@ def extract_products() -> list[Product]:
     descriptor_map = _extract_catalog_descriptors(source)
 
     core_image_names = {product.source_image_name for product in core_products}
-    supplemental_image_names = sorted(
-        path.name
-        for path in PRODUCT_IMAGES_SOURCE.iterdir()
-        if path.is_file() and path.suffix.lower() == ".webp" and path.name not in core_image_names
-    )
-
-    remaining = 200 - len(core_products)
-    if remaining <= 0:
-        raise RuntimeError("Core product list unexpectedly exceeds 200 items.")
-    if len(supplemental_image_names) < remaining:
-        raise RuntimeError(
-            f"Expected at least {remaining} supplemental images, found {len(supplemental_image_names)}."
-        )
+    supplemental_image_names = [
+        image_name
+        for image_name in _load_catalog_image_names()
+        if image_name not in core_image_names
+    ]
+    if not supplemental_image_names:
+        raise RuntimeError("Bundled catalog image list did not provide supplemental items.")
 
     supplemental_products: list[Product] = []
-    for offset, image_name in enumerate(supplemental_image_names[:remaining], start=len(core_products) + 1):
-        basename = image_name.removesuffix(".webp")
+    for offset, image_name in enumerate(supplemental_image_names, start=len(core_products) + 1):
+        basename = Path(image_name).stem
         descriptor = descriptor_map.get(basename)
         if descriptor is None:
             raise RuntimeError(f"Missing CatalogDescriptor for supplemental image '{image_name}'.")
@@ -215,8 +208,9 @@ def extract_products() -> list[Product]:
         )
 
     products = core_products + supplemental_products
-    if len(products) != 200:
-        raise RuntimeError(f"Expected exactly 200 products, reconstructed {len(products)}.")
+    expected_total = len(core_products) + len(supplemental_image_names)
+    if len(products) != expected_total:
+        raise RuntimeError(f"Expected exactly {expected_total} products, reconstructed {len(products)}.")
 
     return products
 
@@ -249,6 +243,18 @@ def _extract_catalog_descriptors(source: str) -> dict[str, dict[str, str]]:
         raise RuntimeError("No CatalogDescriptor entries found in DataInitializer.java.")
 
     return {basename: {"name": name, "category": category} for basename, name, category in entries}
+
+
+def _load_catalog_image_names() -> list[str]:
+    image_names: list[str] = []
+    seen: set[str] = set()
+    for raw_line in CATALOG_IMAGE_LIST.read_text(encoding="utf-8").splitlines():
+        image_name = raw_line.strip()
+        if not image_name or image_name in seen:
+            continue
+        seen.add(image_name)
+        image_names.append(image_name)
+    return image_names
 
 
 def parse_selected_ids(raw_ids: str) -> set[int] | None:
@@ -368,7 +374,7 @@ def classify_product(product: Product) -> PromptProfile:
             avoid=("live chicken", "feathers", "farm animal portrait", "grass", "coop"),
         )
 
-    if has_any(name, ("фарш", "филе", "бедр", "голен", "крыл", "печен", "сердеч", "ребр", "лопат", "шея", "грудин", "карбонад", "окорок", "вырез", "тазобедрен", "грудинк", "гуляш", "стейк", "шницел", "говяж", "свин", "телят", "индей", "курин", "баран")):
+    if has_any(name, ("фарш", "филе", "бедр", "голен", "крыл", "печен", "сердеч", "ребр", "лопат", "шея", "грудин", "карбонад", "окорок", "вырез", "тазобедрен", "грудинк", "гуляш", "стейк", "шницел", "говяж", "свин", "телят", "индей", "курин", "баран")) and not has_any(name, ("котлет", "голубц", "фрикадел", "вареник", "мант")):
         animal = detect_meat_animal(name)
         cut = detect_meat_cut(name)
         if "фарш" in name:
@@ -399,7 +405,7 @@ def classify_product(product: Product) -> PromptProfile:
             avoid=("live animal", "farm animal portrait", "grass", "cooked food"),
         )
 
-    if has_any(name, ("пельмен", "колбас", "купат")):
+    if has_any(name, ("пельмен", "вареник", "мант")):
         if "пельмен" in name:
             return PromptProfile(
                 subject="raw frozen dumplings",
@@ -407,6 +413,21 @@ def classify_product(product: Product) -> PromptProfile:
                 notes="uncooked product only; not served in a bowl",
                 avoid=("soup", "plate", "fork", "restaurant plating"),
             )
+        if "вареник" in name:
+            return PromptProfile(
+                subject="raw frozen vareniki dumplings",
+                packaging="plain frozen-food pouch or tray with no label and no text",
+                notes="uncooked retail frozen product only; not boiled; not served",
+                avoid=("plate", "fork", "sour cream serving", "restaurant plating"),
+            )
+        return PromptProfile(
+            subject="raw frozen manti dumplings",
+            packaging="plain frozen-food tray or pouch with no label and no text",
+            notes="uncooked retail frozen product only; not steamed; not served",
+            avoid=("plate", "fork", "restaurant plating", "sauce"),
+        )
+
+    if has_any(name, ("колбас", "купат")):
         return PromptProfile(
             subject="raw sausage links",
             packaging="presented in a plain black meat tray with no label or sticker",
@@ -414,7 +435,15 @@ def classify_product(product: Product) -> PromptProfile:
             avoid=("grill", "pan", "restaurant plating"),
         )
 
-    if has_any(name, ("мед", "джем", "варень", "квашен")):
+    if has_any(name, ("котлет", "голубц", "фрикадел")):
+        return PromptProfile(
+            subject=f"raw frozen semi-finished product: {product.name}",
+            packaging="plain black tray or clear frozen-food pouch with no label and no text",
+            notes="uncooked retail полуфабрикат only; not plated; not cooked",
+            avoid=("plate", "fork", "sauce", "restaurant plating", "cooked food"),
+        )
+
+    if has_any(name, ("мед", "джем", "варень", "квашен", "марин", "лечо", "икра кабач")):
         return PromptProfile(
             subject=f"unbranded clear glass jar of {product.name}",
             packaging="sealed plain grocery jar with no label and no sticker",
@@ -422,7 +451,7 @@ def classify_product(product: Product) -> PromptProfile:
             avoid=("bees", "hive", "honeycomb", "breakfast table", "toast"),
         )
 
-    if has_any(name, ("сок", "морс", "компот", "вода", "масло подсолнеч", "масло льня", "масло рапсов", "масло горч", "масло кукуруз", "масло")) and not has_any(name, ("сливоч", "топлен")):
+    if has_any(name, ("сок", "морс", "компот", "вода", "квас", "сироп", "масло подсолнеч", "масло льня", "масло рапсов", "масло горч", "масло кукуруз", "масло")) and not has_any(name, ("сливоч", "топлен")):
         return PromptProfile(
             subject=f"unbranded retail bottle of {product.name}",
             packaging="plain grocery bottle with no label and no text",
@@ -505,7 +534,7 @@ def classify_product(product: Product) -> PromptProfile:
             avoid=("garden scene", "branch", "human hand", "dessert"),
         )
 
-    if has_any(name, ("укроп", "петруш", "базилик", "шпинат", "салат", "ромэн", "смесь салат")) or has_any(category, ("зелень",)):
+    if has_any(name, ("укроп", "петруш", "базилик", "шпинат", "салат", "ромэн", "смесь салат", "кинз", "руккол", "сельдер", "щав")) or has_any(category, ("зелень",)):
         return PromptProfile(
             subject=f"fresh herb or leafy green product: {product.name}",
             packaging="single bunch or head only, clean catalog packshot",

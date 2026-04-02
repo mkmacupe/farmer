@@ -100,7 +100,7 @@ class DataInitializerTest {
         .containsExactlyInAnyOrderElementsOf(expectedSeededUsernames());
     
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-    verify(productRepository, atLeast(200)).save(productCaptor.capture());
+    verify(productRepository, atLeast(250)).save(productCaptor.capture());
     ArgumentCaptor<StoreAddress> addressCaptor = ArgumentCaptor.forClass(StoreAddress.class);
     verify(storeAddressRepository, times(3)).save(addressCaptor.capture());
     assertThat(addressCaptor.getAllValues())
@@ -284,13 +284,16 @@ class DataInitializerTest {
     verify(userRepository, times(0)).save(any(User.class));
 
     ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
-    verify(productRepository, atLeast(200)).save(productCaptor.capture());
+    verify(productRepository, atLeast(250)).save(productCaptor.capture());
     assertThat(productCaptor.getAllValues())
         .extracting(Product::getPhotoUrl)
         .contains(
             "/images/products/milk.webp",
             "/images/products/mogilev-product-101.webp",
-            "/images/products/sea-buckthorn.webp"
+            "/images/products/sea-buckthorn.webp",
+            "/images/products/sesame-oil.webp",
+            "/images/products/vareniki-potato.webp",
+            "/images/products/chestnut-honey.webp"
         );
   }
 
