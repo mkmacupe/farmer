@@ -9,6 +9,8 @@ function ProductImage({
   height = 160,
   width = "100%",
   borderRadius = 0,
+  border = "1px solid #d1d5db",
+  fit = "contain",
 }) {
   const productName = String(alt || "").trim() || "Без названия";
   const candidateSources = useMemo(
@@ -25,10 +27,13 @@ function ProductImage({
     setFailed(false);
   }, [candidateSources]);
 
-  const resolvedWidth = typeof width === "number" ? `${width}px` : width;
-  const resolvedHeight = typeof height === "number" ? `${height}px` : height;
+  const numericWidth = typeof width === "number" ? width : undefined;
+  const numericHeight = typeof height === "number" ? height : undefined;
+  const resolvedWidth = numericWidth == null ? width : `${numericWidth}px`;
+  const resolvedHeight = numericHeight == null ? height : `${numericHeight}px`;
   const resolvedBorderRadius =
     typeof borderRadius === "number" ? `${borderRadius * 8}px` : borderRadius;
+  const resolvedFit = fit === "cover" ? fit : "contain";
 
   const handleError = () => {
     if (activeSourceIndex < candidateSources.length - 1) {
@@ -52,7 +57,7 @@ function ProductImage({
         textAlign: "center",
         backgroundColor: hasImage ? "#ffffff" : "#f3f4f6",
         color: "#111827",
-        border: "1px solid #d1d5db",
+        border,
       }}
     >
       {hasImage ? (
@@ -61,14 +66,15 @@ function ProductImage({
           alt={productName}
           loading="lazy"
           decoding="async"
-          width={typeof width === "number" ? width : undefined}
-          height={typeof height === "number" ? height : undefined}
+          width={numericWidth}
+          height={numericHeight}
           onError={handleError}
           style={{
             width: "100%",
             height: "100%",
             display: "block",
-            objectFit: "contain",
+            objectFit: resolvedFit,
+            objectPosition: "center",
             backgroundColor: "#ffffff",
             borderRadius: "inherit",
           }}

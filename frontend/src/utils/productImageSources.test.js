@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildGeneratedProductImageAlias,
-  buildProductImageCandidates,
-} from "./productImageSources.js";
+import { buildGeneratedProductImageAlias, buildProductImageCandidates } from "./productImageSources.js";
 
 describe("productImageSources", () => {
   it("builds generated product image alias from legacy webp source", () => {
@@ -24,7 +21,6 @@ describe("productImageSources", () => {
   it("prefers generated jpg alias and keeps api photoUrl as fallback", () => {
     expect(
       buildProductImageCandidates({
-        productId: 431,
         src: "/images/products/potato.webp",
       }),
     ).toEqual([
@@ -36,13 +32,12 @@ describe("productImageSources", () => {
   it("falls back to source only when no legacy webp alias can be derived", () => {
     expect(
       buildProductImageCandidates({
-        productId: 431,
         src: "/images/products/custom-upload.png",
       }),
     ).toEqual(["/images/products/custom-upload.png"]);
   });
 
   it("returns an empty list when there is no source at all", () => {
-    expect(buildProductImageCandidates({ productId: 103, src: "" })).toEqual([]);
+    expect(buildProductImageCandidates({ src: "" })).toEqual([]);
   });
 });

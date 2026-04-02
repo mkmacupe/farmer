@@ -1339,6 +1339,8 @@ export default function DirectorView({ token, activeSection }) {
                           height: "100%",
                           display: "flex",
                           flexDirection: "column",
+                          overflow: "hidden",
+                          borderRadius: 3,
                         }}
                       >
                         <ProductImage
@@ -1346,6 +1348,8 @@ export default function DirectorView({ token, activeSection }) {
                           src={product.photoUrl}
                           alt={product.name}
                           height={160}
+                          border="none"
+                          fit="cover"
                         />
                         <CardContent sx={{ flexGrow: 1 }}>
                           <Typography

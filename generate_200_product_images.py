@@ -50,7 +50,7 @@ DEFAULT_MODEL = "grok-imagine-image"
 DEFAULT_WORKERS = 14
 MAX_RETRIES = 2
 PRICE_PER_IMAGE_USD = 0.02
-ASPECT_RATIO = "3:2"
+ASPECT_RATIO = "2:1"
 RESOLUTION = "1k"
 
 COMMON_AVOID = (
@@ -72,6 +72,12 @@ COMMON_AVOID = (
     "table scene",
     "farm scene",
     "outdoor background",
+    "wire rack",
+    "grid background",
+    "tile wall",
+    "countertop",
+    "tabletop",
+    "shelf",
     "collage",
     "border",
     "background clutter",
@@ -124,6 +130,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--model", default=DEFAULT_MODEL, help="xAI image model (default: grok-imagine-image)")
     parser.add_argument("--limit", type=int, default=None, help="Optional debug limit for the number of products")
     parser.add_argument("--ids", default="", help="Comma-separated product ids to process, for example 62,192,200")
+    parser.add_argument(
+        "--names",
+        default="",
+        help="Comma-separated product names to process, for example \"Лечо домашнее 700 г,Масло подсолнечное нерафинированное 1 л\"",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Regenerate images even if the JPG already exists")
     parser.add_argument(
         "--sync-public",
@@ -145,7 +156,7 @@ def load_api_key() -> str:
     if api_key:
         return api_key
 
-    entered = getpass.getpass("Enter xAI API key (XAI_API_KEY / xai-...): ").strip()
+    entered = getpass.getpass("Enter xAI API key (XAI_API_KEY / sk-...): ").strip()
     if not entered:
         raise SystemExit("xAI API key is required.")
     return entered
@@ -272,10 +283,36 @@ def parse_selected_ids(raw_ids: str) -> set[int] | None:
     return selected
 
 
-def select_products(products: list[Product], selected_ids: set[int] | None, limit: int | None) -> list[Product]:
-    selected = products
-    if selected_ids is not None:
-        selected = [product for product in products if product.id in selected_ids]
+def parse_selected_names(raw_names: str) -> set[str] | None:
+    raw_names = raw_names.strip()
+    if not raw_names:
+        return None
+
+    selected = {
+        normalize_text(chunk)
+        for chunk in raw_names.split(",")
+        if normalize_text(chunk)
+    }
+    return selected or None
+
+
+def select_products(
+    products: list[Product],
+    selected_ids: set[int] | None,
+    selected_names: set[str] | None,
+    limit: int | None,
+) -> list[Product]:
+    selected = []
+    for product in products:
+        if selected_ids is not None and product.id in selected_ids:
+            selected.append(product)
+            continue
+        if selected_names is not None and normalize_text(product.name) in selected_names:
+            selected.append(product)
+
+    if selected_ids is None and selected_names is None:
+        selected = list(products)
+
     if limit is not None:
         selected = selected[:limit]
     return selected
@@ -570,7 +607,7 @@ def build_prompt(product: Product) -> str:
         f"Subject: {profile.subject}. Packaging/presentation: {profile.packaging}. "
         "Style/medium: professional photorealistic studio product photography. "
         "Composition/framing: single centered product, clean isolated packshot, entire product fully visible, "
-        "consistent catalog angle, product fills the frame, no crop, no empty scene. "
+        "consistent catalog angle, wide commercial catalog framing, do not crop the subject, leave a small safe margin around the product, no empty scene. "
         "Lighting/mood: soft natural studio lighting, neutral color balance, premium commercial e-commerce quality, "
         "highly detailed realistic textures. "
         f"Constraints: depict the item exactly in the form sold to grocery stores; {profile.notes}; "
@@ -706,8 +743,9 @@ def main() -> None:
         raise SystemExit("--workers must be >= 1")
 
     selected_ids = parse_selected_ids(args.ids)
+    selected_names = parse_selected_names(args.names)
     ensure_output_dir(args.sync_public)
-    products = select_products(extract_products(), selected_ids, args.limit)
+    products = select_products(extract_products(), selected_ids, selected_names, args.limit)
     if not products:
         raise SystemExit("No products matched the requested ids/limit.")
 
