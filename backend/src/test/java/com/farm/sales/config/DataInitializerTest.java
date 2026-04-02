@@ -21,8 +21,11 @@ import com.farm.sales.repository.ProductRepository;
 import com.farm.sales.repository.StoreAddressRepository;
 import com.farm.sales.repository.UserRepository;
 import java.math.BigDecimal;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -294,6 +297,74 @@ class DataInitializerTest {
             "/images/products/sesame-oil.webp",
             "/images/products/vareniki-potato.webp",
             "/images/products/chestnut-honey.webp"
+        );
+  }
+
+  @Test
+  void runSkipsAlreadySeededSupplementalImagesWhenBackfillingTo250Products() throws Exception {
+    when(productRepository.findByNameIgnoreCase(any())).thenReturn(Optional.empty());
+
+    List<String> supplementalImageNames;
+    try (BufferedReader reader = new BufferedReader(new InputStreamReader(
+        Objects.requireNonNull(
+            DataInitializerTest.class.getResourceAsStream("/catalog-product-images.txt")
+        ),
+        StandardCharsets.UTF_8
+    ))) {
+      supplementalImageNames = reader.lines()
+          .map(String::trim)
+          .filter(line -> !line.isBlank())
+          .toList();
+    }
+    List<String> existingSupplementalImageNames = supplementalImageNames.subList(0, 180);
+
+    Map<String, Product> productsByPhoto = new HashMap<>();
+    long productId = 21L;
+    for (String imageName : existingSupplementalImageNames) {
+      Product existingProduct = new Product(
+          "Каталожный товар " + productId,
+          "Каталог",
+          "Каталожный товар " + productId,
+          "/images/products/" + imageName,
+          new BigDecimal("4.10"),
+          24
+      );
+      existingProduct.setId(productId);
+      productsByPhoto.put(existingProduct.getPhotoUrl(), existingProduct);
+      productId++;
+    }
+    when(productRepository.findByPhotoUrlIgnoreCase(any())).thenAnswer(invocation ->
+        Optional.ofNullable(productsByPhoto.get(invocation.getArgument(0, String.class))));
+    when(productRepository.findAll()).thenReturn(new ArrayList<>(productsByPhoto.values()));
+    when(productRepository.count()).thenReturn(200L);
+
+    Path tempDir = Files.createTempDirectory("farm-sales-existing-supplemental-images");
+    for (String imageName : existingSupplementalImageNames) {
+      Files.writeString(tempDir.resolve(imageName), "placeholder");
+    }
+
+    ReflectionTestUtils.setField(dataInitializer, "demoEnabled", false);
+    ReflectionTestUtils.setField(dataInitializer, "catalogSeedOnStartup", true);
+    ReflectionTestUtils.setField(dataInitializer, "productImagesDir", tempDir.toString());
+
+    when(productRepository.save(any(Product.class))).thenAnswer(invocation -> {
+      Product product = invocation.getArgument(0);
+      if (product.getPhotoUrl() != null) {
+        productsByPhoto.put(product.getPhotoUrl(), product);
+      }
+      return product;
+    });
+
+    dataInitializer.run();
+
+    ArgumentCaptor<Product> productCaptor = ArgumentCaptor.forClass(Product.class);
+    verify(productRepository, atLeast(50)).save(productCaptor.capture());
+    assertThat(productCaptor.getAllValues())
+        .extracting(Product::getPhotoUrl)
+        .contains(
+            "/images/products/acacia-honey.webp",
+            "/images/products/vareniki-potato.webp",
+            "/images/products/sesame-oil.webp"
         );
   }
 

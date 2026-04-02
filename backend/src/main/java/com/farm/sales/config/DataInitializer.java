@@ -606,7 +606,7 @@ public class DataInitializer implements CommandLineRunner {
     seedProduct("Гречка ядрица 1 кг", "Крупы", "3.00", 90, "buckwheat.webp");
   }
 
-  private void seedProduct(String name, String cat, String price, int stock, String img) {
+  private boolean seedProduct(String name, String cat, String price, int stock, String img) {
     String photoUrl = PRODUCT_IMAGE_BASE + img;
     Product existingByName = productRepository.findByNameIgnoreCase(name).orElse(null);
     Product existingByPhoto = productRepository.findByPhotoUrlIgnoreCase(photoUrl).orElse(null);
@@ -622,6 +622,7 @@ public class DataInitializer implements CommandLineRunner {
     if (existing == null) {
       Product p = new Product(name, cat, name, normalizedPhotoUrl, new BigDecimal(price), stock, weight, volume);
       productRepository.save(p);
+      return true;
     } else {
       boolean changed = false;
       if (!name.equals(existing.getName())) {
@@ -655,6 +656,7 @@ public class DataInitializer implements CommandLineRunner {
       }
       if (changed) productRepository.save(existing);
     }
+    return false;
   }
 
   private boolean shouldReuseSeedProductByName(Product existingByName, String photoUrl) {
@@ -676,6 +678,11 @@ public class DataInitializer implements CommandLineRunner {
 
     Path productImagesDirectory = resolveProductImagesDirectory();
     List<String> availableImages = resolveSupplementalProductImages(productImagesDirectory);
+    Set<String> existingPhotoUrls = productRepository.findAll().stream()
+        .map(Product::getPhotoUrl)
+        .filter(Objects::nonNull)
+        .map(photoUrl -> photoUrl.toLowerCase(Locale.ROOT))
+        .collect(Collectors.toSet());
     int remaining = (int) Math.max(0, DEMO_PRODUCT_TARGET_COUNT - existingCount);
     int seededSupplemental = 0;
 
@@ -683,15 +690,23 @@ public class DataInitializer implements CommandLineRunner {
       if (seededSupplemental >= remaining) {
         break;
       }
+      String photoUrl = (PRODUCT_IMAGE_BASE + imageName).toLowerCase(Locale.ROOT);
+      if (existingPhotoUrls.contains(photoUrl)) {
+        continue;
+      }
       int catalogIndex = (int) existingCount + seededSupplemental + 1;
       CatalogDescriptor descriptor = describeCatalogProduct(imageName, catalogIndex);
-      seedProduct(
+      boolean created = seedProduct(
           descriptor.name(),
           descriptor.category(),
           resolveCatalogPrice(imageName, descriptor),
           resolveCatalogStock(imageName),
           imageName
       );
+      if (!created) {
+        continue;
+      }
+      existingPhotoUrls.add(photoUrl);
       seededSupplemental++;
     }
 
