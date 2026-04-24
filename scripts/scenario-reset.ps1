@@ -40,6 +40,16 @@ function Invoke-LocalRest {
   return Invoke-RestMethod @args
 }
 
+function Get-RestStatusCode {
+  param([object]$ErrorRecord)
+
+  $response = $ErrorRecord.Exception.Response
+  if ($response -and $response.StatusCode) {
+    return [int]$response.StatusCode
+  }
+  return $null
+}
+
 function Test-BackendAvailability {
   param(
     [Parameter(Mandatory = $true)][string]$Base
@@ -158,16 +168,24 @@ function Invoke-ScenarioReset {
       -Uri $preferredUri `
       -Headers $headers
   } catch {
-    $statusCode = $_.Exception.Response.StatusCode.value__
+    $statusCode = Get-RestStatusCode -ErrorRecord $_
     if ($statusCode -ne 404) {
       throw
     }
 
     Write-Warning "Route $preferredUri returned 404. Falling back to legacy route $legacyUri."
-    return Invoke-LocalRest `
-      -Method Post `
-      -Uri $legacyUri `
-      -Headers $headers
+    try {
+      return Invoke-LocalRest `
+        -Method Post `
+        -Uri $legacyUri `
+        -Headers $headers
+    } catch {
+      $legacyStatusCode = Get-RestStatusCode -ErrorRecord $_
+      if ($legacyStatusCode -eq 404) {
+        throw "Scenario reset endpoint is not available on $Base. Deploy the current backend code first, then rerun this script."
+      }
+      throw
+    }
   }
 }
 

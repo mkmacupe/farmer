@@ -18,13 +18,11 @@ import com.farm.sales.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import java.time.Instant;
 import java.util.List;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-@ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioService {
   private static final List<String> DEFENSE_FLOW = List.of(
       "Менеджер: выполнить scenario reset и показать, что система загрузила 30 торговых точек и 30 одобренных заказов.",

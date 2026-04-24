@@ -18,7 +18,8 @@ services:
         sync: false
       - key: JWT_SECRET
         generateValue: true
-      # Keep demo/reset users and scenario data off on production.
+      # Keep public demo login and automatic scenario seeding off on production.
+      # Manager-only /api/scenario endpoints stay available in the backend.
       - key: APP_DEMO_ENABLED
         value: "false"
       - key: APP_DEMO_SEED_ON_STARTUP

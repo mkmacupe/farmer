@@ -3,7 +3,6 @@ package com.farm.sales.controller;
 import com.farm.sales.dto.DemoClearOrdersResponse;
 import com.farm.sales.dto.DemoResetResponse;
 import com.farm.sales.service.DemoScenarioService;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -11,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api/scenario")
-@ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoScenarioController {
   // Dedicated endpoint for returning the coursework scenario to a known-good defense state.
   private final DemoScenarioService demoScenarioService;

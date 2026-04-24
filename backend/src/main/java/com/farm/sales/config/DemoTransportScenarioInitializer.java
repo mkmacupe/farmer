@@ -19,13 +19,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 @Component
 @org.springframework.core.annotation.Order(200)
-@ConditionalOnProperty(name = "app.demo.enabled", havingValue = "true")
 public class DemoTransportScenarioInitializer implements CommandLineRunner {
   private static final Logger log = LoggerFactory.getLogger(DemoTransportScenarioInitializer.class);
   private static final List<String> DIRECTOR_USERNAMES = DataInitializer.demoDirectorUsernames();
