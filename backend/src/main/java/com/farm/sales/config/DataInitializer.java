@@ -547,11 +547,11 @@ public class DataInitializer implements CommandLineRunner {
       User secondDirector = directors.get(1);
       User thirdDirector = directors.get(2);
       
-      createUserIfMissing("manager", "Менеджер", "+375290000002", null, Role.MANAGER, seededPassword("manager"));
-      createUserIfMissing("logistician", "Логист", "+375290000003", null, Role.LOGISTICIAN, seededPassword("logistician"));
-      createUserIfMissing("driver1", "Водитель 1", "+375290000005", null, Role.DRIVER, seededPassword("driver1"));
-      createUserIfMissing("driver2", "Водитель 2", "+375290000006", null, Role.DRIVER, seededPassword("driver2"));
-      createUserIfMissing("driver3", "Водитель 3", "+375290000007", null, Role.DRIVER, seededPassword("driver3"));
+      createUserIfMissing("manager", "Мария Кондратьева", "+375290000002", null, Role.MANAGER, seededPassword("manager"));
+      createUserIfMissing("logistician", "Владислав Морозов", "+375290000003", null, Role.LOGISTICIAN, seededPassword("logistician"));
+      createUserIfMissing("driver1", "Олег Романов", "+375290000005", null, Role.DRIVER, seededPassword("driver1"));
+      createUserIfMissing("driver2", "Никита Захаров", "+375290000006", null, Role.DRIVER, seededPassword("driver2"));
+      createUserIfMissing("driver3", "Руслан Киселёв", "+375290000007", null, Role.DRIVER, seededPassword("driver3"));
 
       if (includeDefaultAddresses) {
         createAddressIfMissing(firstDirector, DEFAULT_DIRECTOR_ADDRESS_PROFILES.get(0));

@@ -1,6 +1,7 @@
 @echo off
 setlocal
 chcp 65001 >nul
+rem Root launcher for Windows users. The implementation lives in scripts\scenario-reset.ps1.
 
 set "PS_EXE=powershell"
 where /q pwsh.exe

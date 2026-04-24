@@ -1,0 +1,72 @@
+@startuml
+actor Manager
+actor Director
+actor Logistician
+actor Driver
+
+participant "React SPA" as UI
+participant "AuthController" as Auth
+participant "DemoScenarioController" as Demo
+participant "DirectorProfileController" as Profile
+participant "OrderController" as Order
+participant "ReportController" as Report
+participant "NotificationController" as Notifications
+participant "Spring Services" as Service
+database "PostgreSQL" as DB
+
+Manager -> UI: Login as manager
+UI -> Auth: POST /api/auth/login
+Auth --> UI: JWT
+
+Manager -> UI: Reset training scenario
+UI -> Demo: POST /api/scenario/reset
+Demo -> Service: resetDemoScenario()
+Service -> DB: delete mutable scenario data
+Service -> DB: reseed users/products/addresses/orders
+Demo --> UI: DemoResetResponse
+
+Director -> UI: Login and open addresses
+UI -> Profile: GET /api/director/addresses
+Profile -> DB: load director addresses
+DB --> Profile: addresses
+Profile --> UI: Address list
+
+Director -> UI: Create order
+UI -> Order: POST /api/orders
+Order -> Service: createOrder()
+Service -> DB: insert order + items + stock movement + timeline
+Order --> UI: OrderResponse(CREATED)
+
+Manager -> UI: Approve order
+UI -> Order: POST /api/orders/{id}/approve
+Order -> Service: approveOrder()
+Service -> DB: update order status = APPROVED
+Order --> UI: OrderResponse(APPROVED)
+
+Manager -> UI: Export report
+UI -> Report: GET /api/reports/orders
+Report -> Service: buildOrdersReport()
+Service -> DB: read filtered orders
+Report --> UI: XLSX file
+
+Logistician -> UI: Auto-assign approved orders
+UI -> Order: POST /api/orders/auto-assign/preview
+Order -> Service: previewAutoAssign()
+Service -> DB: load approved orders
+Order --> UI: route plan preview
+
+Logistician -> UI: Confirm route plan
+UI -> Order: POST /api/orders/auto-assign/approve
+Order -> Service: approveAutoAssign()
+Service -> DB: update orders status = ASSIGNED
+Order --> UI: updated assignments
+
+Driver -> UI: Mark delivery complete
+UI -> Order: POST /api/orders/{id}/deliver
+Order -> Service: markDelivered()
+Service -> DB: update order status = DELIVERED
+Order --> UI: OrderResponse(DELIVERED)
+
+Service -> Notifications: publish realtime event
+Notifications -> UI: SSE notification
+@enduml

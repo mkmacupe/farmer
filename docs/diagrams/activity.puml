@@ -1,0 +1,21 @@
+@startuml
+start
+:Manager resets training scenario;
+:Director logs in;
+:Shows profile and addresses;
+:Builds cart from catalog;
+:Creates order (CREATED);
+
+:Manager reviews request;
+if (Approve?) then (yes)
+  :Set status APPROVED;
+  :Generate report/dashboard analytics;
+  :Logistician opens auto-assignment;
+  :Set status ASSIGNED;
+  :Driver performs delivery;
+  :Set status DELIVERED;
+else (no)
+  :Order remains CREATED for rework;
+endif
+stop
+@enduml

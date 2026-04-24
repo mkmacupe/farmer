@@ -33,12 +33,12 @@ Directors:
 - Дарья Данилова, ООО "Яблоневый Двор" — dirdanilova / DanilovaFarm26
 
 Manager:
-- manager / MgrD5v8cN4
+- Мария Кондратьева — manager / MgrD5v8cN4
 
 Logistician:
-- logistician / LogS7q1wE5
+- Владислав Морозов — logistician / LogS7q1wE5
 
 Drivers:
-- driver1 / Drv1A9k2Z6
-- driver2 / Drv2B8m3Y7
-- driver3 / Drv3C7n4X8
+- Олег Романов — driver1 / Drv1A9k2Z6
+- Никита Захаров — driver2 / Drv2B8m3Y7
+- Руслан Киселёв — driver3 / Drv3C7n4X8
