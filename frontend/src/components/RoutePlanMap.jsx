@@ -513,6 +513,20 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
     () => buildVisiblePlanKey(visiblePlan, visibleDriverId, visibleTripNumber),
     [visibleDriverId, visiblePlan, visibleTripNumber]
   );
+  const hasVisibleRoutes = Boolean(visiblePlan?.routes?.length);
+  const mapReady =
+    !hasVisibleRoutes
+    || (
+      baseTilesLoaded
+      && !geometryLoading
+      && viewportReadyKey === visiblePlanKey
+      && pathsVisible
+    );
+  const mapLoadingText = geometryLoading
+    ? 'Прокладываем маршруты между точками'
+    : baseTilesLoaded
+      ? 'Готовим точки и линии маршрута'
+      : 'Загружаем карту';
 
   useLayoutEffect(() => {
     setSelectedStop(null);
@@ -861,6 +875,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
           ref={containerRef}
           aria-label="Карта автопостроенных маршрутов"
           aria-describedby="route-plan-map-description"
+          aria-busy={!mapReady}
           sx={{
             width: '100%',
             height: { xs: 280, md: 360 },
@@ -868,10 +883,12 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
             border: '1px solid',
             borderColor: 'divider',
             overflow: 'hidden',
-            bgcolor: 'background.default'
+            bgcolor: 'background.default',
+            opacity: mapReady ? 1 : 0,
+            transition: 'opacity 160ms ease'
           }}
         />
-        {geometryLoading ? (
+        {!mapReady ? (
           <Box
             sx={{
               position: 'absolute',
@@ -883,8 +900,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
               borderRadius: 2,
               border: '1px solid',
               borderColor: 'divider',
-              bgcolor: 'rgba(248,250,252,0.96)',
-              backdropFilter: 'blur(2px)'
+              bgcolor: 'background.paper'
             }}
           >
             <Box
@@ -899,7 +915,7 @@ function RoutePlanMap({ plan, token, visibleDriverId = 'all', visibleTripNumber 
             >
               <CircularProgress size={28} />
               <Box component="span" sx={{ fontSize: 13, lineHeight: 1.45 }}>
-                Прокладываем маршруты между точками
+                {mapLoadingText}
               </Box>
             </Box>
           </Box>

@@ -112,10 +112,18 @@ function buildCatalogSyncErrorMessage(result, mode = "cart") {
     return "";
   }
 
-  const prefix =
-    mode === "repeat"
-      ? "Каталог обновился, состав повторяемого заказа изменился."
-      : "Корзина обновлена по актуальному каталогу.";
+  if (mode === "repeat") {
+    const details = [];
+    if (unavailableSummary) {
+      details.push(`Сейчас нельзя заказать: ${unavailableSummary}.`);
+    }
+    if (adjustedSummary) {
+      details.push(`На складе меньше, чем было в старом заказе: ${adjustedSummary}.`);
+    }
+    return `Повторный заказ не создан. ${details.join(" ")} Откройте «Каталог», выберите доступное количество и оформите заказ заново.`.trim();
+  }
+
+  const prefix = "Корзина обновлена по актуальному каталогу.";
   const details = [];
   if (unavailableSummary) {
     details.push(`Недоступны: ${unavailableSummary}.`);
