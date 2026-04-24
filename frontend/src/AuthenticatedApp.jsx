@@ -9,11 +9,12 @@ import Header from "./components/Header.jsx";
 import Sidebar from "./components/Sidebar.jsx";
 import BottomNav from "./components/BottomNav.jsx";
 import themeMinimal from "./themeMinimal.js";
+import { VIEW_LOADERS } from "./viewLoaders.js";
 
-const DirectorView = lazy(() => import("./views/DirectorView.jsx"));
-const LogisticianView = lazy(() => import("./views/LogisticianView.jsx"));
-const DriverView = lazy(() => import("./views/DriverView.jsx"));
-const ManagerView = lazy(() => import("./views/ManagerView.jsx"));
+const DirectorView = lazy(VIEW_LOADERS.DIRECTOR);
+const LogisticianView = lazy(VIEW_LOADERS.LOGISTICIAN);
+const DriverView = lazy(VIEW_LOADERS.DRIVER);
+const ManagerView = lazy(VIEW_LOADERS.MANAGER);
 
 const VIEW_BY_ROLE = {
   DIRECTOR: DirectorView,

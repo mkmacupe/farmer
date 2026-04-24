@@ -15,7 +15,7 @@ export function buildProductImageCandidates({ src }) {
   const resolvedSrc = typeof src === "string" ? src.trim() : "";
 
   if (generatedUrl && resolvedSrc && generatedUrl !== resolvedSrc) {
-    return [generatedUrl, resolvedSrc];
+    return [resolvedSrc, generatedUrl];
   }
   if (generatedUrl) {
     return [generatedUrl];

@@ -15,8 +15,9 @@ import {
 import { clearAuth, loadAuth, saveAuth } from "./authStorage.js";
 import LoginForm from "./components/LoginForm.jsx";
 import { NAV_ITEMS } from "./components/navigationData.js";
+import { loadAuthenticatedApp, preloadRoleView } from "./viewLoaders.js";
 
-const AuthenticatedApp = lazy(() => import("./AuthenticatedApp.jsx"));
+const AuthenticatedApp = lazy(loadAuthenticatedApp);
 
 const DEFAULT_SECTION_BY_ROLE = {
   DIRECTOR: "director-profile",
@@ -94,6 +95,8 @@ export default function App() {
     if (auth) {
       saveAuth(auth);
       resetAuthExpiredSignal();
+      void loadAuthenticatedApp();
+      void preloadRoleView(auth.role);
     }
   }, [auth]);
 
@@ -178,8 +181,10 @@ export default function App() {
   const handleLogin = useCallback(async (username, password) => {
     setLoading(true);
     setError("");
+    void loadAuthenticatedApp();
     try {
       const response = await login(username, password);
+      void preloadRoleView(response.role);
       applyAuthResponse(response);
     } catch (err) {
       setError(err.message || "Не удалось войти");
