@@ -6,7 +6,6 @@
 # Node
 /frontend/node_modules/
 /frontend/dist/
-/frontend/coverage/
 /frontend/.env.local
 /output/
 /tmp/
@@ -14,7 +13,6 @@
 # IDE
 .idea/
 .vscode/
-/.playwright-cli/
 /backend/.classpath
 /backend/.project
 /backend/.settings/
