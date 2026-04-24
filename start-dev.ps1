@@ -1,5 +1,5 @@
 param(
-  [int]$PostgresPort = 5432,
+  [int]$PostgresPort = 5433,
   [int]$ApiPort = 8080,
   [int]$FrontendPort = 5173,
   [string]$FrontendHost = "127.0.0.1",
