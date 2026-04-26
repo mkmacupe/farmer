@@ -890,6 +890,9 @@ export default function ManagerView({ token, activeSection }) {
     if (!newDirector.username || !newDirector.password) {
       return showMessage("Заполните обязательные поля", "error");
     }
+    if (newDirector.password.length < 8) {
+      return showMessage("Пароль должен содержать минимум 8 символов", "error");
+    }
     setActionLoading(true);
     try {
       await createDirectorUser(token, newDirector);
@@ -1928,6 +1931,11 @@ export default function ManagerView({ token, activeSection }) {
                     label="Логин"
                     fullWidth
                     size="small"
+                    autoComplete="off"
+                    inputProps={{
+                      autoCapitalize: "none",
+                      spellCheck: false,
+                    }}
                     value={newDirector.username}
                     onChange={(e) =>
                       setNewDirector({
@@ -1941,6 +1949,7 @@ export default function ManagerView({ token, activeSection }) {
                     type="password"
                     fullWidth
                     size="small"
+                    autoComplete="new-password"
                     value={newDirector.password}
                     onChange={(e) =>
                       setNewDirector({

@@ -43,13 +43,15 @@ function LoginForm({ onLogin, loading, error, loadingMessage }) {
             </div>
           ) : null}
 
-          <form className="login-form" onSubmit={submit}>
+          <form className="login-form" autoComplete="off" onSubmit={submit}>
             <label htmlFor="login-username">Логин</label>
             <input
               id="login-username"
               name="username"
               type="text"
-              autoComplete="username"
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
               value={username}
               onChange={(event) => setUsername(event.target.value)}
               autoFocus
@@ -61,7 +63,7 @@ function LoginForm({ onLogin, loading, error, loadingMessage }) {
               id="login-password"
               name="password"
               type="password"
-              autoComplete="current-password"
+              autoComplete="off"
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               required
