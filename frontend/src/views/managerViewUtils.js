@@ -28,6 +28,37 @@ export function formatLocalDateValue(value) {
   return `${year}-${month}-${day}`;
 }
 
+export function reportDateToApiValue(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch;
+    return isValidDateParts(year, month, day) ? raw : undefined;
+  }
+
+  const displayMatch = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!displayMatch) {
+    return undefined;
+  }
+
+  const [, day, month, year] = displayMatch;
+  if (!isValidDateParts(year, month, day)) {
+    return undefined;
+  }
+  return `${year}-${month}-${day}`;
+}
+
+export function normalizeReportDateDisplay(value) {
+  const apiValue = reportDateToApiValue(value);
+  if (!apiValue) {
+    return "";
+  }
+  const [year, month, day] = apiValue.split("-");
+  return `${day}/${month}/${year}`;
+}
+
 export function todayDateValue() {
   return formatLocalDateValue(new Date());
 }
@@ -50,6 +81,28 @@ export function formatDateTime(value) {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) return "";
   return parsed.toLocaleString("ru-RU");
+}
+
+function isValidDateParts(year, month, day) {
+  const numericYear = Number(year);
+  const numericMonth = Number(month);
+  const numericDay = Number(day);
+  if (
+    !Number.isInteger(numericYear)
+    || !Number.isInteger(numericMonth)
+    || !Number.isInteger(numericDay)
+    || numericMonth < 1
+    || numericMonth > 12
+    || numericDay < 1
+    || numericDay > 31
+  ) {
+    return false;
+  }
+
+  const parsed = new Date(numericYear, numericMonth - 1, numericDay);
+  return parsed.getFullYear() === numericYear
+    && parsed.getMonth() === numericMonth - 1
+    && parsed.getDate() === numericDay;
 }
 
 export function generateProductPhotoUrl() {

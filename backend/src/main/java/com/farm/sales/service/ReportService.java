@@ -39,10 +39,10 @@ public class ReportService {
   private static final int FILTER_ROW_INDEX = 1;
   private static final int HEADER_ROW_INDEX = 3;
   private static final int DATA_START_ROW_INDEX = 4;
-  private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+  private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
       .withLocale(Locale.US)
       .withZone(ZoneOffset.UTC);
-  private static final DateTimeFormatter FILTER_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd.MM.yyyy")
+  private static final DateTimeFormatter FILTER_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy")
       .withLocale(Locale.forLanguageTag("ru-RU"))
       .withZone(ZoneOffset.UTC);
   private final OrderRepository orderRepository;
@@ -272,11 +272,11 @@ public class ReportService {
 
     CellStyle dateStyle = workbook.createCellStyle();
     dateStyle.cloneStyleFrom(bodyStyle);
-    dateStyle.setDataFormat(dataFormat.getFormat("yyyy-mm-dd hh:mm"));
+    dateStyle.setDataFormat(dataFormat.getFormat("dd/mm/yyyy hh:mm"));
 
     CellStyle dateAltStyle = workbook.createCellStyle();
     dateAltStyle.cloneStyleFrom(bodyAltStyle);
-    dateAltStyle.setDataFormat(dataFormat.getFormat("yyyy-mm-dd hh:mm"));
+    dateAltStyle.setDataFormat(dataFormat.getFormat("dd/mm/yyyy hh:mm"));
 
     CellStyle currencyStyle = workbook.createCellStyle();
     currencyStyle.cloneStyleFrom(bodyStyle);

@@ -109,7 +109,9 @@ import {
   isMethodNotAllowedError,
   orderTimestamp,
   parseDateInput,
+  normalizeReportDateDisplay,
   reportStatusLabel,
+  reportDateToApiValue,
   startOfDay,
   statusLabel,
   todayDateValue,
@@ -907,12 +909,19 @@ export default function ManagerView({ token, activeSection }) {
   };
 
   const handleDownloadReport = async () => {
+    const from = reportDateToApiValue(reportFrom);
+    const to = reportDateToApiValue(reportTo);
+    if (from === undefined || to === undefined) {
+      showMessage("Введите дату в формате dd/mm/yyyy", "error");
+      return;
+    }
+
     setActionLoading(true);
     let url = null;
     try {
       const blob = await downloadOrdersReport(token, {
-        from: reportFrom || null,
-        to: reportTo || null,
+        from,
+        to,
         status: reportStatus === REPORT_STATUS_ALL ? null : reportStatus,
       });
       url = URL.createObjectURL(blob);
@@ -2061,21 +2070,25 @@ export default function ManagerView({ token, activeSection }) {
                 <Grid size={{ xs: 6 }}>
                   <TextField
                     label="Период с"
-                    type="date"
+                    placeholder="dd/mm/yyyy"
                     fullWidth
                     InputLabelProps={{ shrink: true }}
+                    inputProps={{ inputMode: "numeric", maxLength: 10 }}
                     value={reportFrom}
                     onChange={(e) => setReportFrom(e.target.value)}
+                    onBlur={() => setReportFrom((value) => normalizeReportDateDisplay(value) || value)}
                   />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
                   <TextField
                     label="Период по"
-                    type="date"
+                    placeholder="dd/mm/yyyy"
                     fullWidth
                     InputLabelProps={{ shrink: true }}
+                    inputProps={{ inputMode: "numeric", maxLength: 10 }}
                     value={reportTo}
                     onChange={(e) => setReportTo(e.target.value)}
+                    onBlur={() => setReportTo((value) => normalizeReportDateDisplay(value) || value)}
                   />
                 </Grid>
               </Grid>
