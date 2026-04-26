@@ -50,6 +50,17 @@ export function reportDateToApiValue(value) {
   return `${year}-${month}-${day}`;
 }
 
+export function formatReportDateTyping(value) {
+  const digits = String(value || "").replace(/\D/g, "").slice(0, 8);
+  if (digits.length <= 2) {
+    return digits;
+  }
+  if (digits.length <= 4) {
+    return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+  }
+  return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
 export function normalizeReportDateDisplay(value) {
   const apiValue = reportDateToApiValue(value);
   if (!apiValue) {

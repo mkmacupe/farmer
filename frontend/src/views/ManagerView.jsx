@@ -109,6 +109,7 @@ import {
   isMethodNotAllowedError,
   orderTimestamp,
   parseDateInput,
+  formatReportDateTyping,
   normalizeReportDateDisplay,
   reportStatusLabel,
   reportDateToApiValue,
@@ -2075,7 +2076,7 @@ export default function ManagerView({ token, activeSection }) {
                     InputLabelProps={{ shrink: true }}
                     inputProps={{ inputMode: "numeric", maxLength: 10 }}
                     value={reportFrom}
-                    onChange={(e) => setReportFrom(e.target.value)}
+                    onChange={(e) => setReportFrom(formatReportDateTyping(e.target.value))}
                     onBlur={() => setReportFrom((value) => normalizeReportDateDisplay(value) || value)}
                   />
                 </Grid>
@@ -2087,7 +2088,7 @@ export default function ManagerView({ token, activeSection }) {
                     InputLabelProps={{ shrink: true }}
                     inputProps={{ inputMode: "numeric", maxLength: 10 }}
                     value={reportTo}
-                    onChange={(e) => setReportTo(e.target.value)}
+                    onChange={(e) => setReportTo(formatReportDateTyping(e.target.value))}
                     onBlur={() => setReportTo((value) => normalizeReportDateDisplay(value) || value)}
                   />
                 </Grid>

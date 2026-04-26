@@ -5,7 +5,7 @@ import com.farm.sales.repository.OrderRepository;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.Instant;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -39,12 +39,17 @@ public class ReportService {
   private static final int FILTER_ROW_INDEX = 1;
   private static final int HEADER_ROW_INDEX = 3;
   private static final int DATA_START_ROW_INDEX = 4;
+  private static final ZoneId REPORT_ZONE = ZoneId.of("Europe/Minsk");
+  private static final String REPORT_ZONE_LABEL = "GMT+3";
+  private static final int ADDRESS_CHARS_PER_LINE = 46;
+  private static final float DATA_ROW_LINE_HEIGHT_POINTS = 18f;
+  private static final float MIN_DATA_ROW_HEIGHT_POINTS = 42f;
   private static final DateTimeFormatter REPORT_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm")
       .withLocale(Locale.US)
-      .withZone(ZoneOffset.UTC);
+      .withZone(REPORT_ZONE);
   private static final DateTimeFormatter FILTER_DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy")
       .withLocale(Locale.forLanguageTag("ru-RU"))
-      .withZone(ZoneOffset.UTC);
+      .withZone(REPORT_ZONE);
   private final OrderRepository orderRepository;
 
   private record ReportStyles(
@@ -176,7 +181,7 @@ public class ReportService {
         + " | Статус: " + statusLabel
         + " | Строк: " + rowsCount
         + " | Сумма: " + totalAmountLabel
-        + " | Сформирован: " + generatedAtLabel + " UTC";
+        + " | Сформирован: " + generatedAtLabel + " " + REPORT_ZONE_LABEL;
   }
 
   private void createOrderRow(Row row, int rowIndex, OrderRepository.ReportRow order, ReportStyles styles) {
@@ -186,7 +191,8 @@ public class ReportService {
     CellStyle currencyStyle = alternate ? styles.currencyAlt() : styles.currency();
     CellStyle numberStyle = alternate ? styles.numberAlt() : styles.number();
 
-    row.setHeightInPoints(22);
+    String deliveryAddressText = order.getDeliveryAddressText() == null ? "-" : order.getDeliveryAddressText();
+    row.setHeightInPoints(calculateDataRowHeight(deliveryAddressText));
 
     Cell idCell = row.createCell(0);
     idCell.setCellValue(order.getOrderId() == null ? 0 : order.getOrderId());
@@ -213,12 +219,21 @@ public class ReportService {
     itemCountCell.setCellStyle(numberStyle);
 
     Cell addressCell = row.createCell(6);
-    addressCell.setCellValue(order.getDeliveryAddressText() == null ? "-" : order.getDeliveryAddressText());
+    addressCell.setCellValue(deliveryAddressText);
     addressCell.setCellStyle(bodyStyle);
 
     Cell driverCell = row.createCell(7);
     driverCell.setCellValue(order.getDriverName() == null ? "-" : order.getDriverName());
     driverCell.setCellStyle(bodyStyle);
+  }
+
+  private float calculateDataRowHeight(String deliveryAddressText) {
+    int addressLines = 0;
+    String[] lines = String.valueOf(deliveryAddressText == null ? "" : deliveryAddressText).split("\\R", -1);
+    for (String line : lines) {
+      addressLines += Math.max(1, (line.length() + ADDRESS_CHARS_PER_LINE - 1) / ADDRESS_CHARS_PER_LINE);
+    }
+    return Math.max(MIN_DATA_ROW_HEIGHT_POINTS, addressLines * DATA_ROW_LINE_HEIGHT_POINTS);
   }
 
   private ReportStyles createStyles(SXSSFWorkbook workbook) {
