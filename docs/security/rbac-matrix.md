@@ -1,6 +1,6 @@
 # RBAC Matrix
 
-Матрица ниже отражает фактические правила из `SecurityConfig` и conditional demo-controller'ов.
+Матрица ниже отражает фактические правила из `SecurityConfig` и conditional demo-login controller.
 
 | Endpoint | DIRECTOR | MANAGER | LOGISTICIAN | DRIVER | ANONYMOUS |
 |---|---:|---:|---:|---:|---:|
@@ -45,8 +45,8 @@
 | `GET /api/stock-movements` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/reports/orders` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/audit/logs` | ❌ | ✅ | ❌ | ❌ | ❌ |
-| `POST /api/scenario/reset` | ❌ | ✅† | ❌ | ❌ | ❌ |
-| `POST /api/scenario/clear-orders` | ❌ | ✅† | ❌ | ❌ | ❌ |
+| `POST /api/scenario/reset` | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `POST /api/scenario/clear-orders` | ❌ | ✅ | ❌ | ❌ | ❌ |
 | `GET /api/notifications/stream` | ✅ | ✅ | ✅ | ✅ | ❌ |
 | `GET /actuator/health` | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `GET /actuator/health/readiness` | ✅ | ✅ | ✅ | ✅ | ✅ |
@@ -60,4 +60,5 @@
 - `DIRECTOR` может видеть timeline только своих заказов.
 - `DRIVER` может видеть timeline только заказов, назначенных на него.
 - Права RBAC дополняются бизнес-валидацией статусов, ownership и ограничениями переходов состояний.
-- `POST /api/auth/seed-login`, `POST /api/scenario/reset` и `POST /api/scenario/clear-orders` доступны только при `app.demo.enabled=true`; когда demo-режим выключен, эти controller'ы не регистрируются и endpoint'ы возвращают `404`.
+- `POST /api/auth/seed-login` доступен только при `app.demo.enabled=true`; когда demo-режим выключен, этот controller не регистрируется и endpoint возвращает `404`.
+- `POST /api/scenario/reset` и `POST /api/scenario/clear-orders` зарегистрированы всегда, но доступны только роли `MANAGER`.

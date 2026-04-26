@@ -9,7 +9,7 @@ public record CreateDirectorRequest(
     @Size(min = 4, max = 50, message = "Логин должен содержать от 4 до 50 символов")
     String username,
     @NotBlank(message = "Пароль обязателен")
-    @Size(min = 1, max = 120, message = "Пароль должен содержать от 1 до 120 символов")
+    @Size(min = 8, max = 120, message = "Пароль должен содержать от 8 до 120 символов")
     String password,
     @NotBlank(message = "ФИО обязательно")
     @Size(min = 3, max = 120, message = "ФИО должно содержать от 3 до 120 символов")
